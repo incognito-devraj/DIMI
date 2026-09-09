@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
 
 import '../data/database.dart';
 import '../providers/task_providers.dart';
@@ -13,20 +14,29 @@ Future<void> showAddTaskSheet(
   BuildContext context, {
   DateTime? initialDate,
   Task? existingTask,
+  bool plannerEntry = false,
 }) async {
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) =>
-        _AddTaskSheet(initialDate: initialDate, existingTask: existingTask),
+    builder: (_) => _AddTaskSheet(
+      initialDate: initialDate,
+      existingTask: existingTask,
+      plannerEntry: plannerEntry,
+    ),
   );
 }
 
 class _AddTaskSheet extends ConsumerStatefulWidget {
-  const _AddTaskSheet({this.initialDate, this.existingTask});
+  const _AddTaskSheet({
+    this.initialDate,
+    this.existingTask,
+    this.plannerEntry = false,
+  });
   final DateTime? initialDate;
   final Task? existingTask;
+  final bool plannerEntry;
 
   @override
   ConsumerState<_AddTaskSheet> createState() => _AddTaskSheetState();
@@ -151,6 +161,9 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
           isCompleted: Value(widget.existingTask!.isCompleted),
           completedAt: Value(widget.existingTask!.completedAt),
           createdAt: Value(widget.existingTask!.createdAt),
+          isPlannerEntry: Value(widget.existingTask!.isPlannerEntry),
+          plannedMinutes: Value(widget.existingTask!.plannedMinutes),
+          completedMinutes: Value(widget.existingTask!.completedMinutes),
         ),
       );
     } else {
@@ -165,6 +178,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
           dueTime: Value(_timeStr()),
           reminderMinutesBefore: Value(_reminderMinutes),
           isCompleted: const Value(false),
+          isPlannerEntry: Value(widget.plannerEntry),
           createdAt: Value(DateTime.now()),
         ),
       );
@@ -247,12 +261,19 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                       controller: _titleCtrl,
                       autofocus: !_isEditing,
                       textCapitalization: TextCapitalization.sentences,
+                      maxLength: 60,
+                      inputFormatters: [LengthLimitingTextInputFormatter(60)],
                       decoration: const InputDecoration(
                         hintText: 'e.g. DBMS Assignment',
                       ),
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Title is required'
-                          : null,
+                      validator: (v) {
+                        final value = v?.trim() ?? '';
+                        if (value.isEmpty) return 'Title is required';
+                        if (value.split(RegExp(r'\s+')).length > 10) {
+                          return 'Keep it to 10 words or fewer';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 14),
                     _FieldLabel('Description (optional)'),
@@ -260,10 +281,20 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                     TextFormField(
                       controller: _descCtrl,
                       maxLines: 2,
+                      maxLength: 120,
+                      inputFormatters: [LengthLimitingTextInputFormatter(120)],
                       textCapitalization: TextCapitalization.sentences,
                       decoration: const InputDecoration(
                         hintText: 'Add details…',
                       ),
+                      validator: (v) {
+                        final value = v?.trim() ?? '';
+                        if (value.isNotEmpty &&
+                            value.split(RegExp(r'\s+')).length > 20) {
+                          return 'Keep the note to 20 words or fewer';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 14),
                     Row(

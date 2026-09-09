@@ -24,32 +24,47 @@ class PillSegmentedControl extends StatelessWidget {
         color: AppColors.accentSoft,
         borderRadius: BorderRadius.circular(30),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: List.generate(options.length, (i) {
-          final isActive = i == selected;
-          return GestureDetector(
-            onTap: () => onSelected(i),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-              decoration: BoxDecoration(
-                color: isActive ? AppColors.surfaceDark : Colors.transparent,
-                borderRadius: BorderRadius.circular(26),
-              ),
-              child: Text(
-                options[i],
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 12,
-                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                  color: isActive ? AppColors.surface : AppColors.textSecondary,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final bounded = constraints.hasBoundedWidth;
+          final children = List.generate(options.length, (i) {
+            final isActive = i == selected;
+            final segment = GestureDetector(
+              onTap: () => onSelected(i),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                padding: EdgeInsets.symmetric(
+                  horizontal: bounded ? 8 : 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: isActive ? AppColors.surfaceDark : Colors.transparent,
+                  borderRadius: BorderRadius.circular(26),
+                ),
+                child: Center(
+                  child: Text(
+                    options[i],
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 14,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                      color: isActive
+                          ? AppColors.surface
+                          : AppColors.textSecondary,
+                    ),
+                  ),
                 ),
               ),
-            ),
+            );
+            return bounded ? Expanded(child: segment) : segment;
+          });
+
+          return Row(
+            mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+            children: children,
           );
-        }),
+        },
       ),
     );
   }

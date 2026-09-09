@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -18,23 +21,9 @@ class NotificationService {
 
   // ── Android notification channel ─────────────────────────────────────────
 
-  static const _channelId = 'dimi_reminders';
-  static const _channelName = 'Reminders';
+  static const _channelPrefix = 'dimi_reminders';
   static const _channelDesc = 'DIMI reminder notifications';
-
-  static const AndroidNotificationDetails _androidDetails =
-      AndroidNotificationDetails(
-        _channelId,
-        _channelName,
-        channelDescription: _channelDesc,
-        importance: Importance.high,
-        priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
-      );
-
-  static const NotificationDetails _notifDetails = NotificationDetails(
-    android: _androidDetails,
-  );
+  static const _soundKeyPrefix = 'dimi_reminder_sound_';
 
   // ── Init ─────────────────────────────────────────────────────────────────
 
@@ -45,7 +34,10 @@ class NotificationService {
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const initSettings = InitializationSettings(android: androidInit);
 
-    await _plugin.initialize(initSettings);
+    await _plugin.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: _onNotificationResponse,
+    );
 
     // Request POST_NOTIFICATIONS permission on Android 13+.
     final androidPlugin = _plugin
@@ -55,10 +47,24 @@ class NotificationService {
     if (androidPlugin != null) {
       await androidPlugin.requestNotificationsPermission();
       await androidPlugin.requestExactAlarmsPermission();
+      await androidPlugin.requestFullScreenIntentPermission();
     }
 
     _ready = true;
     if (kDebugMode) debugPrint('[NotificationService] initialised');
+  }
+
+  /// Re-opens Android's notification, exact-alarm, and full-screen permission
+  /// prompts from Settings when the user previously dismissed one.
+  Future<void> requestPermissions() async {
+    final androidPlugin = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (androidPlugin == null) return;
+    await androidPlugin.requestNotificationsPermission();
+    await androidPlugin.requestExactAlarmsPermission();
+    await androidPlugin.requestFullScreenIntentPermission();
   }
 
   // ── Schedule ─────────────────────────────────────────────────────────────
@@ -69,17 +75,12 @@ class NotificationService {
     if (!_ready || !reminder.isEnabled) return;
     if (reminder.dueAt.isBefore(DateTime.now())) return;
 
-    final scheduled = tz.TZDateTime.from(reminder.dueAt, tz.local);
-
-    await _plugin.zonedSchedule(
+    final sound = await _soundForReminder(reminder.id);
+    await _schedule(
       reminder.id,
-      'DIMI Reminder',
       reminder.title,
-      scheduled,
-      _notifDetails,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
+      tz.TZDateTime.from(reminder.dueAt, tz.local),
+      sound,
     );
 
     if (kDebugMode) {
@@ -88,6 +89,87 @@ class NotificationService {
         '"${reminder.title}" at ${reminder.dueAt}',
       );
     }
+  }
+
+  Future<void> _schedule(
+    int id,
+    String title,
+    tz.TZDateTime scheduled,
+    String sound,
+  ) async {
+    await _plugin.zonedSchedule(
+      id,
+      'DIMI Reminder',
+      title,
+      scheduled,
+      NotificationDetails(android: _androidDetails(sound)),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      payload: jsonEncode({'title': title, 'sound': sound}),
+    );
+  }
+
+  AndroidNotificationDetails _androidDetails(String sound) {
+    final channelId = '${_channelPrefix}_$sound';
+    final channelName = switch (sound) {
+      'ringtone' => 'Reminders · Phone ringtone',
+      'alarm' => 'Reminders · Alarm tone',
+      _ => 'Reminders · Default sound',
+    };
+    final soundUri = switch (sound) {
+      'ringtone' => const UriAndroidNotificationSound(
+          'content://settings/system/ringtone',
+        ),
+      'alarm' => const UriAndroidNotificationSound(
+          'content://settings/system/alarm_alert',
+        ),
+      _ => null,
+    };
+
+    return AndroidNotificationDetails(
+      channelId,
+      channelName,
+      channelDescription: _channelDesc,
+      importance: Importance.max,
+      priority: Priority.max,
+      icon: '@mipmap/ic_launcher',
+      sound: soundUri,
+      category: AndroidNotificationCategory.alarm,
+      fullScreenIntent: true,
+      actions: [
+        const AndroidNotificationAction(
+          'snooze_5',
+          'Snooze 5 min',
+          showsUserInterface: false,
+        ),
+      ],
+    );
+  }
+
+  Future<String> _soundForReminder(int id) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('$_soundKeyPrefix$id') ?? 'default';
+  }
+
+  Future<void> setReminderSound(int id, String sound) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_soundKeyPrefix$id', sound);
+  }
+
+  Future<void> _onNotificationResponse(NotificationResponse response) async {
+    if (response.actionId != 'snooze_5' || response.id == null) return;
+
+    final data = response.payload == null
+        ? const <String, dynamic>{}
+        : jsonDecode(response.payload!) as Map<String, dynamic>;
+    await _plugin.cancel(response.id!);
+    await _schedule(
+      response.id!,
+      data['title'] as String? ?? 'Reminder',
+      tz.TZDateTime.now(tz.local).add(const Duration(minutes: 5)),
+      data['sound'] as String? ?? 'default',
+    );
   }
 
   // ── Cancel ────────────────────────────────────────────────────────────────

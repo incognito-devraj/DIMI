@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../data/database.dart';
 import '../../providers/task_providers.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/time_format.dart';
 import '../../widgets/dimi_progress_bar.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/pill_segmented_control.dart';
@@ -303,7 +304,7 @@ class _TaskCard extends ConsumerWidget {
 
   String _formatDue(Task task) {
     final date = DateFormat('d MMM').format(task.dueDate);
-    final time = task.dueTime ?? '';
+    final time = task.dueTime == null ? '' : formatTime12Hour(task.dueTime);
     return time.isNotEmpty ? '$date · $time' : date;
   }
 
