@@ -1,0 +1,57 @@
+name: dimi_app
+description: "DIMI — Plan · Track · Improve. A local-first student productivity app."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Local database
+  drift: ^2.23.1
+  sqlite3_flutter_libs: ^0.5.28
+  path_provider: ^2.1.5
+  path: ^1.9.1
+
+  # State management
+  flutter_riverpod: ^2.6.1
+
+  # Navigation
+  go_router: ^14.8.1
+
+  # Utilities
+  intl: ^0.20.2
+  google_fonts: ^6.2.1
+
+  # Charts
+  fl_chart: ^0.70.2
+
+  # Onboarding flag (SharedPreferences is acceptable for tiny UI-only flags per tech.md)
+  shared_preferences: ^2.3.3
+
+  # Local notifications for Reminders
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+  # Drift code generation
+  drift_dev: ^2.23.1
+  build_runner: ^2.4.15
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/screens/
+    - assets/style-guide.md
+    - assets/profile/devraj.png
