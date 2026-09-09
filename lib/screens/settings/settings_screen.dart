@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/profile_providers.dart';
 import '../../routing/app_router.dart';
 import '../../screens/onboarding/onboarding_screen.dart';
+import '../../services/notification_service.dart';
 import '../../theme/app_theme.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -106,16 +107,27 @@ class SettingsScreen extends ConsumerWidget {
                   items: [
                     _SettingsItem(
                       icon: Icons.notifications_outlined,
-                      label: 'Push notifications',
+                      label: 'Reminder notifications',
                       trailing: const Text(
-                        'Coming soon',
+                        'Manage',
                         style: TextStyle(
                           fontFamily: 'Poppins',
                           fontSize: 12,
                           color: AppColors.textSecondary,
                         ),
                       ),
-                      onTap: () => _showComingSoon(context),
+                      onTap: () async {
+                        await NotificationService.instance.requestPermissions();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Notification permissions requested',
+                              ),
+                            ),
+                          );
+                        }
+                      },
                     ),
                   ],
                 ),

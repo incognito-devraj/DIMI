@@ -13,25 +13,52 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
 
   /// All tasks, newest first.
   Stream<List<Task>> watchAllTasks() =>
-      (select(tasks)..orderBy([(t) => OrderingTerm.desc(t.createdAt)])).watch();
+      (select(tasks)
+            ..where((t) => t.isPlannerEntry.equals(false))
+            ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
+          .watch();
+
+  Stream<List<Task>> watchAllPlannerEntries() =>
+      (select(tasks)
+            ..where((t) => t.isPlannerEntry.equals(true))
+            ..orderBy([(t) => OrderingTerm.asc(t.dueDate)]))
+          .watch();
 
   /// Tasks whose dueDate falls on [date].
   Stream<List<Task>> watchTasksForDate(DateTime date) {
     final start = DateTime(date.year, date.month, date.day);
     final end = start.add(const Duration(days: 1));
     return (select(tasks)
-          ..where((t) => t.dueDate.isBetweenValues(start, end))
+          ..where(
+            (t) =>
+                t.dueDate.isBetweenValues(start, end) &
+                t.isPlannerEntry.equals(true),
+          )
           ..orderBy([(t) => OrderingTerm.asc(t.dueDate)]))
         .watch();
   }
 
   /// Tasks due today (convenience wrapper).
-  Stream<List<Task>> watchTodaysTasks() => watchTasksForDate(DateTime.now());
+  Stream<List<Task>> watchTodaysTasks() =>
+      (select(tasks)
+            ..where(
+              (t) =>
+                  t.dueDate.isBetweenValues(
+                    DateTime.now(),
+                    DateTime.now().add(const Duration(days: 1)),
+                  ) &
+                  t.isPlannerEntry.equals(false),
+            )
+            ..orderBy([(t) => OrderingTerm.asc(t.dueDate)]))
+          .watch();
 
   /// Completed tasks only.
   Stream<List<Task>> watchCompletedTasks() =>
       (select(tasks)
-            ..where((t) => t.isCompleted.equals(true))
+            ..where(
+              (t) =>
+                  t.isCompleted.equals(true) & t.isPlannerEntry.equals(false),
+            )
             ..orderBy([(t) => OrderingTerm.desc(t.dueDate)]))
           .watch();
 
@@ -43,6 +70,7 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
           ..where(
             (t) =>
                 t.isCompleted.equals(false) &
+                t.isPlannerEntry.equals(false) &
                 t.dueDate.isBiggerOrEqualValue(start),
           )
           ..orderBy([(t) => OrderingTerm.asc(t.dueDate)]))
@@ -71,7 +99,11 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
     final start = DateTime(monday.year, monday.month, monday.day);
     final end = start.add(const Duration(days: 7));
     return (select(tasks)
-          ..where((t) => t.dueDate.isBetweenValues(start, end))
+          ..where(
+            (t) =>
+                t.dueDate.isBetweenValues(start, end) &
+                t.isPlannerEntry.equals(true),
+          )
           ..orderBy([
             (t) => OrderingTerm.asc(t.dueDate),
             (t) => OrderingTerm.asc(t.createdAt),

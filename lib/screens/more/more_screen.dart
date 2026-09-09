@@ -9,9 +9,9 @@ class MoreScreen extends StatelessWidget {
 
   static const _sections = [
     _MoreItem(
-      label: 'Money',
+      label: 'Expense',
       icon: Icons.account_balance_wallet_outlined,
-      route: '/money',
+      route: '/expense',
       color: AppColors.danger,
     ),
     _MoreItem(

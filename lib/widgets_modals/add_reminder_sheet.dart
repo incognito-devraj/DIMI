@@ -34,6 +34,13 @@ class _AddReminderSheetState extends ConsumerState<_AddReminderSheet> {
     DateTime.now().add(const Duration(hours: 1)),
   );
   bool _saving = false;
+  String _sound = 'default';
+
+  static const _soundOptions = {
+    'default': 'Default phone notification',
+    'ringtone': 'Phone ringtone',
+    'alarm': 'Alarm tone',
+  };
 
   @override
   void dispose() {
@@ -96,6 +103,8 @@ class _AddReminderSheetState extends ConsumerState<_AddReminderSheet> {
             isEnabled: const Value(true),
           ),
         );
+
+    await NotificationService.instance.setReminderSound(id, _sound);
 
     final reminder = await ref.read(reminderDaoProvider).getById(id);
     if (reminder != null) {
@@ -220,6 +229,26 @@ class _AddReminderSheetState extends ConsumerState<_AddReminderSheet> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 28),
+                    _FieldLabel('Notification sound'),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      initialValue: _sound,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.music_note_outlined),
+                      ),
+                      items: _soundOptions.entries
+                          .map(
+                            (entry) => DropdownMenuItem<String>(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) setState(() => _sound = value);
+                      },
                     ),
                     const SizedBox(height: 28),
                     SizedBox(

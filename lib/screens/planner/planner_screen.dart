@@ -6,8 +6,10 @@ import '../../data/database.dart';
 import '../../providers/task_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/dimi_add_action_button.dart';
 import '../../widgets/pill_segmented_control.dart';
 import '../../widgets_modals/add_task_sheet.dart';
+import '../../utils/time_format.dart';
 
 const _kViews = ['Day', 'Week', 'Month'];
 
@@ -121,21 +123,22 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                 AppSpacing.screenHorizontal,
                 0,
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Planner',
                     style: Theme.of(context).textTheme.displayMedium,
                   ),
-                  const Spacer(),
-                  _SmallBtn(
-                    icon: Icons.today_outlined,
-                    onTap: () {
-                      setState(() => _selected = DateTime.now());
-                    },
+                  const SizedBox(height: 3),
+                  const Text(
+                    'Plan today. A better you tomorrow.',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  _SmallBtn(icon: Icons.more_vert_rounded, onTap: () {}),
                 ],
               ),
             ),
@@ -146,10 +149,13 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.screenHorizontal,
               ),
-              child: PillSegmentedControl(
-                options: _kViews,
-                selected: _view,
-                onSelected: (i) => setState(() => _view = i),
+              child: SizedBox(
+                width: double.infinity,
+                child: PillSegmentedControl(
+                  options: _kViews,
+                  selected: _view,
+                  onSelected: (i) => setState(() => _view = i),
+                ),
               ),
             ),
             const SizedBox(height: 14),
@@ -171,8 +177,8 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontFamily: 'Poppins',
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary,
                         ),
                       ),
@@ -195,11 +201,10 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                     _view = 0;
                   }),
                 ),
-                2 => _MonthView(
+                2 => _PremiumMonthView(
                   anchorDate: _selected,
                   onDayTap: (d) => setState(() {
                     _selected = d;
-                    _view = 0;
                   }),
                 ),
                 _ => _DayView(date: _selected),
@@ -208,13 +213,15 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => showAddTaskSheet(context, initialDate: _selected),
-        backgroundColor: AppColors.accent,
-        foregroundColor: AppColors.surface,
-        elevation: 2,
-        child: const Icon(Icons.add_rounded, size: 24),
+      floatingActionButton: DimiAddActionButton(
+        label: 'Add task',
+        onPressed: () => showAddTaskSheet(
+          context,
+          initialDate: _selected,
+          plannerEntry: true,
+        ),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 }
@@ -253,62 +260,157 @@ class _DayView extends ConsumerWidget {
           );
         }
 
-        // Progress header
-        final done = sorted.where((t) => t.isCompleted).length;
+        return _ReferenceDaySchedule(tasks: sorted);
+      },
+    );
+  }
+}
 
-        return Column(
+class _ReferenceDaySchedule extends ConsumerWidget {
+  const _ReferenceDaySchedule({required this.tasks});
+  final List<Task> tasks;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.screenHorizontal,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: ListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemCount: tasks.length,
+          itemBuilder: (context, index) {
+            final task = tasks[index];
+            return _ReferenceTaskRow(task: task);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _ReferenceTaskRow extends ConsumerWidget {
+  const _ReferenceTaskRow({required this.task});
+  final Task task;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final done = task.isCompleted;
+    final category = task.category.toLowerCase();
+    final color = switch (category) {
+      'study' => AppColors.info,
+      'health' => AppColors.danger,
+      'college' => const Color(0xFF8A4FFF),
+      'personal' => AppColors.accent,
+      _ => AppColors.textSecondary,
+    };
+    final icon = switch (category) {
+      'study' => Icons.menu_book_outlined,
+      'health' => Icons.fitness_center_outlined,
+      'college' => Icons.school_outlined,
+      'finance' => Icons.account_balance_wallet_outlined,
+      _ => Icons.wb_sunny_outlined,
+    };
+
+    return InkWell(
+      onLongPress: () => _TaskTile(task: task)._showOptions(context, ref),
+      onTap: () => ref.read(taskDaoProvider).toggleCompleted(task.id, !done),
+      child: Container(
+        height: 82,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppColors.divider)),
+        ),
+        child: Row(
           children: [
-            // Progress indicator
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenHorizontal,
-                0,
-                AppSpacing.screenHorizontal,
-                10,
+            SizedBox(
+              width: 56,
+              child: Text(
+                formatTime12Hour(task.dueTime),
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary,
+                ),
               ),
-              child: Row(
+            ),
+            Container(width: 2, height: 48, color: color),
+            const SizedBox(width: 12),
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: color.withAlpha(28),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 22, color: color),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: sorted.isEmpty ? 0 : done / sorted.length,
-                        backgroundColor: AppColors.accentSoft,
-                        valueColor: const AlwaysStoppedAnimation(
-                          AppColors.accent,
-                        ),
-                        minHeight: 6,
-                      ),
+                  Text(
+                    task.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: done
+                          ? AppColors.textSecondary
+                          : AppColors.textPrimary,
+                      decoration: done ? TextDecoration.lineThrough : null,
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(height: 2),
                   Text(
-                    '$done/${sorted.length}',
+                    task.category,
                     style: const TextStyle(
                       fontFamily: 'Poppins',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
                       color: AppColors.textSecondary,
                     ),
                   ),
                 ],
               ),
             ),
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenHorizontal,
-                  vertical: 4,
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () =>
+                  ref.read(taskDaoProvider).toggleCompleted(task.id, !done),
+              child: Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: done ? AppColors.accent : Colors.transparent,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: done ? AppColors.accent : const Color(0xFFD7D0C3),
+                    width: 2,
+                  ),
                 ),
-                itemCount: sorted.length,
-                separatorBuilder: (_, _) =>
-                    const SizedBox(height: AppSpacing.cardGap),
-                itemBuilder: (ctx, i) => _TaskTile(task: sorted[i]),
+                child: done
+                    ? const Icon(
+                        Icons.check_rounded,
+                        color: AppColors.surface,
+                        size: 18,
+                      )
+                    : null,
               ),
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 }
@@ -364,8 +466,8 @@ class _WeekView extends ConsumerWidget {
                 child: Row(
                   children: [
                     Container(
-                      width: 32,
-                      height: 32,
+                      width: 48,
+                      height: 48,
                       decoration: BoxDecoration(
                         color: isToday ? AppColors.accent : Colors.transparent,
                         shape: BoxShape.circle,
@@ -446,6 +548,718 @@ class _WeekView extends ConsumerWidget {
 
 // ─── Month View ───────────────────────────────────────────────────────────────
 
+class _DayPlan {
+  const _DayPlan(this.date, this.tasks);
+  final DateTime date;
+  final List<Task> tasks;
+
+  int get plannedMinutes =>
+      tasks.fold(0, (sum, task) => sum + task.plannedMinutes);
+  int get completedMinutes => tasks.fold(
+    0,
+    (sum, task) =>
+        sum +
+        (task.completedMinutes > 0
+            ? task.completedMinutes
+            : task.isCompleted
+            ? task.plannedMinutes
+            : 0),
+  );
+  int get completedTasks => tasks.where((task) => task.isCompleted).length;
+  bool get hasPlan => plannedMinutes > 0;
+  double get score => hasPlan ? completedMinutes / plannedMinutes : 0;
+}
+
+class _PremiumMonthView extends ConsumerStatefulWidget {
+  const _PremiumMonthView({required this.anchorDate, required this.onDayTap});
+  final DateTime anchorDate;
+  final ValueChanged<DateTime> onDayTap;
+
+  @override
+  ConsumerState<_PremiumMonthView> createState() => _PremiumMonthViewState();
+}
+
+class _PremiumMonthViewState extends ConsumerState<_PremiumMonthView> {
+  @override
+  Widget build(BuildContext context) {
+    final ref = this.ref;
+    final async = ref.watch(allPlannerEntriesProvider);
+    return async.when(
+      loading: () =>
+          const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      error: (error, _) =>
+          Center(child: Text('Unable to load planner data: $error')),
+      data: (tasks) {
+        final grouped = <DateTime, List<Task>>{};
+        for (final task in tasks) {
+          grouped.putIfAbsent(_dateOnly(task.dueDate), () => []).add(task);
+        }
+        _DayPlan planFor(DateTime date) => _DayPlan(
+          _dateOnly(date),
+          grouped[_dateOnly(date)] ?? const <Task>[],
+        );
+        final monthStart = DateTime(
+          widget.anchorDate.year,
+          widget.anchorDate.month,
+          1,
+        );
+        final monthEnd = DateTime(
+          widget.anchorDate.year,
+          widget.anchorDate.month + 1,
+          0,
+        );
+        final today = _dateOnly(DateTime.now());
+        final monthPlans = List.generate(
+          monthEnd.day,
+          (i) => planFor(
+            DateTime(widget.anchorDate.year, widget.anchorDate.month, i + 1),
+          ),
+        );
+        final plannedDays = monthPlans.where((p) => p.hasPlan).length;
+        final completedDays = monthPlans
+            .where((p) => p.hasPlan && p.completedTasks == p.tasks.length)
+            .length;
+        final plannedTaskCount = monthPlans.fold(
+          0,
+          (sum, plan) => sum + plan.tasks.length,
+        );
+        final completedTaskCount = monthPlans.fold(
+          0,
+          (sum, plan) => sum + plan.completedTasks,
+        );
+        final average = plannedTaskCount == 0
+            ? 0.0
+            : completedTaskCount / plannedTaskCount;
+        var streak = 0;
+        var cursor = today;
+        while (true) {
+          final p = planFor(cursor);
+          if (!p.hasPlan || p.score < .7) break;
+          streak++;
+          cursor = cursor.subtract(const Duration(days: 1));
+        }
+        final cells = <DateTime?>[
+          ...List<DateTime?>.filled(monthStart.weekday - 1, null),
+          ...monthPlans.map((p) => p.date),
+        ];
+        return ListView(
+          padding: const EdgeInsets.only(bottom: 96),
+          children: [
+            _HeatmapCard(
+              planFor: planFor,
+              onTap: (day) => _showDetails(context, planFor(day)),
+            ),
+            const SizedBox(height: 12),
+            _MonthStats(
+              plannedDays: plannedDays,
+              completedDays: completedDays,
+              average: average,
+              streak: streak,
+            ),
+            const SizedBox(height: 12),
+            _CalendarCard(
+              month: widget.anchorDate,
+              cells: cells,
+              planFor: planFor,
+              today: today,
+              selected: widget.anchorDate,
+              onTap: widget.onDayTap,
+            ),
+            const SizedBox(height: 12),
+            _SelectedPlanCard(plan: planFor(widget.anchorDate)),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showDetails(
+    BuildContext context,
+    _DayPlan plan,
+  ) => showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    backgroundColor: AppColors.surface,
+    builder: (_) => Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            DateFormat('MMMM d, yyyy').format(plan.date),
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            plan.hasPlan
+                ? '${(plan.score * 100).round()}% completed'
+                : 'No plan recorded',
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${_minutesLabel(plan.completedMinutes)} / ${_minutesLabel(plan.plannedMinutes)} planned',
+          ),
+          Text(
+            '${plan.completedTasks} of ${plan.tasks.length} tasks completed',
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _HeatmapCard extends StatelessWidget {
+  const _HeatmapCard({
+    required this.planFor,
+    required this.onTap,
+  });
+  final _DayPlan Function(DateTime) planFor;
+  final ValueChanged<DateTime> onTap;
+  @override
+  Widget build(BuildContext context) {
+    final today = _dateOnly(DateTime.now());
+    // Choose the number of weeks from the available width. This keeps the
+    // GitHub-style grid readable on phones while showing a full year on
+    // wider layouts.
+    final availableGridWidth = MediaQuery.sizeOf(context).width - 14 * 2 - 29;
+    final weekCount = (availableGridWidth / 15).floor().clamp(13, 53).toInt();
+    final firstMonday = today.subtract(
+      Duration(days: today.weekday - 1 + (weekCount - 1) * 7),
+    );
+    final days = List.generate(
+      weekCount * 7,
+      (i) => firstMonday.add(Duration(days: i)),
+    );
+    final scoredDays = days
+        .where((day) => !day.isAfter(today) && planFor(day).hasPlan)
+        .map(planFor)
+        .toList();
+    final average = scoredDays.isEmpty
+        ? 0
+        : (scoredDays.fold(0.0, (sum, plan) => sum + plan.score) /
+                  scoredDays.length *
+                  100)
+              .round();
+    return _PlannerCard(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 11),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: const BoxDecoration(
+                  color: AppColors.background,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.bar_chart_rounded, size: 22),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Completion Heatmap',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      'How much of your plan you completed',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 10,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Text(
+                  'Adaptive history',
+                  style: TextStyle(fontFamily: 'Poppins', fontSize: 9),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              const SizedBox(width: 29),
+              Expanded(
+                child: Row(
+                  children: List.generate(
+                    days.length ~/ 7,
+                    (week) => Expanded(
+                      child: Text(
+                        days[week * 7].day <= 7
+                            ? DateFormat('MMM').format(days[week * 7])
+                            : '',
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 8,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(
+                width: 24,
+                height: 86,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Text(
+                      'Mon',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 9,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Text(
+                      'Wed',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 9,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Text(
+                      'Fri',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 9,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: SizedBox(
+                  height: 86,
+                  child: GridView.builder(
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: days.length ~/ 7,
+                      mainAxisSpacing: 4,
+                      crossAxisSpacing: 4,
+                    ),
+                    itemCount: days.length,
+                    itemBuilder: (_, index) {
+                      final day =
+                          days[(index % 7) * (days.length ~/ 7) + index ~/ 7];
+                      final plan = planFor(day);
+                      final future = day.isAfter(today);
+                      return GestureDetector(
+                        onTap: () => onTap(day),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: _heatColor(plan, future),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Text(
+                'Less',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 9,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(width: 5),
+              ...List.generate(
+                5,
+                (i) => Container(
+                  width: 10,
+                  height: 10,
+                  margin: const EdgeInsets.only(left: 3),
+                  decoration: BoxDecoration(
+                    color: _legendColor(i),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 5),
+              const Text(
+                'More',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 9,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const Spacer(),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '$average%',
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Text(
+                    'Average',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 9,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Color _heatColor(_DayPlan plan, bool future) => future || !plan.hasPlan
+      ? AppColors.background
+      : _legendColor((plan.score * 5).ceil().clamp(1, 5) - 1);
+  static Color _legendColor(int level) => [
+    AppColors.accentSoft,
+    const Color(0xFFFFD98A),
+    const Color(0xFFFFB52E),
+    const Color(0xFFE48113),
+    const Color(0xFF9C3F0C),
+  ][level];
+}
+
+class _MonthStats extends StatelessWidget {
+  const _MonthStats({
+    required this.plannedDays,
+    required this.completedDays,
+    required this.average,
+    required this.streak,
+  });
+  final int plannedDays, completedDays, streak;
+  final double average;
+  @override
+  Widget build(BuildContext context) => Row(
+    children:
+        [
+              _StatBox(
+                icon: Icons.check_rounded,
+                color: AppColors.accent,
+                value: '$plannedDays',
+                label: 'Days planned',
+              ),
+              _StatBox(
+                icon: Icons.done_all_rounded,
+                color: AppColors.success,
+                value: '$completedDays',
+                label: 'Days completed',
+              ),
+              _StatBox(
+                icon: Icons.pie_chart_outline_rounded,
+                color: AppColors.accent,
+                value: '${(average * 100).round()}%',
+                label: 'Avg completion',
+              ),
+              _StatBox(
+                icon: Icons.local_fire_department_outlined,
+                color: AppColors.danger,
+                value: '$streak',
+                label: 'Day streak',
+              ),
+            ]
+            .map(
+              (w) => Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 5),
+                  child: w,
+                ),
+              ),
+            )
+            .toList(),
+  );
+}
+
+class _StatBox extends StatelessWidget {
+  const _StatBox({
+    required this.icon,
+    required this.color,
+    required this.value,
+    required this.label,
+  });
+  final IconData icon;
+  final Color color;
+  final String value, label;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+    decoration: BoxDecoration(
+      color: color.withAlpha(20),
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: color.withAlpha(18)),
+    ),
+    child: Column(
+      children: [
+        Icon(icon, size: 19, color: color),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 8,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _CalendarCard extends StatelessWidget {
+  const _CalendarCard({
+    required this.month,
+    required this.cells,
+    required this.planFor,
+    required this.today,
+    required this.selected,
+    required this.onTap,
+  });
+  final DateTime month, today, selected;
+  final List<DateTime?> cells;
+  final _DayPlan Function(DateTime) planFor;
+  final ValueChanged<DateTime> onTap;
+  @override
+  Widget build(BuildContext context) => _PlannerCard(
+    child: Column(
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.calendar_month_outlined, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              DateFormat('MMMM yyyy').format(month),
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const Spacer(),
+            const Text(
+              'Today',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 11,
+                color: AppColors.accent,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+              .map(
+                (d) => Expanded(
+                  child: Center(
+                    child: Text(
+                      d,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 10,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+        const SizedBox(height: 7),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            mainAxisSpacing: 5,
+            crossAxisSpacing: 5,
+          ),
+          itemCount: ((cells.length + 6) ~/ 7) * 7,
+          itemBuilder: (_, index) {
+            final day = index < cells.length ? cells[index] : null;
+            if (day == null) return const SizedBox.shrink();
+            final plan = planFor(day);
+            final isToday = _sameDay(day, today);
+            final isSelected = _sameDay(day, selected);
+            final future = day.isAfter(today);
+            return GestureDetector(
+              onTap: () => onTap(day),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isToday
+                      ? AppColors.accent
+                      : _HeatmapCard._heatColor(plan, future).withAlpha(45),
+                  borderRadius: BorderRadius.circular(11),
+                  border: isSelected && !isToday
+                      ? Border.all(color: AppColors.accent)
+                      : null,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '${day.day}',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 12,
+                        fontWeight: isToday || isSelected
+                            ? FontWeight.w700
+                            : FontWeight.w400,
+                        color: isToday
+                            ? AppColors.surface
+                            : AppColors.textPrimary,
+                      ),
+                    ),
+                    if (plan.hasPlan)
+                      Container(
+                        width: 4,
+                        height: 4,
+                        margin: const EdgeInsets.only(top: 3),
+                        decoration: BoxDecoration(
+                          color: isToday ? AppColors.surface : AppColors.accent,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    ),
+  );
+}
+
+class _SelectedPlanCard extends StatelessWidget {
+  const _SelectedPlanCard({required this.plan});
+  final _DayPlan plan;
+  @override
+  Widget build(BuildContext context) => _PlannerCard(
+    child: Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: const BoxDecoration(
+            color: AppColors.background,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.description_outlined),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Tasks on ${DateFormat('d MMM').format(plan.date)}',
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                '${plan.completedTasks} of ${plan.tasks.length} completed',
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Icon(Icons.chevron_right_rounded),
+      ],
+    ),
+  );
+}
+
+class _PlannerCard extends StatelessWidget {
+  const _PlannerCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(14),
+  });
+  final Widget child;
+  final EdgeInsets padding;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: padding,
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: AppColors.divider),
+    ),
+    child: child,
+  );
+}
+
+String _minutesLabel(int minutes) => minutes < 60
+    ? '${minutes}m'
+    : '${minutes ~/ 60}h${minutes % 60 == 0 ? '' : ' ${minutes % 60}m'}';
+
+// ignore: unused_element
 class _MonthView extends ConsumerWidget {
   const _MonthView({required this.anchorDate, required this.onDayTap});
   final DateTime anchorDate;
@@ -481,6 +1295,8 @@ class _MonthView extends ConsumerWidget {
 
     return Column(
       children: [
+        _CompletionHeatmap(tasks: allTasks),
+        const SizedBox(height: 10),
         // Day-of-week header
         Padding(
           padding: const EdgeInsets.symmetric(
@@ -581,6 +1397,153 @@ class _MonthView extends ConsumerWidget {
   }
 }
 
+/// GitHub-style completion history. Each square is the percentage of tasks
+/// completed on that day, rather than just the number of tasks.
+class _CompletionHeatmap extends StatelessWidget {
+  const _CompletionHeatmap({required this.tasks});
+  final List<Task> tasks;
+
+  static const _weeks = 13;
+
+  @override
+  Widget build(BuildContext context) {
+    final today = _dateOnly(DateTime.now());
+    final start = today.subtract(
+      Duration(days: today.weekday - 1 + (_weeks - 1) * 7),
+    );
+    final cells = List.generate(
+      _weeks * 7,
+      (i) => start.add(Duration(days: i)),
+    );
+    final totals = <DateTime, int>{};
+    final completed = <DateTime, int>{};
+
+    for (final task in tasks) {
+      final day = _dateOnly(task.dueDate);
+      totals[day] = (totals[day] ?? 0) + 1;
+      if (task.isCompleted) completed[day] = (completed[day] ?? 0) + 1;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.screenHorizontal,
+      ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text(
+                  'Completion rhythm',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const Spacer(),
+                const Text(
+                  'last 13 weeks',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 10,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 62,
+              child: GridView.builder(
+                physics: const NeverScrollableScrollPhysics(),
+                padding: EdgeInsets.zero,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 13,
+                  mainAxisSpacing: 4,
+                  crossAxisSpacing: 4,
+                ),
+                itemCount: cells.length,
+                itemBuilder: (context, index) {
+                  // GridView lays children out row-first; reorder them so
+                  // each vertical column represents one calendar week.
+                  final day = cells[(index % 7) * _weeks + index ~/ 7];
+                  final total = totals[day] ?? 0;
+                  final done = completed[day] ?? 0;
+                  final ratio = total == 0 ? 0.0 : done / total;
+                  return Tooltip(
+                    message: total == 0
+                        ? '${DateFormat('d MMM').format(day)} · no tasks'
+                        : '${DateFormat('d MMM').format(day)} · $done/$total complete',
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: _heatColor(ratio, total),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                const Text(
+                  'Less',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 9,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                ...[0.0, .25, .5, .75, 1.0].map(
+                  (ratio) => Padding(
+                    padding: const EdgeInsets.only(left: 3),
+                    child: Container(
+                      width: 9,
+                      height: 9,
+                      decoration: BoxDecoration(
+                        color: _heatColor(ratio, 1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                const Text(
+                  'More',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 9,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Color _heatColor(double ratio, int total) {
+    if (total == 0 || ratio == 0) return AppColors.accentSoft;
+    if (ratio < .25) return AppColors.accent.withAlpha(70);
+    if (ratio < .5) return AppColors.accent.withAlpha(120);
+    if (ratio < .75) return AppColors.accent.withAlpha(180);
+    return AppColors.accent;
+  }
+}
+
 // ─── Task tile ────────────────────────────────────────────────────────────────
 
 class _TaskTile extends ConsumerWidget {
@@ -624,7 +1587,7 @@ class _TaskTile extends ConsumerWidget {
               SizedBox(
                 width: 38,
                 child: Text(
-                  task.dueTime!,
+                  formatTime12Hour(task.dueTime),
                   style: const TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 10,
@@ -858,30 +1821,7 @@ class _NavArrow extends StatelessWidget {
           shape: BoxShape.circle,
           border: Border.all(color: AppColors.divider),
         ),
-        child: Icon(icon, size: 18, color: AppColors.textPrimary),
-      ),
-    );
-  }
-}
-
-class _SmallBtn extends StatelessWidget {
-  const _SmallBtn({required this.icon, required this.onTap});
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          shape: BoxShape.circle,
-          border: Border.all(color: AppColors.divider),
-        ),
-        child: Icon(icon, size: 16, color: AppColors.textPrimary),
+        child: Icon(icon, size: 28, color: AppColors.textPrimary),
       ),
     );
   }

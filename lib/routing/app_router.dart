@@ -15,7 +15,9 @@ abstract class AppRoutes {
   static const onboarding = '/onboarding';
   static const home = '/home';
   static const planner = '/planner';
-  static const money = '/money';
+  static const expense = '/expense';
+  static const money = expense;
+  static const legacyMoney = '/money';
   static const reminders = '/reminders';
   static const settings = '/settings';
 }
@@ -23,7 +25,9 @@ abstract class AppRoutes {
 int _tabIndex(String location) {
   if (location.startsWith('/home')) return 0;
   if (location.startsWith('/planner')) return 1;
-  if (location.startsWith('/money')) return 2;
+  if (location.startsWith('/expense') || location.startsWith('/money')) {
+    return 2;
+  }
   if (location.startsWith('/reminders')) return 3;
   return 0;
 }
@@ -59,6 +63,10 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: AppRoutes.money,
+          pageBuilder: (ctx, state) => _fade(state, const MoneyScreen()),
+        ),
+        GoRoute(
+          path: AppRoutes.legacyMoney,
           pageBuilder: (ctx, state) => _fade(state, const MoneyScreen()),
         ),
         GoRoute(

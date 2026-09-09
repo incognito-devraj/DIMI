@@ -8,7 +8,7 @@ import '../theme/app_theme.dart';
 /// Tabs:
 ///   0  Home       /home
 ///   1  Planner    /planner
-///   2  Money      /money
+///   2  Expense    /money
 ///   3  Reminders  /reminders
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
@@ -34,7 +34,7 @@ class AppScaffold extends StatelessWidget {
       route: '/planner',
     ),
     _NavItem(
-      label: 'Money',
+      label: 'Expense',
       icon: Icons.account_balance_wallet_outlined,
       activeIcon: Icons.account_balance_wallet_rounded,
       route: '/money',
@@ -54,12 +54,23 @@ class AppScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: child,
-      bottomNavigationBar: _DimiBottomNav(
-        currentIndex: currentIndex,
-        onTap: (i) => _onTap(context, i),
+    return PopScope<void>(
+      // The tab routes use context.go(), so they do not create a browser/
+      // Navigator history entry. Intercept back on non-home tabs and return
+      // to Home; allow the platform to exit when Home is already active.
+      canPop: currentIndex == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && currentIndex != 0) {
+          context.go('/home');
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: child,
+        bottomNavigationBar: _DimiBottomNav(
+          currentIndex: currentIndex,
+          onTap: (i) => _onTap(context, i),
+        ),
       ),
     );
   }
@@ -68,7 +79,10 @@ class AppScaffold extends StatelessWidget {
 // ── Custom bottom nav ─────────────────────────────────────────────────────────
 
 class _DimiBottomNav extends StatelessWidget {
-  const _DimiBottomNav({required this.currentIndex, required this.onTap});
+  const _DimiBottomNav({
+    required this.currentIndex,
+    required this.onTap,
+  });
 
   final int currentIndex;
   final ValueChanged<int> onTap;

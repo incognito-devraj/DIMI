@@ -45,49 +45,9 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
                 AppSpacing.screenHorizontal,
                 0,
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Reminders',
-                    style: Theme.of(context).textTheme.displayMedium,
-                  ),
-                  GestureDetector(
-                    onTap: () => showAddReminderSheet(context),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 9,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceDark,
-                        borderRadius: BorderRadius.circular(
-                          AppSpacing.buttonRadius,
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.add_rounded,
-                            size: 16,
-                            color: AppColors.surface,
-                          ),
-                          SizedBox(width: 5),
-                          Text(
-                            'Add',
-                            style: TextStyle(
-                              fontFamily: 'Poppins',
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.surface,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+              child: Text(
+                'Reminders',
+                style: Theme.of(context).textTheme.displayMedium,
               ),
             ),
             const SizedBox(height: 16),
@@ -111,7 +71,7 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
                     return const EmptyState(
                       icon: Icons.notifications_outlined,
                       title: 'No reminders',
-                      subtitle: 'Tap "Add" to set a reminder.',
+                      subtitle: 'Tap + to set a reminder.',
                     );
                   }
                   return ListView.separated(
@@ -135,6 +95,14 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
           ],
         ),
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => showAddReminderSheet(context),
+        backgroundColor: AppColors.accent,
+        foregroundColor: AppColors.surface,
+        elevation: 3,
+        child: const Icon(Icons.add_rounded, size: 30),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 }

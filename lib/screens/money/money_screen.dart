@@ -8,6 +8,7 @@ import '../../data/daos/money_dao.dart';
 import '../../providers/money_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/dimi_add_action_button.dart';
 import '../../widgets/pill_segmented_control.dart';
 import '../../widgets_modals/add_expense_sheet.dart';
 
@@ -192,13 +193,11 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: DimiAddActionButton(
+        label: 'Add expense',
         onPressed: () => showAddExpenseSheet(context),
-        backgroundColor: AppColors.accent,
-        foregroundColor: AppColors.surface,
-        elevation: 2,
-        child: const Icon(Icons.add_rounded, size: 24),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 }
