@@ -14,6 +14,7 @@ import 'tables/notes.dart';
 import 'tables/reminders.dart';
 import 'tables/document_meta.dart';
 import 'tables/profile.dart';
+import 'tables/transaction_detection.dart';
 
 // DAOs
 import 'daos/task_dao.dart';
@@ -24,6 +25,7 @@ import 'daos/note_dao.dart';
 import 'daos/reminder_dao.dart';
 import 'daos/document_dao.dart';
 import 'daos/profile_dao.dart';
+import 'daos/transaction_detection_dao.dart';
 
 part 'database.g.dart';
 
@@ -38,6 +40,9 @@ part 'database.g.dart';
     Reminders,
     DocumentMeta,
     ProfileTable,
+    TransactionDetectionEvents,
+    TransactionCandidates,
+    MerchantCategoryRules,
   ],
   daos: [
     TaskDao,
@@ -48,6 +53,7 @@ part 'database.g.dart';
     ReminderDao,
     DocumentDao,
     ProfileDao,
+    TransactionDetectionDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -57,7 +63,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -72,6 +78,19 @@ class AppDatabase extends _$AppDatabase {
       if (from < 4) {
         await m.addColumn(tasks, tasks.plannedMinutes);
         await m.addColumn(tasks, tasks.completedMinutes);
+      }
+      if (from < 5) {
+        await m.createTable(transactionDetectionEvents);
+        await m.createTable(transactionCandidates);
+        await m.createTable(merchantCategoryRules);
+      }
+      if (from < 6) {
+        await m.addColumn(transactionCandidates, transactionCandidates.accountHint);
+        await m.addColumn(transactionCandidates, transactionCandidates.paymentMethod);
+        await m.addColumn(transactionCandidates, transactionCandidates.balanceAfterMinor);
+      }
+      if (from < 7) {
+        await m.addColumn(transactionCandidates, transactionCandidates.bankConfirmationStatus);
       }
     },
   );

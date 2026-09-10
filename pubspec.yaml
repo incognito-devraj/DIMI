@@ -2,7 +2,7 @@ name: dimi_app
 description: "DIMI — Plan · Track · Improve. A local-first student productivity app."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.1.0+1
 
 environment:
   sdk: ^3.13.2

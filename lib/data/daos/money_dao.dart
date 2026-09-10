@@ -45,4 +45,20 @@ class MoneyDao extends DatabaseAccessor<AppDatabase> with _$MoneyDaoMixin {
 
   Future<int> deleteTransaction(int id) =>
       (delete(moneyTransactions)..where((t) => t.id.equals(id))).go();
+
+  /// Returns only obviously malformed automatic records. Manual entries and
+  /// automatic records with a meaningful merchant/category are untouched.
+  Future<List<MoneyTransaction>> suspiciousDetectedTransactions() =>
+      (select(moneyTransactions)..where((t) =>
+          t.type.isIn(['expense', 'income']) &
+          t.note.like('%Detected automatically%') &
+          t.note.like('%Unknown%') &
+          t.category.equals('Other'))).get();
+
+  Future<int> deleteSuspiciousDetectedTransactions() async {
+    final rows = await suspiciousDetectedTransactions();
+    var deleted = 0;
+    for (final row in rows) { deleted += await deleteTransaction(row.id); }
+    return deleted;
+  }
 }

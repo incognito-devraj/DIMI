@@ -1,4 +1,5 @@
 import 'package:fl_chart/fl_chart.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,8 @@ import 'package:intl/intl.dart';
 import '../../data/database.dart';
 import '../../data/daos/money_dao.dart';
 import '../../providers/money_providers.dart';
+import '../../providers/transaction_detection_providers.dart';
+import '../../providers/database_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/dimi_add_action_button.dart';
@@ -234,6 +237,8 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
+                  const _DetectedTransactionsPanel(),
+                  const SizedBox(height: 8),
                   // Summary cards (visible on all tabs)
                   Padding(
                     padding: const EdgeInsets.symmetric(
@@ -363,6 +368,30 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+    );
+  }
+}
+
+class _DetectedTransactionsPanel extends ConsumerWidget {
+  const _DetectedTransactionsPanel();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = ref.watch(pendingTransactionCandidatesProvider).valueOrNull ?? const <TransactionCandidate>[];
+    if (pending.isEmpty) return const SizedBox.shrink();
+    final db = ref.read(databaseProvider);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenHorizontal),
+      child: Card(
+        elevation: 0,
+        color: AppColors.surface,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('New expenses detected', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            ...pending.take(3).map((candidate) => ListTile(contentPadding: EdgeInsets.zero, title: Text(candidate.merchantName), subtitle: Text('₹${(candidate.amountMinor / 100).toStringAsFixed(2)} · ${candidate.category} · ${candidate.paymentMethod ?? candidate.source}'), trailing: Wrap(spacing: 4, children: [IconButton(tooltip: 'Ignore', icon: const Icon(Icons.close_rounded), onPressed: () => db.transactionDetectionDao.updateStatus(candidate.candidateId, 'IGNORED')), IconButton(tooltip: 'Add', icon: const Icon(Icons.check_rounded), onPressed: () async { final isIncome = candidate.transactionType == 'INCOME'; await db.moneyDao.insertTransaction(MoneyTransactionsCompanion.insert(type: isIncome ? 'income' : 'expense', amount: candidate.amountMinor / 100, category: candidate.category, note: Value('${candidate.merchantName} · Detected automatically'), date: candidate.occurredAt)); await db.transactionDetectionDao.updateStatus(candidate.candidateId, 'CONFIRMED'); })]))),
+          ]),
+        ),
+      ),
     );
   }
 }
@@ -893,6 +922,7 @@ class _TransactionTile extends ConsumerWidget {
     final sign = txn.type == 'expense' ? '-' : '+';
 
     return GestureDetector(
+      onTap: () => _showDetails(context, color, icon),
       onLongPress: () => _confirmDelete(context, dao),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -978,6 +1008,102 @@ class _TransactionTile extends ConsumerWidget {
     _ => (AppColors.danger, Icons.arrow_upward_rounded),
   };
 
+  Future<void> _showDetails(BuildContext context, Color color, IconData icon) {
+    final isIncome = txn.type == 'income';
+    final sign = isIncome ? '+' : txn.type == 'expense' ? '-' : '';
+    final description = txn.note?.trim().isNotEmpty == true
+        ? txn.note!.trim()
+        : 'No description added';
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(22, 18, 22, 20),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: AppColors.divider),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.textPrimary.withAlpha(18),
+                blurRadius: 28,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: color.withAlpha(28),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, color: color, size: 22),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.pop(dialogContext),
+                    icon: const Icon(Icons.close_rounded),
+                    color: AppColors.textSecondary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Text(
+                '$sign${_fmt.format(txn.amount)}',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 32,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                  height: 1.1,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                txn.type == 'income' ? 'Income' : txn.type == 'loan' ? 'Loan' : 'Expense',
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 22),
+              _DetailRow(label: 'Category', value: txn.category, icon: Icons.sell_outlined),
+              const SizedBox(height: 14),
+              _DetailRow(label: 'Date', value: DateFormat('EEEE, d MMM yyyy').format(txn.date), icon: Icons.calendar_today_outlined),
+              const SizedBox(height: 14),
+              _DetailRow(label: 'Description', value: description, icon: Icons.notes_rounded),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.textPrimary,
+                    foregroundColor: AppColors.surface,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Done', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _confirmDelete(BuildContext context, MoneyDao dao) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -1004,6 +1130,32 @@ class _TransactionTile extends ConsumerWidget {
     );
     if (ok == true) await dao.deleteTransaction(txn.id);
   }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value, required this.icon});
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(icon, size: 18, color: AppColors.textSecondary),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(fontFamily: 'Poppins', fontSize: 11, color: AppColors.textSecondary)),
+            const SizedBox(height: 2),
+            Text(value, style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+          ],
+        ),
+      ),
+    ],
+  );
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
