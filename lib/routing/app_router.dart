@@ -8,6 +8,7 @@ import '../screens/planner/planner_screen.dart';
 import '../screens/money/money_screen.dart';
 import '../screens/reminders/reminders_screen.dart';
 import '../screens/settings/settings_screen.dart';
+import '../screens/settings/notification_detector_screen.dart';
 import '../widgets/app_scaffold.dart';
 import '../core/motion/dimi_motion.dart';
 import '../core/motion/dimi_page_transition.dart';
@@ -22,6 +23,7 @@ abstract class AppRoutes {
   static const legacyMoney = '/money';
   static const reminders = '/reminders';
   static const settings = '/settings';
+  static const notificationDetector = '/settings/notification-detector';
 }
 
 int _tabIndex(String location) {
@@ -82,6 +84,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.settings,
       pageBuilder: (ctx, state) => _slide(state, const SettingsScreen()),
+    ),
+    GoRoute(
+      path: AppRoutes.notificationDetector,
+      pageBuilder: (ctx, state) => _slide(state, const NotificationDetectorScreen()),
     ),
   ],
 );

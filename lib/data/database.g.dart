@@ -3938,6 +3938,2142 @@ class ProfileTableCompanion extends UpdateCompanion<ProfileTableData> {
   }
 }
 
+class $TransactionDetectionEventsTable extends TransactionDetectionEvents
+    with
+        TableInfo<$TransactionDetectionEventsTable, TransactionDetectionEvent> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TransactionDetectionEventsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _eventKeyMeta = const VerificationMeta(
+    'eventKey',
+  );
+  @override
+  late final GeneratedColumn<String> eventKey = GeneratedColumn<String>(
+    'event_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _sourcePackageMeta = const VerificationMeta(
+    'sourcePackage',
+  );
+  @override
+  late final GeneratedColumn<String> sourcePackage = GeneratedColumn<String>(
+    'source_package',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceTypeMeta = const VerificationMeta(
+    'sourceType',
+  );
+  @override
+  late final GeneratedColumn<String> sourceType = GeneratedColumn<String>(
+    'source_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
+  @override
+  late final GeneratedColumn<String> body = GeneratedColumn<String>(
+    'body',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bigTextMeta = const VerificationMeta(
+    'bigText',
+  );
+  @override
+  late final GeneratedColumn<String> bigText = GeneratedColumn<String>(
+    'big_text',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _occurredAtMeta = const VerificationMeta(
+    'occurredAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> occurredAt = GeneratedColumn<DateTime>(
+    'occurred_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _receivedAtMeta = const VerificationMeta(
+    'receivedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> receivedAt = GeneratedColumn<DateTime>(
+    'received_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    eventKey,
+    sourcePackage,
+    sourceType,
+    title,
+    body,
+    bigText,
+    occurredAt,
+    receivedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'transaction_detection_events';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TransactionDetectionEvent> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('event_key')) {
+      context.handle(
+        _eventKeyMeta,
+        eventKey.isAcceptableOrUnknown(data['event_key']!, _eventKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_eventKeyMeta);
+    }
+    if (data.containsKey('source_package')) {
+      context.handle(
+        _sourcePackageMeta,
+        sourcePackage.isAcceptableOrUnknown(
+          data['source_package']!,
+          _sourcePackageMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_sourcePackageMeta);
+    }
+    if (data.containsKey('source_type')) {
+      context.handle(
+        _sourceTypeMeta,
+        sourceType.isAcceptableOrUnknown(data['source_type']!, _sourceTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceTypeMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
+    if (data.containsKey('body')) {
+      context.handle(
+        _bodyMeta,
+        body.isAcceptableOrUnknown(data['body']!, _bodyMeta),
+      );
+    }
+    if (data.containsKey('big_text')) {
+      context.handle(
+        _bigTextMeta,
+        bigText.isAcceptableOrUnknown(data['big_text']!, _bigTextMeta),
+      );
+    }
+    if (data.containsKey('occurred_at')) {
+      context.handle(
+        _occurredAtMeta,
+        occurredAt.isAcceptableOrUnknown(data['occurred_at']!, _occurredAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_occurredAtMeta);
+    }
+    if (data.containsKey('received_at')) {
+      context.handle(
+        _receivedAtMeta,
+        receivedAt.isAcceptableOrUnknown(data['received_at']!, _receivedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_receivedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TransactionDetectionEvent map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TransactionDetectionEvent(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      eventKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}event_key'],
+      )!,
+      sourcePackage: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_package'],
+      )!,
+      sourceType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_type'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      ),
+      body: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}body'],
+      ),
+      bigText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}big_text'],
+      ),
+      occurredAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}occurred_at'],
+      )!,
+      receivedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}received_at'],
+      )!,
+    );
+  }
+
+  @override
+  $TransactionDetectionEventsTable createAlias(String alias) {
+    return $TransactionDetectionEventsTable(attachedDatabase, alias);
+  }
+}
+
+class TransactionDetectionEvent extends DataClass
+    implements Insertable<TransactionDetectionEvent> {
+  final int id;
+  final String eventKey;
+  final String sourcePackage;
+  final String sourceType;
+  final String? title;
+  final String? body;
+  final String? bigText;
+  final DateTime occurredAt;
+  final DateTime receivedAt;
+  const TransactionDetectionEvent({
+    required this.id,
+    required this.eventKey,
+    required this.sourcePackage,
+    required this.sourceType,
+    this.title,
+    this.body,
+    this.bigText,
+    required this.occurredAt,
+    required this.receivedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['event_key'] = Variable<String>(eventKey);
+    map['source_package'] = Variable<String>(sourcePackage);
+    map['source_type'] = Variable<String>(sourceType);
+    if (!nullToAbsent || title != null) {
+      map['title'] = Variable<String>(title);
+    }
+    if (!nullToAbsent || body != null) {
+      map['body'] = Variable<String>(body);
+    }
+    if (!nullToAbsent || bigText != null) {
+      map['big_text'] = Variable<String>(bigText);
+    }
+    map['occurred_at'] = Variable<DateTime>(occurredAt);
+    map['received_at'] = Variable<DateTime>(receivedAt);
+    return map;
+  }
+
+  TransactionDetectionEventsCompanion toCompanion(bool nullToAbsent) {
+    return TransactionDetectionEventsCompanion(
+      id: Value(id),
+      eventKey: Value(eventKey),
+      sourcePackage: Value(sourcePackage),
+      sourceType: Value(sourceType),
+      title: title == null && nullToAbsent
+          ? const Value.absent()
+          : Value(title),
+      body: body == null && nullToAbsent ? const Value.absent() : Value(body),
+      bigText: bigText == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bigText),
+      occurredAt: Value(occurredAt),
+      receivedAt: Value(receivedAt),
+    );
+  }
+
+  factory TransactionDetectionEvent.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TransactionDetectionEvent(
+      id: serializer.fromJson<int>(json['id']),
+      eventKey: serializer.fromJson<String>(json['eventKey']),
+      sourcePackage: serializer.fromJson<String>(json['sourcePackage']),
+      sourceType: serializer.fromJson<String>(json['sourceType']),
+      title: serializer.fromJson<String?>(json['title']),
+      body: serializer.fromJson<String?>(json['body']),
+      bigText: serializer.fromJson<String?>(json['bigText']),
+      occurredAt: serializer.fromJson<DateTime>(json['occurredAt']),
+      receivedAt: serializer.fromJson<DateTime>(json['receivedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'eventKey': serializer.toJson<String>(eventKey),
+      'sourcePackage': serializer.toJson<String>(sourcePackage),
+      'sourceType': serializer.toJson<String>(sourceType),
+      'title': serializer.toJson<String?>(title),
+      'body': serializer.toJson<String?>(body),
+      'bigText': serializer.toJson<String?>(bigText),
+      'occurredAt': serializer.toJson<DateTime>(occurredAt),
+      'receivedAt': serializer.toJson<DateTime>(receivedAt),
+    };
+  }
+
+  TransactionDetectionEvent copyWith({
+    int? id,
+    String? eventKey,
+    String? sourcePackage,
+    String? sourceType,
+    Value<String?> title = const Value.absent(),
+    Value<String?> body = const Value.absent(),
+    Value<String?> bigText = const Value.absent(),
+    DateTime? occurredAt,
+    DateTime? receivedAt,
+  }) => TransactionDetectionEvent(
+    id: id ?? this.id,
+    eventKey: eventKey ?? this.eventKey,
+    sourcePackage: sourcePackage ?? this.sourcePackage,
+    sourceType: sourceType ?? this.sourceType,
+    title: title.present ? title.value : this.title,
+    body: body.present ? body.value : this.body,
+    bigText: bigText.present ? bigText.value : this.bigText,
+    occurredAt: occurredAt ?? this.occurredAt,
+    receivedAt: receivedAt ?? this.receivedAt,
+  );
+  TransactionDetectionEvent copyWithCompanion(
+    TransactionDetectionEventsCompanion data,
+  ) {
+    return TransactionDetectionEvent(
+      id: data.id.present ? data.id.value : this.id,
+      eventKey: data.eventKey.present ? data.eventKey.value : this.eventKey,
+      sourcePackage: data.sourcePackage.present
+          ? data.sourcePackage.value
+          : this.sourcePackage,
+      sourceType: data.sourceType.present
+          ? data.sourceType.value
+          : this.sourceType,
+      title: data.title.present ? data.title.value : this.title,
+      body: data.body.present ? data.body.value : this.body,
+      bigText: data.bigText.present ? data.bigText.value : this.bigText,
+      occurredAt: data.occurredAt.present
+          ? data.occurredAt.value
+          : this.occurredAt,
+      receivedAt: data.receivedAt.present
+          ? data.receivedAt.value
+          : this.receivedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TransactionDetectionEvent(')
+          ..write('id: $id, ')
+          ..write('eventKey: $eventKey, ')
+          ..write('sourcePackage: $sourcePackage, ')
+          ..write('sourceType: $sourceType, ')
+          ..write('title: $title, ')
+          ..write('body: $body, ')
+          ..write('bigText: $bigText, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('receivedAt: $receivedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    eventKey,
+    sourcePackage,
+    sourceType,
+    title,
+    body,
+    bigText,
+    occurredAt,
+    receivedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TransactionDetectionEvent &&
+          other.id == this.id &&
+          other.eventKey == this.eventKey &&
+          other.sourcePackage == this.sourcePackage &&
+          other.sourceType == this.sourceType &&
+          other.title == this.title &&
+          other.body == this.body &&
+          other.bigText == this.bigText &&
+          other.occurredAt == this.occurredAt &&
+          other.receivedAt == this.receivedAt);
+}
+
+class TransactionDetectionEventsCompanion
+    extends UpdateCompanion<TransactionDetectionEvent> {
+  final Value<int> id;
+  final Value<String> eventKey;
+  final Value<String> sourcePackage;
+  final Value<String> sourceType;
+  final Value<String?> title;
+  final Value<String?> body;
+  final Value<String?> bigText;
+  final Value<DateTime> occurredAt;
+  final Value<DateTime> receivedAt;
+  const TransactionDetectionEventsCompanion({
+    this.id = const Value.absent(),
+    this.eventKey = const Value.absent(),
+    this.sourcePackage = const Value.absent(),
+    this.sourceType = const Value.absent(),
+    this.title = const Value.absent(),
+    this.body = const Value.absent(),
+    this.bigText = const Value.absent(),
+    this.occurredAt = const Value.absent(),
+    this.receivedAt = const Value.absent(),
+  });
+  TransactionDetectionEventsCompanion.insert({
+    this.id = const Value.absent(),
+    required String eventKey,
+    required String sourcePackage,
+    required String sourceType,
+    this.title = const Value.absent(),
+    this.body = const Value.absent(),
+    this.bigText = const Value.absent(),
+    required DateTime occurredAt,
+    required DateTime receivedAt,
+  }) : eventKey = Value(eventKey),
+       sourcePackage = Value(sourcePackage),
+       sourceType = Value(sourceType),
+       occurredAt = Value(occurredAt),
+       receivedAt = Value(receivedAt);
+  static Insertable<TransactionDetectionEvent> custom({
+    Expression<int>? id,
+    Expression<String>? eventKey,
+    Expression<String>? sourcePackage,
+    Expression<String>? sourceType,
+    Expression<String>? title,
+    Expression<String>? body,
+    Expression<String>? bigText,
+    Expression<DateTime>? occurredAt,
+    Expression<DateTime>? receivedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (eventKey != null) 'event_key': eventKey,
+      if (sourcePackage != null) 'source_package': sourcePackage,
+      if (sourceType != null) 'source_type': sourceType,
+      if (title != null) 'title': title,
+      if (body != null) 'body': body,
+      if (bigText != null) 'big_text': bigText,
+      if (occurredAt != null) 'occurred_at': occurredAt,
+      if (receivedAt != null) 'received_at': receivedAt,
+    });
+  }
+
+  TransactionDetectionEventsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? eventKey,
+    Value<String>? sourcePackage,
+    Value<String>? sourceType,
+    Value<String?>? title,
+    Value<String?>? body,
+    Value<String?>? bigText,
+    Value<DateTime>? occurredAt,
+    Value<DateTime>? receivedAt,
+  }) {
+    return TransactionDetectionEventsCompanion(
+      id: id ?? this.id,
+      eventKey: eventKey ?? this.eventKey,
+      sourcePackage: sourcePackage ?? this.sourcePackage,
+      sourceType: sourceType ?? this.sourceType,
+      title: title ?? this.title,
+      body: body ?? this.body,
+      bigText: bigText ?? this.bigText,
+      occurredAt: occurredAt ?? this.occurredAt,
+      receivedAt: receivedAt ?? this.receivedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (eventKey.present) {
+      map['event_key'] = Variable<String>(eventKey.value);
+    }
+    if (sourcePackage.present) {
+      map['source_package'] = Variable<String>(sourcePackage.value);
+    }
+    if (sourceType.present) {
+      map['source_type'] = Variable<String>(sourceType.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (body.present) {
+      map['body'] = Variable<String>(body.value);
+    }
+    if (bigText.present) {
+      map['big_text'] = Variable<String>(bigText.value);
+    }
+    if (occurredAt.present) {
+      map['occurred_at'] = Variable<DateTime>(occurredAt.value);
+    }
+    if (receivedAt.present) {
+      map['received_at'] = Variable<DateTime>(receivedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TransactionDetectionEventsCompanion(')
+          ..write('id: $id, ')
+          ..write('eventKey: $eventKey, ')
+          ..write('sourcePackage: $sourcePackage, ')
+          ..write('sourceType: $sourceType, ')
+          ..write('title: $title, ')
+          ..write('body: $body, ')
+          ..write('bigText: $bigText, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('receivedAt: $receivedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TransactionCandidatesTable extends TransactionCandidates
+    with TableInfo<$TransactionCandidatesTable, TransactionCandidate> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TransactionCandidatesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _candidateIdMeta = const VerificationMeta(
+    'candidateId',
+  );
+  @override
+  late final GeneratedColumn<String> candidateId = GeneratedColumn<String>(
+    'candidate_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _amountMinorMeta = const VerificationMeta(
+    'amountMinor',
+  );
+  @override
+  late final GeneratedColumn<int> amountMinor = GeneratedColumn<int>(
+    'amount_minor',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _currencyMeta = const VerificationMeta(
+    'currency',
+  );
+  @override
+  late final GeneratedColumn<String> currency = GeneratedColumn<String>(
+    'currency',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('INR'),
+  );
+  static const VerificationMeta _merchantNameMeta = const VerificationMeta(
+    'merchantName',
+  );
+  @override
+  late final GeneratedColumn<String> merchantName = GeneratedColumn<String>(
+    'merchant_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('Unknown'),
+  );
+  static const VerificationMeta _merchantIdentityMeta = const VerificationMeta(
+    'merchantIdentity',
+  );
+  @override
+  late final GeneratedColumn<String> merchantIdentity = GeneratedColumn<String>(
+    'merchant_identity',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('unknown'),
+  );
+  static const VerificationMeta _directionMeta = const VerificationMeta(
+    'direction',
+  );
+  @override
+  late final GeneratedColumn<String> direction = GeneratedColumn<String>(
+    'direction',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _transactionTypeMeta = const VerificationMeta(
+    'transactionType',
+  );
+  @override
+  late final GeneratedColumn<String> transactionType = GeneratedColumn<String>(
+    'transaction_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bankConfirmationStatusMeta =
+      const VerificationMeta('bankConfirmationStatus');
+  @override
+  late final GeneratedColumn<String> bankConfirmationStatus =
+      GeneratedColumn<String>(
+        'bank_confirmation_status',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('NOT_RECEIVED'),
+      );
+  static const VerificationMeta _sourcePackageMeta = const VerificationMeta(
+    'sourcePackage',
+  );
+  @override
+  late final GeneratedColumn<String> sourcePackage = GeneratedColumn<String>(
+    'source_package',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _occurredAtMeta = const VerificationMeta(
+    'occurredAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> occurredAt = GeneratedColumn<DateTime>(
+    'occurred_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _referenceIdMeta = const VerificationMeta(
+    'referenceId',
+  );
+  @override
+  late final GeneratedColumn<String> referenceId = GeneratedColumn<String>(
+    'reference_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _accountHintMeta = const VerificationMeta(
+    'accountHint',
+  );
+  @override
+  late final GeneratedColumn<String> accountHint = GeneratedColumn<String>(
+    'account_hint',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _paymentMethodMeta = const VerificationMeta(
+    'paymentMethod',
+  );
+  @override
+  late final GeneratedColumn<String> paymentMethod = GeneratedColumn<String>(
+    'payment_method',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _balanceAfterMinorMeta = const VerificationMeta(
+    'balanceAfterMinor',
+  );
+  @override
+  late final GeneratedColumn<int> balanceAfterMinor = GeneratedColumn<int>(
+    'balance_after_minor',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rawEventIdMeta = const VerificationMeta(
+    'rawEventId',
+  );
+  @override
+  late final GeneratedColumn<String> rawEventId = GeneratedColumn<String>(
+    'raw_event_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _confidenceScoreMeta = const VerificationMeta(
+    'confidenceScore',
+  );
+  @override
+  late final GeneratedColumn<double> confidenceScore = GeneratedColumn<double>(
+    'confidence_score',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _duplicateStatusMeta = const VerificationMeta(
+    'duplicateStatus',
+  );
+  @override
+  late final GeneratedColumn<String> duplicateStatus = GeneratedColumn<String>(
+    'duplicate_status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _categoryMeta = const VerificationMeta(
+    'category',
+  );
+  @override
+  late final GeneratedColumn<String> category = GeneratedColumn<String>(
+    'category',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('Other'),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    candidateId,
+    amountMinor,
+    currency,
+    merchantName,
+    merchantIdentity,
+    direction,
+    transactionType,
+    source,
+    bankConfirmationStatus,
+    sourcePackage,
+    occurredAt,
+    referenceId,
+    accountHint,
+    paymentMethod,
+    balanceAfterMinor,
+    rawEventId,
+    confidenceScore,
+    status,
+    duplicateStatus,
+    category,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'transaction_candidates';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TransactionCandidate> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('candidate_id')) {
+      context.handle(
+        _candidateIdMeta,
+        candidateId.isAcceptableOrUnknown(
+          data['candidate_id']!,
+          _candidateIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_candidateIdMeta);
+    }
+    if (data.containsKey('amount_minor')) {
+      context.handle(
+        _amountMinorMeta,
+        amountMinor.isAcceptableOrUnknown(
+          data['amount_minor']!,
+          _amountMinorMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_amountMinorMeta);
+    }
+    if (data.containsKey('currency')) {
+      context.handle(
+        _currencyMeta,
+        currency.isAcceptableOrUnknown(data['currency']!, _currencyMeta),
+      );
+    }
+    if (data.containsKey('merchant_name')) {
+      context.handle(
+        _merchantNameMeta,
+        merchantName.isAcceptableOrUnknown(
+          data['merchant_name']!,
+          _merchantNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('merchant_identity')) {
+      context.handle(
+        _merchantIdentityMeta,
+        merchantIdentity.isAcceptableOrUnknown(
+          data['merchant_identity']!,
+          _merchantIdentityMeta,
+        ),
+      );
+    }
+    if (data.containsKey('direction')) {
+      context.handle(
+        _directionMeta,
+        direction.isAcceptableOrUnknown(data['direction']!, _directionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_directionMeta);
+    }
+    if (data.containsKey('transaction_type')) {
+      context.handle(
+        _transactionTypeMeta,
+        transactionType.isAcceptableOrUnknown(
+          data['transaction_type']!,
+          _transactionTypeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_transactionTypeMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    if (data.containsKey('bank_confirmation_status')) {
+      context.handle(
+        _bankConfirmationStatusMeta,
+        bankConfirmationStatus.isAcceptableOrUnknown(
+          data['bank_confirmation_status']!,
+          _bankConfirmationStatusMeta,
+        ),
+      );
+    }
+    if (data.containsKey('source_package')) {
+      context.handle(
+        _sourcePackageMeta,
+        sourcePackage.isAcceptableOrUnknown(
+          data['source_package']!,
+          _sourcePackageMeta,
+        ),
+      );
+    }
+    if (data.containsKey('occurred_at')) {
+      context.handle(
+        _occurredAtMeta,
+        occurredAt.isAcceptableOrUnknown(data['occurred_at']!, _occurredAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_occurredAtMeta);
+    }
+    if (data.containsKey('reference_id')) {
+      context.handle(
+        _referenceIdMeta,
+        referenceId.isAcceptableOrUnknown(
+          data['reference_id']!,
+          _referenceIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('account_hint')) {
+      context.handle(
+        _accountHintMeta,
+        accountHint.isAcceptableOrUnknown(
+          data['account_hint']!,
+          _accountHintMeta,
+        ),
+      );
+    }
+    if (data.containsKey('payment_method')) {
+      context.handle(
+        _paymentMethodMeta,
+        paymentMethod.isAcceptableOrUnknown(
+          data['payment_method']!,
+          _paymentMethodMeta,
+        ),
+      );
+    }
+    if (data.containsKey('balance_after_minor')) {
+      context.handle(
+        _balanceAfterMinorMeta,
+        balanceAfterMinor.isAcceptableOrUnknown(
+          data['balance_after_minor']!,
+          _balanceAfterMinorMeta,
+        ),
+      );
+    }
+    if (data.containsKey('raw_event_id')) {
+      context.handle(
+        _rawEventIdMeta,
+        rawEventId.isAcceptableOrUnknown(
+          data['raw_event_id']!,
+          _rawEventIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('confidence_score')) {
+      context.handle(
+        _confidenceScoreMeta,
+        confidenceScore.isAcceptableOrUnknown(
+          data['confidence_score']!,
+          _confidenceScoreMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_confidenceScoreMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('duplicate_status')) {
+      context.handle(
+        _duplicateStatusMeta,
+        duplicateStatus.isAcceptableOrUnknown(
+          data['duplicate_status']!,
+          _duplicateStatusMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_duplicateStatusMeta);
+    }
+    if (data.containsKey('category')) {
+      context.handle(
+        _categoryMeta,
+        category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TransactionCandidate map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TransactionCandidate(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      candidateId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}candidate_id'],
+      )!,
+      amountMinor: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}amount_minor'],
+      )!,
+      currency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}currency'],
+      )!,
+      merchantName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}merchant_name'],
+      )!,
+      merchantIdentity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}merchant_identity'],
+      )!,
+      direction: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}direction'],
+      )!,
+      transactionType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}transaction_type'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      bankConfirmationStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}bank_confirmation_status'],
+      )!,
+      sourcePackage: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_package'],
+      ),
+      occurredAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}occurred_at'],
+      )!,
+      referenceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reference_id'],
+      ),
+      accountHint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_hint'],
+      ),
+      paymentMethod: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payment_method'],
+      ),
+      balanceAfterMinor: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}balance_after_minor'],
+      ),
+      rawEventId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}raw_event_id'],
+      ),
+      confidenceScore: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}confidence_score'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      duplicateStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}duplicate_status'],
+      )!,
+      category: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $TransactionCandidatesTable createAlias(String alias) {
+    return $TransactionCandidatesTable(attachedDatabase, alias);
+  }
+}
+
+class TransactionCandidate extends DataClass
+    implements Insertable<TransactionCandidate> {
+  final int id;
+  final String candidateId;
+  final int amountMinor;
+  final String currency;
+  final String merchantName;
+  final String merchantIdentity;
+  final String direction;
+  final String transactionType;
+  final String source;
+  final String bankConfirmationStatus;
+  final String? sourcePackage;
+  final DateTime occurredAt;
+  final String? referenceId;
+  final String? accountHint;
+  final String? paymentMethod;
+  final int? balanceAfterMinor;
+  final String? rawEventId;
+  final double confidenceScore;
+  final String status;
+  final String duplicateStatus;
+  final String category;
+  final DateTime createdAt;
+  const TransactionCandidate({
+    required this.id,
+    required this.candidateId,
+    required this.amountMinor,
+    required this.currency,
+    required this.merchantName,
+    required this.merchantIdentity,
+    required this.direction,
+    required this.transactionType,
+    required this.source,
+    required this.bankConfirmationStatus,
+    this.sourcePackage,
+    required this.occurredAt,
+    this.referenceId,
+    this.accountHint,
+    this.paymentMethod,
+    this.balanceAfterMinor,
+    this.rawEventId,
+    required this.confidenceScore,
+    required this.status,
+    required this.duplicateStatus,
+    required this.category,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['candidate_id'] = Variable<String>(candidateId);
+    map['amount_minor'] = Variable<int>(amountMinor);
+    map['currency'] = Variable<String>(currency);
+    map['merchant_name'] = Variable<String>(merchantName);
+    map['merchant_identity'] = Variable<String>(merchantIdentity);
+    map['direction'] = Variable<String>(direction);
+    map['transaction_type'] = Variable<String>(transactionType);
+    map['source'] = Variable<String>(source);
+    map['bank_confirmation_status'] = Variable<String>(bankConfirmationStatus);
+    if (!nullToAbsent || sourcePackage != null) {
+      map['source_package'] = Variable<String>(sourcePackage);
+    }
+    map['occurred_at'] = Variable<DateTime>(occurredAt);
+    if (!nullToAbsent || referenceId != null) {
+      map['reference_id'] = Variable<String>(referenceId);
+    }
+    if (!nullToAbsent || accountHint != null) {
+      map['account_hint'] = Variable<String>(accountHint);
+    }
+    if (!nullToAbsent || paymentMethod != null) {
+      map['payment_method'] = Variable<String>(paymentMethod);
+    }
+    if (!nullToAbsent || balanceAfterMinor != null) {
+      map['balance_after_minor'] = Variable<int>(balanceAfterMinor);
+    }
+    if (!nullToAbsent || rawEventId != null) {
+      map['raw_event_id'] = Variable<String>(rawEventId);
+    }
+    map['confidence_score'] = Variable<double>(confidenceScore);
+    map['status'] = Variable<String>(status);
+    map['duplicate_status'] = Variable<String>(duplicateStatus);
+    map['category'] = Variable<String>(category);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  TransactionCandidatesCompanion toCompanion(bool nullToAbsent) {
+    return TransactionCandidatesCompanion(
+      id: Value(id),
+      candidateId: Value(candidateId),
+      amountMinor: Value(amountMinor),
+      currency: Value(currency),
+      merchantName: Value(merchantName),
+      merchantIdentity: Value(merchantIdentity),
+      direction: Value(direction),
+      transactionType: Value(transactionType),
+      source: Value(source),
+      bankConfirmationStatus: Value(bankConfirmationStatus),
+      sourcePackage: sourcePackage == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourcePackage),
+      occurredAt: Value(occurredAt),
+      referenceId: referenceId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(referenceId),
+      accountHint: accountHint == null && nullToAbsent
+          ? const Value.absent()
+          : Value(accountHint),
+      paymentMethod: paymentMethod == null && nullToAbsent
+          ? const Value.absent()
+          : Value(paymentMethod),
+      balanceAfterMinor: balanceAfterMinor == null && nullToAbsent
+          ? const Value.absent()
+          : Value(balanceAfterMinor),
+      rawEventId: rawEventId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rawEventId),
+      confidenceScore: Value(confidenceScore),
+      status: Value(status),
+      duplicateStatus: Value(duplicateStatus),
+      category: Value(category),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory TransactionCandidate.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TransactionCandidate(
+      id: serializer.fromJson<int>(json['id']),
+      candidateId: serializer.fromJson<String>(json['candidateId']),
+      amountMinor: serializer.fromJson<int>(json['amountMinor']),
+      currency: serializer.fromJson<String>(json['currency']),
+      merchantName: serializer.fromJson<String>(json['merchantName']),
+      merchantIdentity: serializer.fromJson<String>(json['merchantIdentity']),
+      direction: serializer.fromJson<String>(json['direction']),
+      transactionType: serializer.fromJson<String>(json['transactionType']),
+      source: serializer.fromJson<String>(json['source']),
+      bankConfirmationStatus: serializer.fromJson<String>(
+        json['bankConfirmationStatus'],
+      ),
+      sourcePackage: serializer.fromJson<String?>(json['sourcePackage']),
+      occurredAt: serializer.fromJson<DateTime>(json['occurredAt']),
+      referenceId: serializer.fromJson<String?>(json['referenceId']),
+      accountHint: serializer.fromJson<String?>(json['accountHint']),
+      paymentMethod: serializer.fromJson<String?>(json['paymentMethod']),
+      balanceAfterMinor: serializer.fromJson<int?>(json['balanceAfterMinor']),
+      rawEventId: serializer.fromJson<String?>(json['rawEventId']),
+      confidenceScore: serializer.fromJson<double>(json['confidenceScore']),
+      status: serializer.fromJson<String>(json['status']),
+      duplicateStatus: serializer.fromJson<String>(json['duplicateStatus']),
+      category: serializer.fromJson<String>(json['category']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'candidateId': serializer.toJson<String>(candidateId),
+      'amountMinor': serializer.toJson<int>(amountMinor),
+      'currency': serializer.toJson<String>(currency),
+      'merchantName': serializer.toJson<String>(merchantName),
+      'merchantIdentity': serializer.toJson<String>(merchantIdentity),
+      'direction': serializer.toJson<String>(direction),
+      'transactionType': serializer.toJson<String>(transactionType),
+      'source': serializer.toJson<String>(source),
+      'bankConfirmationStatus': serializer.toJson<String>(
+        bankConfirmationStatus,
+      ),
+      'sourcePackage': serializer.toJson<String?>(sourcePackage),
+      'occurredAt': serializer.toJson<DateTime>(occurredAt),
+      'referenceId': serializer.toJson<String?>(referenceId),
+      'accountHint': serializer.toJson<String?>(accountHint),
+      'paymentMethod': serializer.toJson<String?>(paymentMethod),
+      'balanceAfterMinor': serializer.toJson<int?>(balanceAfterMinor),
+      'rawEventId': serializer.toJson<String?>(rawEventId),
+      'confidenceScore': serializer.toJson<double>(confidenceScore),
+      'status': serializer.toJson<String>(status),
+      'duplicateStatus': serializer.toJson<String>(duplicateStatus),
+      'category': serializer.toJson<String>(category),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  TransactionCandidate copyWith({
+    int? id,
+    String? candidateId,
+    int? amountMinor,
+    String? currency,
+    String? merchantName,
+    String? merchantIdentity,
+    String? direction,
+    String? transactionType,
+    String? source,
+    String? bankConfirmationStatus,
+    Value<String?> sourcePackage = const Value.absent(),
+    DateTime? occurredAt,
+    Value<String?> referenceId = const Value.absent(),
+    Value<String?> accountHint = const Value.absent(),
+    Value<String?> paymentMethod = const Value.absent(),
+    Value<int?> balanceAfterMinor = const Value.absent(),
+    Value<String?> rawEventId = const Value.absent(),
+    double? confidenceScore,
+    String? status,
+    String? duplicateStatus,
+    String? category,
+    DateTime? createdAt,
+  }) => TransactionCandidate(
+    id: id ?? this.id,
+    candidateId: candidateId ?? this.candidateId,
+    amountMinor: amountMinor ?? this.amountMinor,
+    currency: currency ?? this.currency,
+    merchantName: merchantName ?? this.merchantName,
+    merchantIdentity: merchantIdentity ?? this.merchantIdentity,
+    direction: direction ?? this.direction,
+    transactionType: transactionType ?? this.transactionType,
+    source: source ?? this.source,
+    bankConfirmationStatus:
+        bankConfirmationStatus ?? this.bankConfirmationStatus,
+    sourcePackage: sourcePackage.present
+        ? sourcePackage.value
+        : this.sourcePackage,
+    occurredAt: occurredAt ?? this.occurredAt,
+    referenceId: referenceId.present ? referenceId.value : this.referenceId,
+    accountHint: accountHint.present ? accountHint.value : this.accountHint,
+    paymentMethod: paymentMethod.present
+        ? paymentMethod.value
+        : this.paymentMethod,
+    balanceAfterMinor: balanceAfterMinor.present
+        ? balanceAfterMinor.value
+        : this.balanceAfterMinor,
+    rawEventId: rawEventId.present ? rawEventId.value : this.rawEventId,
+    confidenceScore: confidenceScore ?? this.confidenceScore,
+    status: status ?? this.status,
+    duplicateStatus: duplicateStatus ?? this.duplicateStatus,
+    category: category ?? this.category,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  TransactionCandidate copyWithCompanion(TransactionCandidatesCompanion data) {
+    return TransactionCandidate(
+      id: data.id.present ? data.id.value : this.id,
+      candidateId: data.candidateId.present
+          ? data.candidateId.value
+          : this.candidateId,
+      amountMinor: data.amountMinor.present
+          ? data.amountMinor.value
+          : this.amountMinor,
+      currency: data.currency.present ? data.currency.value : this.currency,
+      merchantName: data.merchantName.present
+          ? data.merchantName.value
+          : this.merchantName,
+      merchantIdentity: data.merchantIdentity.present
+          ? data.merchantIdentity.value
+          : this.merchantIdentity,
+      direction: data.direction.present ? data.direction.value : this.direction,
+      transactionType: data.transactionType.present
+          ? data.transactionType.value
+          : this.transactionType,
+      source: data.source.present ? data.source.value : this.source,
+      bankConfirmationStatus: data.bankConfirmationStatus.present
+          ? data.bankConfirmationStatus.value
+          : this.bankConfirmationStatus,
+      sourcePackage: data.sourcePackage.present
+          ? data.sourcePackage.value
+          : this.sourcePackage,
+      occurredAt: data.occurredAt.present
+          ? data.occurredAt.value
+          : this.occurredAt,
+      referenceId: data.referenceId.present
+          ? data.referenceId.value
+          : this.referenceId,
+      accountHint: data.accountHint.present
+          ? data.accountHint.value
+          : this.accountHint,
+      paymentMethod: data.paymentMethod.present
+          ? data.paymentMethod.value
+          : this.paymentMethod,
+      balanceAfterMinor: data.balanceAfterMinor.present
+          ? data.balanceAfterMinor.value
+          : this.balanceAfterMinor,
+      rawEventId: data.rawEventId.present
+          ? data.rawEventId.value
+          : this.rawEventId,
+      confidenceScore: data.confidenceScore.present
+          ? data.confidenceScore.value
+          : this.confidenceScore,
+      status: data.status.present ? data.status.value : this.status,
+      duplicateStatus: data.duplicateStatus.present
+          ? data.duplicateStatus.value
+          : this.duplicateStatus,
+      category: data.category.present ? data.category.value : this.category,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TransactionCandidate(')
+          ..write('id: $id, ')
+          ..write('candidateId: $candidateId, ')
+          ..write('amountMinor: $amountMinor, ')
+          ..write('currency: $currency, ')
+          ..write('merchantName: $merchantName, ')
+          ..write('merchantIdentity: $merchantIdentity, ')
+          ..write('direction: $direction, ')
+          ..write('transactionType: $transactionType, ')
+          ..write('source: $source, ')
+          ..write('bankConfirmationStatus: $bankConfirmationStatus, ')
+          ..write('sourcePackage: $sourcePackage, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('referenceId: $referenceId, ')
+          ..write('accountHint: $accountHint, ')
+          ..write('paymentMethod: $paymentMethod, ')
+          ..write('balanceAfterMinor: $balanceAfterMinor, ')
+          ..write('rawEventId: $rawEventId, ')
+          ..write('confidenceScore: $confidenceScore, ')
+          ..write('status: $status, ')
+          ..write('duplicateStatus: $duplicateStatus, ')
+          ..write('category: $category, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    id,
+    candidateId,
+    amountMinor,
+    currency,
+    merchantName,
+    merchantIdentity,
+    direction,
+    transactionType,
+    source,
+    bankConfirmationStatus,
+    sourcePackage,
+    occurredAt,
+    referenceId,
+    accountHint,
+    paymentMethod,
+    balanceAfterMinor,
+    rawEventId,
+    confidenceScore,
+    status,
+    duplicateStatus,
+    category,
+    createdAt,
+  ]);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TransactionCandidate &&
+          other.id == this.id &&
+          other.candidateId == this.candidateId &&
+          other.amountMinor == this.amountMinor &&
+          other.currency == this.currency &&
+          other.merchantName == this.merchantName &&
+          other.merchantIdentity == this.merchantIdentity &&
+          other.direction == this.direction &&
+          other.transactionType == this.transactionType &&
+          other.source == this.source &&
+          other.bankConfirmationStatus == this.bankConfirmationStatus &&
+          other.sourcePackage == this.sourcePackage &&
+          other.occurredAt == this.occurredAt &&
+          other.referenceId == this.referenceId &&
+          other.accountHint == this.accountHint &&
+          other.paymentMethod == this.paymentMethod &&
+          other.balanceAfterMinor == this.balanceAfterMinor &&
+          other.rawEventId == this.rawEventId &&
+          other.confidenceScore == this.confidenceScore &&
+          other.status == this.status &&
+          other.duplicateStatus == this.duplicateStatus &&
+          other.category == this.category &&
+          other.createdAt == this.createdAt);
+}
+
+class TransactionCandidatesCompanion
+    extends UpdateCompanion<TransactionCandidate> {
+  final Value<int> id;
+  final Value<String> candidateId;
+  final Value<int> amountMinor;
+  final Value<String> currency;
+  final Value<String> merchantName;
+  final Value<String> merchantIdentity;
+  final Value<String> direction;
+  final Value<String> transactionType;
+  final Value<String> source;
+  final Value<String> bankConfirmationStatus;
+  final Value<String?> sourcePackage;
+  final Value<DateTime> occurredAt;
+  final Value<String?> referenceId;
+  final Value<String?> accountHint;
+  final Value<String?> paymentMethod;
+  final Value<int?> balanceAfterMinor;
+  final Value<String?> rawEventId;
+  final Value<double> confidenceScore;
+  final Value<String> status;
+  final Value<String> duplicateStatus;
+  final Value<String> category;
+  final Value<DateTime> createdAt;
+  const TransactionCandidatesCompanion({
+    this.id = const Value.absent(),
+    this.candidateId = const Value.absent(),
+    this.amountMinor = const Value.absent(),
+    this.currency = const Value.absent(),
+    this.merchantName = const Value.absent(),
+    this.merchantIdentity = const Value.absent(),
+    this.direction = const Value.absent(),
+    this.transactionType = const Value.absent(),
+    this.source = const Value.absent(),
+    this.bankConfirmationStatus = const Value.absent(),
+    this.sourcePackage = const Value.absent(),
+    this.occurredAt = const Value.absent(),
+    this.referenceId = const Value.absent(),
+    this.accountHint = const Value.absent(),
+    this.paymentMethod = const Value.absent(),
+    this.balanceAfterMinor = const Value.absent(),
+    this.rawEventId = const Value.absent(),
+    this.confidenceScore = const Value.absent(),
+    this.status = const Value.absent(),
+    this.duplicateStatus = const Value.absent(),
+    this.category = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  TransactionCandidatesCompanion.insert({
+    this.id = const Value.absent(),
+    required String candidateId,
+    required int amountMinor,
+    this.currency = const Value.absent(),
+    this.merchantName = const Value.absent(),
+    this.merchantIdentity = const Value.absent(),
+    required String direction,
+    required String transactionType,
+    required String source,
+    this.bankConfirmationStatus = const Value.absent(),
+    this.sourcePackage = const Value.absent(),
+    required DateTime occurredAt,
+    this.referenceId = const Value.absent(),
+    this.accountHint = const Value.absent(),
+    this.paymentMethod = const Value.absent(),
+    this.balanceAfterMinor = const Value.absent(),
+    this.rawEventId = const Value.absent(),
+    required double confidenceScore,
+    required String status,
+    required String duplicateStatus,
+    this.category = const Value.absent(),
+    required DateTime createdAt,
+  }) : candidateId = Value(candidateId),
+       amountMinor = Value(amountMinor),
+       direction = Value(direction),
+       transactionType = Value(transactionType),
+       source = Value(source),
+       occurredAt = Value(occurredAt),
+       confidenceScore = Value(confidenceScore),
+       status = Value(status),
+       duplicateStatus = Value(duplicateStatus),
+       createdAt = Value(createdAt);
+  static Insertable<TransactionCandidate> custom({
+    Expression<int>? id,
+    Expression<String>? candidateId,
+    Expression<int>? amountMinor,
+    Expression<String>? currency,
+    Expression<String>? merchantName,
+    Expression<String>? merchantIdentity,
+    Expression<String>? direction,
+    Expression<String>? transactionType,
+    Expression<String>? source,
+    Expression<String>? bankConfirmationStatus,
+    Expression<String>? sourcePackage,
+    Expression<DateTime>? occurredAt,
+    Expression<String>? referenceId,
+    Expression<String>? accountHint,
+    Expression<String>? paymentMethod,
+    Expression<int>? balanceAfterMinor,
+    Expression<String>? rawEventId,
+    Expression<double>? confidenceScore,
+    Expression<String>? status,
+    Expression<String>? duplicateStatus,
+    Expression<String>? category,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (candidateId != null) 'candidate_id': candidateId,
+      if (amountMinor != null) 'amount_minor': amountMinor,
+      if (currency != null) 'currency': currency,
+      if (merchantName != null) 'merchant_name': merchantName,
+      if (merchantIdentity != null) 'merchant_identity': merchantIdentity,
+      if (direction != null) 'direction': direction,
+      if (transactionType != null) 'transaction_type': transactionType,
+      if (source != null) 'source': source,
+      if (bankConfirmationStatus != null)
+        'bank_confirmation_status': bankConfirmationStatus,
+      if (sourcePackage != null) 'source_package': sourcePackage,
+      if (occurredAt != null) 'occurred_at': occurredAt,
+      if (referenceId != null) 'reference_id': referenceId,
+      if (accountHint != null) 'account_hint': accountHint,
+      if (paymentMethod != null) 'payment_method': paymentMethod,
+      if (balanceAfterMinor != null) 'balance_after_minor': balanceAfterMinor,
+      if (rawEventId != null) 'raw_event_id': rawEventId,
+      if (confidenceScore != null) 'confidence_score': confidenceScore,
+      if (status != null) 'status': status,
+      if (duplicateStatus != null) 'duplicate_status': duplicateStatus,
+      if (category != null) 'category': category,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  TransactionCandidatesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? candidateId,
+    Value<int>? amountMinor,
+    Value<String>? currency,
+    Value<String>? merchantName,
+    Value<String>? merchantIdentity,
+    Value<String>? direction,
+    Value<String>? transactionType,
+    Value<String>? source,
+    Value<String>? bankConfirmationStatus,
+    Value<String?>? sourcePackage,
+    Value<DateTime>? occurredAt,
+    Value<String?>? referenceId,
+    Value<String?>? accountHint,
+    Value<String?>? paymentMethod,
+    Value<int?>? balanceAfterMinor,
+    Value<String?>? rawEventId,
+    Value<double>? confidenceScore,
+    Value<String>? status,
+    Value<String>? duplicateStatus,
+    Value<String>? category,
+    Value<DateTime>? createdAt,
+  }) {
+    return TransactionCandidatesCompanion(
+      id: id ?? this.id,
+      candidateId: candidateId ?? this.candidateId,
+      amountMinor: amountMinor ?? this.amountMinor,
+      currency: currency ?? this.currency,
+      merchantName: merchantName ?? this.merchantName,
+      merchantIdentity: merchantIdentity ?? this.merchantIdentity,
+      direction: direction ?? this.direction,
+      transactionType: transactionType ?? this.transactionType,
+      source: source ?? this.source,
+      bankConfirmationStatus:
+          bankConfirmationStatus ?? this.bankConfirmationStatus,
+      sourcePackage: sourcePackage ?? this.sourcePackage,
+      occurredAt: occurredAt ?? this.occurredAt,
+      referenceId: referenceId ?? this.referenceId,
+      accountHint: accountHint ?? this.accountHint,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      balanceAfterMinor: balanceAfterMinor ?? this.balanceAfterMinor,
+      rawEventId: rawEventId ?? this.rawEventId,
+      confidenceScore: confidenceScore ?? this.confidenceScore,
+      status: status ?? this.status,
+      duplicateStatus: duplicateStatus ?? this.duplicateStatus,
+      category: category ?? this.category,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (candidateId.present) {
+      map['candidate_id'] = Variable<String>(candidateId.value);
+    }
+    if (amountMinor.present) {
+      map['amount_minor'] = Variable<int>(amountMinor.value);
+    }
+    if (currency.present) {
+      map['currency'] = Variable<String>(currency.value);
+    }
+    if (merchantName.present) {
+      map['merchant_name'] = Variable<String>(merchantName.value);
+    }
+    if (merchantIdentity.present) {
+      map['merchant_identity'] = Variable<String>(merchantIdentity.value);
+    }
+    if (direction.present) {
+      map['direction'] = Variable<String>(direction.value);
+    }
+    if (transactionType.present) {
+      map['transaction_type'] = Variable<String>(transactionType.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (bankConfirmationStatus.present) {
+      map['bank_confirmation_status'] = Variable<String>(
+        bankConfirmationStatus.value,
+      );
+    }
+    if (sourcePackage.present) {
+      map['source_package'] = Variable<String>(sourcePackage.value);
+    }
+    if (occurredAt.present) {
+      map['occurred_at'] = Variable<DateTime>(occurredAt.value);
+    }
+    if (referenceId.present) {
+      map['reference_id'] = Variable<String>(referenceId.value);
+    }
+    if (accountHint.present) {
+      map['account_hint'] = Variable<String>(accountHint.value);
+    }
+    if (paymentMethod.present) {
+      map['payment_method'] = Variable<String>(paymentMethod.value);
+    }
+    if (balanceAfterMinor.present) {
+      map['balance_after_minor'] = Variable<int>(balanceAfterMinor.value);
+    }
+    if (rawEventId.present) {
+      map['raw_event_id'] = Variable<String>(rawEventId.value);
+    }
+    if (confidenceScore.present) {
+      map['confidence_score'] = Variable<double>(confidenceScore.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (duplicateStatus.present) {
+      map['duplicate_status'] = Variable<String>(duplicateStatus.value);
+    }
+    if (category.present) {
+      map['category'] = Variable<String>(category.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TransactionCandidatesCompanion(')
+          ..write('id: $id, ')
+          ..write('candidateId: $candidateId, ')
+          ..write('amountMinor: $amountMinor, ')
+          ..write('currency: $currency, ')
+          ..write('merchantName: $merchantName, ')
+          ..write('merchantIdentity: $merchantIdentity, ')
+          ..write('direction: $direction, ')
+          ..write('transactionType: $transactionType, ')
+          ..write('source: $source, ')
+          ..write('bankConfirmationStatus: $bankConfirmationStatus, ')
+          ..write('sourcePackage: $sourcePackage, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('referenceId: $referenceId, ')
+          ..write('accountHint: $accountHint, ')
+          ..write('paymentMethod: $paymentMethod, ')
+          ..write('balanceAfterMinor: $balanceAfterMinor, ')
+          ..write('rawEventId: $rawEventId, ')
+          ..write('confidenceScore: $confidenceScore, ')
+          ..write('status: $status, ')
+          ..write('duplicateStatus: $duplicateStatus, ')
+          ..write('category: $category, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $MerchantCategoryRulesTable extends MerchantCategoryRules
+    with TableInfo<$MerchantCategoryRulesTable, MerchantCategoryRule> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MerchantCategoryRulesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _merchantIdentityMeta = const VerificationMeta(
+    'merchantIdentity',
+  );
+  @override
+  late final GeneratedColumn<String> merchantIdentity = GeneratedColumn<String>(
+    'merchant_identity',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _categoryMeta = const VerificationMeta(
+    'category',
+  );
+  @override
+  late final GeneratedColumn<String> category = GeneratedColumn<String>(
+    'category',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    merchantIdentity,
+    category,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'merchant_category_rules';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<MerchantCategoryRule> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('merchant_identity')) {
+      context.handle(
+        _merchantIdentityMeta,
+        merchantIdentity.isAcceptableOrUnknown(
+          data['merchant_identity']!,
+          _merchantIdentityMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_merchantIdentityMeta);
+    }
+    if (data.containsKey('category')) {
+      context.handle(
+        _categoryMeta,
+        category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MerchantCategoryRule map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MerchantCategoryRule(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      merchantIdentity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}merchant_identity'],
+      )!,
+      category: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $MerchantCategoryRulesTable createAlias(String alias) {
+    return $MerchantCategoryRulesTable(attachedDatabase, alias);
+  }
+}
+
+class MerchantCategoryRule extends DataClass
+    implements Insertable<MerchantCategoryRule> {
+  final int id;
+  final String merchantIdentity;
+  final String category;
+  final DateTime updatedAt;
+  const MerchantCategoryRule({
+    required this.id,
+    required this.merchantIdentity,
+    required this.category,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['merchant_identity'] = Variable<String>(merchantIdentity);
+    map['category'] = Variable<String>(category);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  MerchantCategoryRulesCompanion toCompanion(bool nullToAbsent) {
+    return MerchantCategoryRulesCompanion(
+      id: Value(id),
+      merchantIdentity: Value(merchantIdentity),
+      category: Value(category),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory MerchantCategoryRule.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MerchantCategoryRule(
+      id: serializer.fromJson<int>(json['id']),
+      merchantIdentity: serializer.fromJson<String>(json['merchantIdentity']),
+      category: serializer.fromJson<String>(json['category']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'merchantIdentity': serializer.toJson<String>(merchantIdentity),
+      'category': serializer.toJson<String>(category),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  MerchantCategoryRule copyWith({
+    int? id,
+    String? merchantIdentity,
+    String? category,
+    DateTime? updatedAt,
+  }) => MerchantCategoryRule(
+    id: id ?? this.id,
+    merchantIdentity: merchantIdentity ?? this.merchantIdentity,
+    category: category ?? this.category,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  MerchantCategoryRule copyWithCompanion(MerchantCategoryRulesCompanion data) {
+    return MerchantCategoryRule(
+      id: data.id.present ? data.id.value : this.id,
+      merchantIdentity: data.merchantIdentity.present
+          ? data.merchantIdentity.value
+          : this.merchantIdentity,
+      category: data.category.present ? data.category.value : this.category,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MerchantCategoryRule(')
+          ..write('id: $id, ')
+          ..write('merchantIdentity: $merchantIdentity, ')
+          ..write('category: $category, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, merchantIdentity, category, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MerchantCategoryRule &&
+          other.id == this.id &&
+          other.merchantIdentity == this.merchantIdentity &&
+          other.category == this.category &&
+          other.updatedAt == this.updatedAt);
+}
+
+class MerchantCategoryRulesCompanion
+    extends UpdateCompanion<MerchantCategoryRule> {
+  final Value<int> id;
+  final Value<String> merchantIdentity;
+  final Value<String> category;
+  final Value<DateTime> updatedAt;
+  const MerchantCategoryRulesCompanion({
+    this.id = const Value.absent(),
+    this.merchantIdentity = const Value.absent(),
+    this.category = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  MerchantCategoryRulesCompanion.insert({
+    this.id = const Value.absent(),
+    required String merchantIdentity,
+    required String category,
+    required DateTime updatedAt,
+  }) : merchantIdentity = Value(merchantIdentity),
+       category = Value(category),
+       updatedAt = Value(updatedAt);
+  static Insertable<MerchantCategoryRule> custom({
+    Expression<int>? id,
+    Expression<String>? merchantIdentity,
+    Expression<String>? category,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (merchantIdentity != null) 'merchant_identity': merchantIdentity,
+      if (category != null) 'category': category,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  MerchantCategoryRulesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? merchantIdentity,
+    Value<String>? category,
+    Value<DateTime>? updatedAt,
+  }) {
+    return MerchantCategoryRulesCompanion(
+      id: id ?? this.id,
+      merchantIdentity: merchantIdentity ?? this.merchantIdentity,
+      category: category ?? this.category,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (merchantIdentity.present) {
+      map['merchant_identity'] = Variable<String>(merchantIdentity.value);
+    }
+    if (category.present) {
+      map['category'] = Variable<String>(category.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MerchantCategoryRulesCompanion(')
+          ..write('id: $id, ')
+          ..write('merchantIdentity: $merchantIdentity, ')
+          ..write('category: $category, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3951,6 +6087,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $RemindersTable reminders = $RemindersTable(this);
   late final $DocumentMetaTable documentMeta = $DocumentMetaTable(this);
   late final $ProfileTableTable profileTable = $ProfileTableTable(this);
+  late final $TransactionDetectionEventsTable transactionDetectionEvents =
+      $TransactionDetectionEventsTable(this);
+  late final $TransactionCandidatesTable transactionCandidates =
+      $TransactionCandidatesTable(this);
+  late final $MerchantCategoryRulesTable merchantCategoryRules =
+      $MerchantCategoryRulesTable(this);
   late final TaskDao taskDao = TaskDao(this as AppDatabase);
   late final ClassDao classDao = ClassDao(this as AppDatabase);
   late final StudyDao studyDao = StudyDao(this as AppDatabase);
@@ -3959,6 +6101,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final ReminderDao reminderDao = ReminderDao(this as AppDatabase);
   late final DocumentDao documentDao = DocumentDao(this as AppDatabase);
   late final ProfileDao profileDao = ProfileDao(this as AppDatabase);
+  late final TransactionDetectionDao transactionDetectionDao =
+      TransactionDetectionDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3973,6 +6117,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     reminders,
     documentMeta,
     profileTable,
+    transactionDetectionEvents,
+    transactionCandidates,
+    merchantCategoryRules,
   ];
 }
 
@@ -6089,6 +8236,1101 @@ typedef $$ProfileTableTableProcessedTableManager =
       ProfileTableData,
       PrefetchHooks Function()
     >;
+typedef $$TransactionDetectionEventsTableCreateCompanionBuilder =
+    TransactionDetectionEventsCompanion Function({
+      Value<int> id,
+      required String eventKey,
+      required String sourcePackage,
+      required String sourceType,
+      Value<String?> title,
+      Value<String?> body,
+      Value<String?> bigText,
+      required DateTime occurredAt,
+      required DateTime receivedAt,
+    });
+typedef $$TransactionDetectionEventsTableUpdateCompanionBuilder =
+    TransactionDetectionEventsCompanion Function({
+      Value<int> id,
+      Value<String> eventKey,
+      Value<String> sourcePackage,
+      Value<String> sourceType,
+      Value<String?> title,
+      Value<String?> body,
+      Value<String?> bigText,
+      Value<DateTime> occurredAt,
+      Value<DateTime> receivedAt,
+    });
+
+class $$TransactionDetectionEventsTableFilterComposer
+    extends Composer<_$AppDatabase, $TransactionDetectionEventsTable> {
+  $$TransactionDetectionEventsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get eventKey => $composableBuilder(
+    column: $table.eventKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourcePackage => $composableBuilder(
+    column: $table.sourcePackage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceType => $composableBuilder(
+    column: $table.sourceType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bigText => $composableBuilder(
+    column: $table.bigText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get receivedAt => $composableBuilder(
+    column: $table.receivedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TransactionDetectionEventsTableOrderingComposer
+    extends Composer<_$AppDatabase, $TransactionDetectionEventsTable> {
+  $$TransactionDetectionEventsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get eventKey => $composableBuilder(
+    column: $table.eventKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourcePackage => $composableBuilder(
+    column: $table.sourcePackage,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceType => $composableBuilder(
+    column: $table.sourceType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bigText => $composableBuilder(
+    column: $table.bigText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get receivedAt => $composableBuilder(
+    column: $table.receivedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TransactionDetectionEventsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TransactionDetectionEventsTable> {
+  $$TransactionDetectionEventsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get eventKey =>
+      $composableBuilder(column: $table.eventKey, builder: (column) => column);
+
+  GeneratedColumn<String> get sourcePackage => $composableBuilder(
+    column: $table.sourcePackage,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceType => $composableBuilder(
+    column: $table.sourceType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get body =>
+      $composableBuilder(column: $table.body, builder: (column) => column);
+
+  GeneratedColumn<String> get bigText =>
+      $composableBuilder(column: $table.bigText, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get receivedAt => $composableBuilder(
+    column: $table.receivedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$TransactionDetectionEventsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TransactionDetectionEventsTable,
+          TransactionDetectionEvent,
+          $$TransactionDetectionEventsTableFilterComposer,
+          $$TransactionDetectionEventsTableOrderingComposer,
+          $$TransactionDetectionEventsTableAnnotationComposer,
+          $$TransactionDetectionEventsTableCreateCompanionBuilder,
+          $$TransactionDetectionEventsTableUpdateCompanionBuilder,
+          (
+            TransactionDetectionEvent,
+            BaseReferences<
+              _$AppDatabase,
+              $TransactionDetectionEventsTable,
+              TransactionDetectionEvent
+            >,
+          ),
+          TransactionDetectionEvent,
+          PrefetchHooks Function()
+        > {
+  $$TransactionDetectionEventsTableTableManager(
+    _$AppDatabase db,
+    $TransactionDetectionEventsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TransactionDetectionEventsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$TransactionDetectionEventsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$TransactionDetectionEventsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> eventKey = const Value.absent(),
+                Value<String> sourcePackage = const Value.absent(),
+                Value<String> sourceType = const Value.absent(),
+                Value<String?> title = const Value.absent(),
+                Value<String?> body = const Value.absent(),
+                Value<String?> bigText = const Value.absent(),
+                Value<DateTime> occurredAt = const Value.absent(),
+                Value<DateTime> receivedAt = const Value.absent(),
+              }) => TransactionDetectionEventsCompanion(
+                id: id,
+                eventKey: eventKey,
+                sourcePackage: sourcePackage,
+                sourceType: sourceType,
+                title: title,
+                body: body,
+                bigText: bigText,
+                occurredAt: occurredAt,
+                receivedAt: receivedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String eventKey,
+                required String sourcePackage,
+                required String sourceType,
+                Value<String?> title = const Value.absent(),
+                Value<String?> body = const Value.absent(),
+                Value<String?> bigText = const Value.absent(),
+                required DateTime occurredAt,
+                required DateTime receivedAt,
+              }) => TransactionDetectionEventsCompanion.insert(
+                id: id,
+                eventKey: eventKey,
+                sourcePackage: sourcePackage,
+                sourceType: sourceType,
+                title: title,
+                body: body,
+                bigText: bigText,
+                occurredAt: occurredAt,
+                receivedAt: receivedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $TransactionDetectionEventsTable,
+                    TransactionDetectionEvent
+                  >(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $TransactionDetectionEventsTable,
+                    TransactionDetectionEvent
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TransactionDetectionEventsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TransactionDetectionEventsTable,
+      TransactionDetectionEvent,
+      $$TransactionDetectionEventsTableFilterComposer,
+      $$TransactionDetectionEventsTableOrderingComposer,
+      $$TransactionDetectionEventsTableAnnotationComposer,
+      $$TransactionDetectionEventsTableCreateCompanionBuilder,
+      $$TransactionDetectionEventsTableUpdateCompanionBuilder,
+      (
+        TransactionDetectionEvent,
+        BaseReferences<
+          _$AppDatabase,
+          $TransactionDetectionEventsTable,
+          TransactionDetectionEvent
+        >,
+      ),
+      TransactionDetectionEvent,
+      PrefetchHooks Function()
+    >;
+typedef $$TransactionCandidatesTableCreateCompanionBuilder =
+    TransactionCandidatesCompanion Function({
+      Value<int> id,
+      required String candidateId,
+      required int amountMinor,
+      Value<String> currency,
+      Value<String> merchantName,
+      Value<String> merchantIdentity,
+      required String direction,
+      required String transactionType,
+      required String source,
+      Value<String> bankConfirmationStatus,
+      Value<String?> sourcePackage,
+      required DateTime occurredAt,
+      Value<String?> referenceId,
+      Value<String?> accountHint,
+      Value<String?> paymentMethod,
+      Value<int?> balanceAfterMinor,
+      Value<String?> rawEventId,
+      required double confidenceScore,
+      required String status,
+      required String duplicateStatus,
+      Value<String> category,
+      required DateTime createdAt,
+    });
+typedef $$TransactionCandidatesTableUpdateCompanionBuilder =
+    TransactionCandidatesCompanion Function({
+      Value<int> id,
+      Value<String> candidateId,
+      Value<int> amountMinor,
+      Value<String> currency,
+      Value<String> merchantName,
+      Value<String> merchantIdentity,
+      Value<String> direction,
+      Value<String> transactionType,
+      Value<String> source,
+      Value<String> bankConfirmationStatus,
+      Value<String?> sourcePackage,
+      Value<DateTime> occurredAt,
+      Value<String?> referenceId,
+      Value<String?> accountHint,
+      Value<String?> paymentMethod,
+      Value<int?> balanceAfterMinor,
+      Value<String?> rawEventId,
+      Value<double> confidenceScore,
+      Value<String> status,
+      Value<String> duplicateStatus,
+      Value<String> category,
+      Value<DateTime> createdAt,
+    });
+
+class $$TransactionCandidatesTableFilterComposer
+    extends Composer<_$AppDatabase, $TransactionCandidatesTable> {
+  $$TransactionCandidatesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get candidateId => $composableBuilder(
+    column: $table.candidateId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get amountMinor => $composableBuilder(
+    column: $table.amountMinor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get merchantName => $composableBuilder(
+    column: $table.merchantName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get merchantIdentity => $composableBuilder(
+    column: $table.merchantIdentity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get direction => $composableBuilder(
+    column: $table.direction,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get transactionType => $composableBuilder(
+    column: $table.transactionType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bankConfirmationStatus => $composableBuilder(
+    column: $table.bankConfirmationStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourcePackage => $composableBuilder(
+    column: $table.sourcePackage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get referenceId => $composableBuilder(
+    column: $table.referenceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get accountHint => $composableBuilder(
+    column: $table.accountHint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get paymentMethod => $composableBuilder(
+    column: $table.paymentMethod,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get balanceAfterMinor => $composableBuilder(
+    column: $table.balanceAfterMinor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rawEventId => $composableBuilder(
+    column: $table.rawEventId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get confidenceScore => $composableBuilder(
+    column: $table.confidenceScore,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get duplicateStatus => $composableBuilder(
+    column: $table.duplicateStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TransactionCandidatesTableOrderingComposer
+    extends Composer<_$AppDatabase, $TransactionCandidatesTable> {
+  $$TransactionCandidatesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get candidateId => $composableBuilder(
+    column: $table.candidateId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get amountMinor => $composableBuilder(
+    column: $table.amountMinor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get merchantName => $composableBuilder(
+    column: $table.merchantName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get merchantIdentity => $composableBuilder(
+    column: $table.merchantIdentity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get direction => $composableBuilder(
+    column: $table.direction,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get transactionType => $composableBuilder(
+    column: $table.transactionType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bankConfirmationStatus => $composableBuilder(
+    column: $table.bankConfirmationStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourcePackage => $composableBuilder(
+    column: $table.sourcePackage,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get referenceId => $composableBuilder(
+    column: $table.referenceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get accountHint => $composableBuilder(
+    column: $table.accountHint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get paymentMethod => $composableBuilder(
+    column: $table.paymentMethod,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get balanceAfterMinor => $composableBuilder(
+    column: $table.balanceAfterMinor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rawEventId => $composableBuilder(
+    column: $table.rawEventId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get confidenceScore => $composableBuilder(
+    column: $table.confidenceScore,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get duplicateStatus => $composableBuilder(
+    column: $table.duplicateStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TransactionCandidatesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TransactionCandidatesTable> {
+  $$TransactionCandidatesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get candidateId => $composableBuilder(
+    column: $table.candidateId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get amountMinor => $composableBuilder(
+    column: $table.amountMinor,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get currency =>
+      $composableBuilder(column: $table.currency, builder: (column) => column);
+
+  GeneratedColumn<String> get merchantName => $composableBuilder(
+    column: $table.merchantName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get merchantIdentity => $composableBuilder(
+    column: $table.merchantIdentity,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get direction =>
+      $composableBuilder(column: $table.direction, builder: (column) => column);
+
+  GeneratedColumn<String> get transactionType => $composableBuilder(
+    column: $table.transactionType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get bankConfirmationStatus => $composableBuilder(
+    column: $table.bankConfirmationStatus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourcePackage => $composableBuilder(
+    column: $table.sourcePackage,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get referenceId => $composableBuilder(
+    column: $table.referenceId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get accountHint => $composableBuilder(
+    column: $table.accountHint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get paymentMethod => $composableBuilder(
+    column: $table.paymentMethod,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get balanceAfterMinor => $composableBuilder(
+    column: $table.balanceAfterMinor,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get rawEventId => $composableBuilder(
+    column: $table.rawEventId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get confidenceScore => $composableBuilder(
+    column: $table.confidenceScore,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get duplicateStatus => $composableBuilder(
+    column: $table.duplicateStatus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$TransactionCandidatesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TransactionCandidatesTable,
+          TransactionCandidate,
+          $$TransactionCandidatesTableFilterComposer,
+          $$TransactionCandidatesTableOrderingComposer,
+          $$TransactionCandidatesTableAnnotationComposer,
+          $$TransactionCandidatesTableCreateCompanionBuilder,
+          $$TransactionCandidatesTableUpdateCompanionBuilder,
+          (
+            TransactionCandidate,
+            BaseReferences<
+              _$AppDatabase,
+              $TransactionCandidatesTable,
+              TransactionCandidate
+            >,
+          ),
+          TransactionCandidate,
+          PrefetchHooks Function()
+        > {
+  $$TransactionCandidatesTableTableManager(
+    _$AppDatabase db,
+    $TransactionCandidatesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TransactionCandidatesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$TransactionCandidatesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$TransactionCandidatesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> candidateId = const Value.absent(),
+                Value<int> amountMinor = const Value.absent(),
+                Value<String> currency = const Value.absent(),
+                Value<String> merchantName = const Value.absent(),
+                Value<String> merchantIdentity = const Value.absent(),
+                Value<String> direction = const Value.absent(),
+                Value<String> transactionType = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<String> bankConfirmationStatus = const Value.absent(),
+                Value<String?> sourcePackage = const Value.absent(),
+                Value<DateTime> occurredAt = const Value.absent(),
+                Value<String?> referenceId = const Value.absent(),
+                Value<String?> accountHint = const Value.absent(),
+                Value<String?> paymentMethod = const Value.absent(),
+                Value<int?> balanceAfterMinor = const Value.absent(),
+                Value<String?> rawEventId = const Value.absent(),
+                Value<double> confidenceScore = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String> duplicateStatus = const Value.absent(),
+                Value<String> category = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => TransactionCandidatesCompanion(
+                id: id,
+                candidateId: candidateId,
+                amountMinor: amountMinor,
+                currency: currency,
+                merchantName: merchantName,
+                merchantIdentity: merchantIdentity,
+                direction: direction,
+                transactionType: transactionType,
+                source: source,
+                bankConfirmationStatus: bankConfirmationStatus,
+                sourcePackage: sourcePackage,
+                occurredAt: occurredAt,
+                referenceId: referenceId,
+                accountHint: accountHint,
+                paymentMethod: paymentMethod,
+                balanceAfterMinor: balanceAfterMinor,
+                rawEventId: rawEventId,
+                confidenceScore: confidenceScore,
+                status: status,
+                duplicateStatus: duplicateStatus,
+                category: category,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String candidateId,
+                required int amountMinor,
+                Value<String> currency = const Value.absent(),
+                Value<String> merchantName = const Value.absent(),
+                Value<String> merchantIdentity = const Value.absent(),
+                required String direction,
+                required String transactionType,
+                required String source,
+                Value<String> bankConfirmationStatus = const Value.absent(),
+                Value<String?> sourcePackage = const Value.absent(),
+                required DateTime occurredAt,
+                Value<String?> referenceId = const Value.absent(),
+                Value<String?> accountHint = const Value.absent(),
+                Value<String?> paymentMethod = const Value.absent(),
+                Value<int?> balanceAfterMinor = const Value.absent(),
+                Value<String?> rawEventId = const Value.absent(),
+                required double confidenceScore,
+                required String status,
+                required String duplicateStatus,
+                Value<String> category = const Value.absent(),
+                required DateTime createdAt,
+              }) => TransactionCandidatesCompanion.insert(
+                id: id,
+                candidateId: candidateId,
+                amountMinor: amountMinor,
+                currency: currency,
+                merchantName: merchantName,
+                merchantIdentity: merchantIdentity,
+                direction: direction,
+                transactionType: transactionType,
+                source: source,
+                bankConfirmationStatus: bankConfirmationStatus,
+                sourcePackage: sourcePackage,
+                occurredAt: occurredAt,
+                referenceId: referenceId,
+                accountHint: accountHint,
+                paymentMethod: paymentMethod,
+                balanceAfterMinor: balanceAfterMinor,
+                rawEventId: rawEventId,
+                confidenceScore: confidenceScore,
+                status: status,
+                duplicateStatus: duplicateStatus,
+                category: category,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $TransactionCandidatesTable,
+                    TransactionCandidate
+                  >(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $TransactionCandidatesTable,
+                    TransactionCandidate
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TransactionCandidatesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TransactionCandidatesTable,
+      TransactionCandidate,
+      $$TransactionCandidatesTableFilterComposer,
+      $$TransactionCandidatesTableOrderingComposer,
+      $$TransactionCandidatesTableAnnotationComposer,
+      $$TransactionCandidatesTableCreateCompanionBuilder,
+      $$TransactionCandidatesTableUpdateCompanionBuilder,
+      (
+        TransactionCandidate,
+        BaseReferences<
+          _$AppDatabase,
+          $TransactionCandidatesTable,
+          TransactionCandidate
+        >,
+      ),
+      TransactionCandidate,
+      PrefetchHooks Function()
+    >;
+typedef $$MerchantCategoryRulesTableCreateCompanionBuilder =
+    MerchantCategoryRulesCompanion Function({
+      Value<int> id,
+      required String merchantIdentity,
+      required String category,
+      required DateTime updatedAt,
+    });
+typedef $$MerchantCategoryRulesTableUpdateCompanionBuilder =
+    MerchantCategoryRulesCompanion Function({
+      Value<int> id,
+      Value<String> merchantIdentity,
+      Value<String> category,
+      Value<DateTime> updatedAt,
+    });
+
+class $$MerchantCategoryRulesTableFilterComposer
+    extends Composer<_$AppDatabase, $MerchantCategoryRulesTable> {
+  $$MerchantCategoryRulesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get merchantIdentity => $composableBuilder(
+    column: $table.merchantIdentity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$MerchantCategoryRulesTableOrderingComposer
+    extends Composer<_$AppDatabase, $MerchantCategoryRulesTable> {
+  $$MerchantCategoryRulesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get merchantIdentity => $composableBuilder(
+    column: $table.merchantIdentity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$MerchantCategoryRulesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MerchantCategoryRulesTable> {
+  $$MerchantCategoryRulesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get merchantIdentity => $composableBuilder(
+    column: $table.merchantIdentity,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$MerchantCategoryRulesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $MerchantCategoryRulesTable,
+          MerchantCategoryRule,
+          $$MerchantCategoryRulesTableFilterComposer,
+          $$MerchantCategoryRulesTableOrderingComposer,
+          $$MerchantCategoryRulesTableAnnotationComposer,
+          $$MerchantCategoryRulesTableCreateCompanionBuilder,
+          $$MerchantCategoryRulesTableUpdateCompanionBuilder,
+          (
+            MerchantCategoryRule,
+            BaseReferences<
+              _$AppDatabase,
+              $MerchantCategoryRulesTable,
+              MerchantCategoryRule
+            >,
+          ),
+          MerchantCategoryRule,
+          PrefetchHooks Function()
+        > {
+  $$MerchantCategoryRulesTableTableManager(
+    _$AppDatabase db,
+    $MerchantCategoryRulesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MerchantCategoryRulesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$MerchantCategoryRulesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$MerchantCategoryRulesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> merchantIdentity = const Value.absent(),
+                Value<String> category = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => MerchantCategoryRulesCompanion(
+                id: id,
+                merchantIdentity: merchantIdentity,
+                category: category,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String merchantIdentity,
+                required String category,
+                required DateTime updatedAt,
+              }) => MerchantCategoryRulesCompanion.insert(
+                id: id,
+                merchantIdentity: merchantIdentity,
+                category: category,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $MerchantCategoryRulesTable,
+                    MerchantCategoryRule
+                  >(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $MerchantCategoryRulesTable,
+                    MerchantCategoryRule
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$MerchantCategoryRulesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $MerchantCategoryRulesTable,
+      MerchantCategoryRule,
+      $$MerchantCategoryRulesTableFilterComposer,
+      $$MerchantCategoryRulesTableOrderingComposer,
+      $$MerchantCategoryRulesTableAnnotationComposer,
+      $$MerchantCategoryRulesTableCreateCompanionBuilder,
+      $$MerchantCategoryRulesTableUpdateCompanionBuilder,
+      (
+        MerchantCategoryRule,
+        BaseReferences<
+          _$AppDatabase,
+          $MerchantCategoryRulesTable,
+          MerchantCategoryRule
+        >,
+      ),
+      MerchantCategoryRule,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -6111,4 +9353,14 @@ class $AppDatabaseManager {
       $$DocumentMetaTableTableManager(_db, _db.documentMeta);
   $$ProfileTableTableTableManager get profileTable =>
       $$ProfileTableTableTableManager(_db, _db.profileTable);
+  $$TransactionDetectionEventsTableTableManager
+  get transactionDetectionEvents =>
+      $$TransactionDetectionEventsTableTableManager(
+        _db,
+        _db.transactionDetectionEvents,
+      );
+  $$TransactionCandidatesTableTableManager get transactionCandidates =>
+      $$TransactionCandidatesTableTableManager(_db, _db.transactionCandidates);
+  $$MerchantCategoryRulesTableTableManager get merchantCategoryRules =>
+      $$MerchantCategoryRulesTableTableManager(_db, _db.merchantCategoryRules);
 }

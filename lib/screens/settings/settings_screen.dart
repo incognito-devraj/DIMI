@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,8 @@ import '../../routing/app_router.dart';
 import '../../screens/onboarding/onboarding_screen.dart';
 import '../../services/notification_service.dart';
 import '../../theme/app_theme.dart';
+import '../../features/transaction_detection/transaction_detection_service.dart';
+import '../../providers/database_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -54,6 +57,17 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
+            if (kDebugMode)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenHorizontal),
+                  child: _SettingsGroup(title: 'Developer', items: [
+                    _SettingsItem(icon: Icons.bug_report_outlined, label: 'Notification Detector', trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary), onTap: () => context.push(AppRoutes.notificationDetector)),
+                    _SettingsItem(icon: Icons.cleaning_services_outlined, label: 'Remove invalid detected transactions', trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary), onTap: () => _cleanupDetectedTransactions(context, ref)),
+                  ]),
+                ),
+              ),
+            if (kDebugMode) const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
             // ── Appearance ────────────────────────────────────────────────
             SliverToBoxAdapter(
@@ -92,6 +106,14 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenHorizontal),
+                child: _ExpenseDetectionSettings(ref: ref),
               ),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 12)),
@@ -253,6 +275,21 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _cleanupDetectedTransactions(BuildContext context, WidgetRef ref) async {
+    final dao = ref.read(databaseProvider).moneyDao;
+    final rows = await dao.suspiciousDetectedTransactions();
+    if (!context.mounted) return;
+    if (rows.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No obviously invalid detected transactions found.')));
+      return;
+    }
+    final confirmed = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('Remove invalid transactions?'), content: Text('${rows.length} malformed automatic transaction(s) with Unknown merchant and Other category will be removed. Manual transactions are not affected.'), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Remove'))]));
+    if (confirmed == true) {
+      final count = await dao.deleteSuspiciousDetectedTransactions();
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$count invalid transaction(s) removed.')));
+    }
+  }
+
   void _showComingSoon(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -299,6 +336,26 @@ class SettingsScreen extends ConsumerWidget {
       if (context.mounted) context.go(AppRoutes.onboarding);
     }
   }
+}
+
+class _ExpenseDetectionSettings extends StatefulWidget {
+  const _ExpenseDetectionSettings({required this.ref});
+  final WidgetRef ref;
+  @override State<_ExpenseDetectionSettings> createState() => _ExpenseDetectionSettingsState();
+}
+
+class _ExpenseDetectionSettingsState extends State<_ExpenseDetectionSettings> {
+  String _mode = 'Detect & Ask';
+  bool _enabled = false;
+  late final TransactionDetectionService _service;
+  @override void initState() { super.initState(); _service = TransactionDetectionService(widget.ref.read(databaseProvider)); _refresh(); _loadMode(); }
+  Future<void> _loadMode() async { final mode = await _service.detectionMode(); if (mounted) setState(() => _mode = mode); }
+  Future<void> _refresh() async { final value = await _service.isNotificationAccessEnabled(); if (mounted) setState(() => _enabled = value); }
+  @override Widget build(BuildContext context) => _SettingsGroup(title: 'Expense Detection', items: [
+    _SettingsItem(icon: Icons.account_balance_wallet_outlined, label: 'Automatic detection', trailing: Text(_mode, style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, color: AppColors.textSecondary)), onTap: () async { final value = await showModalBottomSheet<String>(context: context, builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: ['Off', 'Detect & Ask', 'Auto-add high confidence'].map((item) => ListTile(title: Text(item), onTap: () => Navigator.pop(ctx, item))).toList()))); if (value != null) { await _service.setDetectionMode(value); if (value == 'Auto-add high confidence') await _service.autoAddPendingHighConfidence(); if (mounted) setState(() => _mode = value); } }),
+    _SettingsItem(icon: Icons.notifications_active_outlined, label: 'Notification access', trailing: Text(_enabled ? 'Enabled' : 'Not enabled', style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, color: AppColors.textSecondary)), onTap: () async { await _service.openNotificationAccessSettings(); }),
+    _SettingsItem(icon: Icons.info_outline, label: 'Why this is needed', trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary), onTap: () => showDialog<void>(context: context, builder: (ctx) => AlertDialog(title: const Text('Expense detection'), content: const Text('DIMI reads relevant payment notifications locally to suggest expenses. Notification access can be revoked at any time; notification contents are not uploaded.'), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))]))),
+  ]);
 }
 
 // ── Account card ──────────────────────────────────────────────────────────────

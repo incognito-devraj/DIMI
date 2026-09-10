@@ -182,6 +182,16 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
     if (mounted) Navigator.of(context).pop(true);
   }
 
+  Future<String?> _showAllCategories() => showModalBottomSheet<String>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (_) => _FullCategoryPicker(
+      categories: _categories,
+      selected: _category,
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final inset = MediaQuery.viewInsetsOf(context).bottom;
@@ -360,14 +370,31 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                     ),
                     const SizedBox(height: 12),
 
-                    // Category dropdown
-                    _Label('Category'),
-                    const SizedBox(height: 5),
-                    _DropdownField<String>(
-                      value: _category,
-                      items: _categories,
-                      onChanged: (v) =>
-                          setState(() => _category = v ?? _category),
+                    // Compact horizontal category picker
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const _Label('Category'),
+                        GestureDetector(
+                          onTap: () async {
+                            final category = await _showAllCategories();
+                            if (category != null && mounted) setState(() => _category = category);
+                          },
+                          child: const Row(
+                            children: [
+                              Text('See all', style: TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.accent)),
+                              Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.accent),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    _CategoryPicker(
+                      categories: _categories,
+                      selected: _category,
+                      onSelected: (category) =>
+                          setState(() => _category = category),
                     ),
                     const SizedBox(height: 12),
 
@@ -537,47 +564,124 @@ class _Label extends StatelessWidget {
   }
 }
 
-class _DropdownField<T> extends StatelessWidget {
-  const _DropdownField({
-    required this.value,
-    required this.items,
-    required this.onChanged,
+class _CategoryPicker extends StatelessWidget {
+  const _CategoryPicker({
+    required this.categories,
+    required this.selected,
+    required this.onSelected,
   });
-  final T value;
-  final List<T> items;
-  final ValueChanged<T?> onChanged;
+  final List<String> categories;
+  final String selected;
+  final ValueChanged<String> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          value: value,
-          isExpanded: true,
-          icon: const Icon(
-            Icons.keyboard_arrow_down_rounded,
-            size: 18,
-            color: AppColors.textSecondary,
+    return SizedBox(
+      height: 86,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: categories.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+        final category = categories[index];
+        final isSelected = category == selected;
+        final color = isSelected ? AppColors.accent : AppColors.textSecondary;
+        return GestureDetector(
+          onTap: () => onSelected(category),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: isSelected ? AppColors.accentSoft : AppColors.background,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: isSelected ? AppColors.accent : AppColors.divider, width: isSelected ? 1.5 : 1),
+                ),
+                child: Icon(_categoryIcon(category), size: 22, color: color),
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: 66,
+                child: Text(
+                  _shortCategoryName(category),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontFamily: 'Poppins', fontSize: 9.5, fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400, color: isSelected ? AppColors.accent : AppColors.textSecondary),
+                ),
+              ),
+            ],
           ),
-          style: const TextStyle(
-            fontFamily: 'Poppins',
-            fontSize: 13,
-            color: AppColors.textPrimary,
-          ),
-          items: items
-              .map(
-                (i) => DropdownMenuItem<T>(value: i, child: Text(i.toString())),
-              )
-              .toList(),
-          onChanged: onChanged,
-        ),
+        );
+      },
       ),
     );
   }
 }
+
+class _FullCategoryPicker extends StatelessWidget {
+  const _FullCategoryPicker({required this.categories, required this.selected});
+  final List<String> categories;
+  final String selected;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+    decoration: const BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+    child: SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(child: Container(width: 38, height: 4, decoration: BoxDecoration(color: AppColors.divider, borderRadius: BorderRadius.circular(4)))),
+          const SizedBox(height: 18),
+          const Text('Choose a category', style: TextStyle(fontFamily: 'Poppins', fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const SizedBox(height: 16),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: categories.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 12, mainAxisSpacing: 14, childAspectRatio: .9),
+            itemBuilder: (_, index) {
+              final category = categories[index];
+              final isSelected = category == selected;
+              return GestureDetector(
+                onTap: () => Navigator.pop(context, category),
+                child: Column(children: [
+                  Container(width: 52, height: 52, decoration: BoxDecoration(color: isSelected ? AppColors.accentSoft : AppColors.background, shape: BoxShape.circle, border: Border.all(color: isSelected ? AppColors.accent : AppColors.divider, width: isSelected ? 1.5 : 1)), child: Icon(_categoryIcon(category), color: isSelected ? AppColors.accent : AppColors.textSecondary)),
+                  const SizedBox(height: 5),
+                  Text(_shortCategoryName(category), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Poppins', fontSize: 10, fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400, color: isSelected ? AppColors.accent : AppColors.textSecondary)),
+                ]),
+              );
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+IconData _categoryIcon(String category) => switch (category) {
+  'Food & Dining' => Icons.restaurant_rounded,
+  'Transport' => Icons.directions_car_filled_rounded,
+  'Shopping' => Icons.shopping_bag_rounded,
+  'Entertainment' => Icons.movie_rounded,
+  'Health' => Icons.favorite_rounded,
+  'Education' => Icons.school_rounded,
+  'Utilities' => Icons.lightbulb_rounded,
+  'Allowance' => Icons.account_balance_wallet_rounded,
+  'Salary' => Icons.payments_rounded,
+  'Freelance' => Icons.laptop_mac_rounded,
+  'Gift' => Icons.card_giftcard_rounded,
+  'Lent' => Icons.arrow_upward_rounded,
+  'Borrowed' => Icons.arrow_downward_rounded,
+  _ => Icons.more_horiz_rounded,
+};
+
+String _shortCategoryName(String category) => category == 'Food & Dining'
+    ? 'Food'
+    : category;
