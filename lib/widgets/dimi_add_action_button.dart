@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import '../core/motion/dimi_motion.dart';
 
-class DimiAddActionButton extends StatelessWidget {
+class DimiAddActionButton extends StatefulWidget {
   const DimiAddActionButton({
     super.key,
     required this.label,
@@ -15,57 +16,82 @@ class DimiAddActionButton extends StatelessWidget {
   final IconData icon;
 
   @override
+  State<DimiAddActionButton> createState() => _DimiAddActionButtonState();
+}
+
+class _DimiAddActionButtonState extends State<DimiAddActionButton> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: label,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
+      label: widget.label,
+      child: AnimatedScale(
+        scale: _pressed ? .96 : 1,
+        duration: DimiMotion.fast,
+        curve: DimiMotion.curve,
+        child: Material(
+          color: Colors.transparent,
+          clipBehavior: Clip.antiAlias,
           borderRadius: BorderRadius.circular(22),
-          child: Ink(
-            width: 158,
-            height: 56,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.accent, Color(0xFFFFC44D)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          child: InkWell(
+            onTap: widget.onPressed,
+            onTapDown: (_) => setState(() => _pressed = true),
+            onTapUp: (_) => setState(() => _pressed = false),
+            onTapCancel: () => setState(() => _pressed = false),
+            borderRadius: BorderRadius.circular(22),
+            child: Ink(
+              width: 158,
+              height: 56,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppColors.accent, Color(0xFFFFC44D)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: Colors.white.withAlpha(150),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.accent.withAlpha(65),
+                    blurRadius: 14,
+                    spreadRadius: -2,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: Colors.white.withAlpha(150), width: 1),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.accent.withAlpha(75),
-                  blurRadius: 16,
-                  offset: const Offset(0, 7),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: const BoxDecoration(
-                    color: AppColors.textPrimary,
-                    shape: BoxShape.circle,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: const BoxDecoration(
+                      color: AppColors.textPrimary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      widget.icon,
+                      color: AppColors.surface,
+                      size: 23,
+                    ),
                   ),
-                  child: Icon(icon, color: AppColors.surface, size: 23),
-                ),
-                const SizedBox(width: 9),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                  const SizedBox(width: 9),
+                  Text(
+                    widget.label,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

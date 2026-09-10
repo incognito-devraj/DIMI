@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -6,6 +7,7 @@ import '../../data/database.dart';
 import '../../providers/task_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/empty_state.dart';
+import '../../core/motion/dimi_motion.dart';
 import '../../widgets/dimi_add_action_button.dart';
 import '../../widgets/pill_segmented_control.dart';
 import '../../widgets_modals/add_task_sheet.dart';
@@ -32,6 +34,7 @@ class PlannerScreen extends ConsumerStatefulWidget {
 class _PlannerScreenState extends ConsumerState<PlannerScreen> {
   DateTime _selected = DateTime.now();
   int _view = 0; // 0=Day, 1=Week, 2=Month
+  bool _showAddButton = true;
 
   // ── Nav helpers ─────────────────────────────────────────────────────────
 
@@ -111,8 +114,20 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
+      body: NotificationListener<UserScrollNotification>(
+        onNotification: (notification) {
+          final visible = switch (notification.direction) {
+            ScrollDirection.reverse => false,
+            ScrollDirection.forward => true,
+            ScrollDirection.idle => _showAddButton,
+          };
+          if (visible != _showAddButton && mounted) {
+            setState(() => _showAddButton = visible);
+          }
+          return false;
+        },
+        child: SafeArea(
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── App bar ─────────────────────────────────────────────────
@@ -172,14 +187,30 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                   Expanded(
                     child: GestureDetector(
                       onTap: _pickDate,
-                      child: Text(
-                        _headerLabel(),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
+                      child: AnimatedSwitcher(
+                        duration: DimiMotion.fast,
+                        switchInCurve: DimiMotion.curve,
+                        switchOutCurve: DimiMotion.transitionCurve,
+                        transitionBuilder: (child, animation) => FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, .08),
+                              end: Offset.zero,
+                            ).animate(animation),
+                            child: child,
+                          ),
+                        ),
+                        child: Text(
+                          _headerLabel(),
+                          key: ValueKey(_headerLabel()),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
                       ),
                     ),
@@ -193,32 +224,62 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
 
             // ── Content ──────────────────────────────────────────────────
             Expanded(
-              child: switch (_view) {
-                1 => _WeekView(
-                  anchorDate: _selected,
-                  onDayTap: (d) => setState(() {
-                    _selected = d;
-                    _view = 0;
-                  }),
+              child: AnimatedSwitcher(
+                duration: DimiMotion.fast,
+                switchInCurve: DimiMotion.curve,
+                switchOutCurve: DimiMotion.transitionCurve,
+                transitionBuilder: (child, animation) =>
+                    FadeTransition(opacity: animation, child: child),
+                layoutBuilder: (currentChild, previousChildren) =>
+                    currentChild ?? const SizedBox.shrink(),
+                child: KeyedSubtree(
+                  key: ValueKey(_view),
+                  child: switch (_view) {
+                    1 => _WeekView(
+                      anchorDate: _selected,
+                      fabVisible: _showAddButton,
+                      onDayTap: (d) => setState(() {
+                        _selected = d;
+                        _view = 0;
+                      }),
+                    ),
+                    2 => _PremiumMonthView(
+                      anchorDate: _selected,
+                      fabVisible: _showAddButton,
+                      onDayTap: (d) => setState(() {
+                        _selected = d;
+                      }),
+                    ),
+                    _ => _DayView(
+                      date: _selected,
+                      fabVisible: _showAddButton,
+                    ),
+                  },
                 ),
-                2 => _PremiumMonthView(
-                  anchorDate: _selected,
-                  onDayTap: (d) => setState(() {
-                    _selected = d;
-                  }),
-                ),
-                _ => _DayView(date: _selected),
-              },
+              ),
             ),
           ],
+          ),
         ),
       ),
-      floatingActionButton: DimiAddActionButton(
-        label: 'Add task',
-        onPressed: () => showAddTaskSheet(
-          context,
-          initialDate: _selected,
-          plannerEntry: true,
+      floatingActionButton: IgnorePointer(
+        ignoring: !_showAddButton,
+        child: AnimatedSlide(
+          offset: _showAddButton ? Offset.zero : const Offset(0, 1.4),
+          duration: DimiMotion.normal,
+          curve: DimiMotion.curve,
+          child: AnimatedOpacity(
+            opacity: _showAddButton ? 1 : 0,
+            duration: DimiMotion.fast,
+            child: DimiAddActionButton(
+              label: 'Add task',
+              onPressed: () => showAddTaskSheet(
+                context,
+                initialDate: _selected,
+                plannerEntry: true,
+              ),
+            ),
+          ),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
@@ -229,8 +290,9 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
 // ─── Day View ─────────────────────────────────────────────────────────────────
 
 class _DayView extends ConsumerWidget {
-  const _DayView({required this.date});
+  const _DayView({required this.date, required this.fabVisible});
   final DateTime date;
+  final bool fabVisible;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -260,15 +322,19 @@ class _DayView extends ConsumerWidget {
           );
         }
 
-        return _ReferenceDaySchedule(tasks: sorted);
+        return _ReferenceDaySchedule(
+          tasks: sorted,
+          bottomPadding: fabVisible ? 96 : 0,
+        );
       },
     );
   }
 }
 
 class _ReferenceDaySchedule extends ConsumerWidget {
-  const _ReferenceDaySchedule({required this.tasks});
+  const _ReferenceDaySchedule({required this.tasks, required this.bottomPadding});
   final List<Task> tasks;
+  final double bottomPadding;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -283,7 +349,7 @@ class _ReferenceDaySchedule extends ConsumerWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: ListView.builder(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: EdgeInsets.fromLTRB(0, 8, 0, bottomPadding),
           itemCount: tasks.length,
           itemBuilder: (context, index) {
             final task = tasks[index];
@@ -333,6 +399,7 @@ class _ReferenceTaskRow extends ConsumerWidget {
               width: 56,
               child: Text(
                 formatTime12Hour(task.dueTime),
+                textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 13,
@@ -418,9 +485,14 @@ class _ReferenceTaskRow extends ConsumerWidget {
 // ─── Week View ────────────────────────────────────────────────────────────────
 
 class _WeekView extends ConsumerWidget {
-  const _WeekView({required this.anchorDate, required this.onDayTap});
+  const _WeekView({
+    required this.anchorDate,
+    required this.onDayTap,
+    required this.fabVisible,
+  });
   final DateTime anchorDate;
   final ValueChanged<DateTime> onDayTap;
+  final bool fabVisible;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -450,8 +522,11 @@ class _WeekView extends ConsumerWidget {
     final today = _dateOnly(DateTime.now());
 
     return ListView(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.screenHorizontal,
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.screenHorizontal,
+        0,
+        AppSpacing.screenHorizontal,
+        fabVisible ? 96 : 0,
       ),
       children: days.map((d) {
         final dayTasks = byDay[d] ?? [];
@@ -502,6 +577,7 @@ class _WeekView extends ConsumerWidget {
                     if (dayTasks.isNotEmpty)
                       Text(
                         '${dayTasks.where((t) => t.isCompleted).length}/${dayTasks.length}',
+                        textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontFamily: 'Poppins',
                           fontSize: 11,
@@ -571,9 +647,14 @@ class _DayPlan {
 }
 
 class _PremiumMonthView extends ConsumerStatefulWidget {
-  const _PremiumMonthView({required this.anchorDate, required this.onDayTap});
+  const _PremiumMonthView({
+    required this.anchorDate,
+    required this.onDayTap,
+    required this.fabVisible,
+  });
   final DateTime anchorDate;
   final ValueChanged<DateTime> onDayTap;
+  final bool fabVisible;
 
   @override
   ConsumerState<_PremiumMonthView> createState() => _PremiumMonthViewState();
@@ -643,11 +724,13 @@ class _PremiumMonthViewState extends ConsumerState<_PremiumMonthView> {
           ...monthPlans.map((p) => p.date),
         ];
         return ListView(
-          padding: const EdgeInsets.only(bottom: 96),
+          padding: EdgeInsets.only(bottom: widget.fabVisible ? 96 : 0),
           children: [
-            _HeatmapCard(
-              planFor: planFor,
-              onTap: (day) => _showDetails(context, planFor(day)),
+            RepaintBoundary(
+              child: _HeatmapCard(
+                planFor: planFor,
+                onTap: (day) => _showDetails(context, planFor(day)),
+              ),
             ),
             const SizedBox(height: 12),
             _MonthStats(
@@ -657,16 +740,47 @@ class _PremiumMonthViewState extends ConsumerState<_PremiumMonthView> {
               streak: streak,
             ),
             const SizedBox(height: 12),
-            _CalendarCard(
-              month: widget.anchorDate,
-              cells: cells,
-              planFor: planFor,
-              today: today,
-              selected: widget.anchorDate,
-              onTap: widget.onDayTap,
+            AnimatedSwitcher(
+              duration: DimiMotion.normal,
+              switchInCurve: DimiMotion.curve,
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(.018, 0),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                ),
+              ),
+              layoutBuilder: (currentChild, previousChildren) =>
+                  currentChild ?? const SizedBox.shrink(),
+              child: RepaintBoundary(
+                child: _CalendarCard(
+                key: ValueKey(
+                  '${widget.anchorDate.year}-${widget.anchorDate.month}',
+                ),
+                month: widget.anchorDate,
+                cells: cells,
+                planFor: planFor,
+                today: today,
+                selected: widget.anchorDate,
+                onTap: widget.onDayTap,
+                ),
+              ),
             ),
             const SizedBox(height: 12),
-            _SelectedPlanCard(plan: planFor(widget.anchorDate)),
+            AnimatedSwitcher(
+              duration: DimiMotion.fast,
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: child,
+              ),
+              child: _SelectedPlanCard(
+                key: ValueKey(_dateOnly(widget.anchorDate)),
+                plan: planFor(widget.anchorDate),
+              ),
+            ),
           ],
         );
       },
@@ -883,7 +997,9 @@ class _HeatmapCard extends StatelessWidget {
                       final future = day.isAfter(today);
                       return GestureDetector(
                         onTap: () => onTap(day),
-                        child: Container(
+                        child: AnimatedContainer(
+                          duration: DimiMotion.normal,
+                          curve: DimiMotion.curve,
                           decoration: BoxDecoration(
                             color: _heatColor(plan, future),
                             borderRadius: BorderRadius.circular(3),
@@ -1067,6 +1183,7 @@ class _StatBox extends StatelessWidget {
 
 class _CalendarCard extends StatelessWidget {
   const _CalendarCard({
+    super.key,
     required this.month,
     required this.cells,
     required this.planFor,
@@ -1191,7 +1308,7 @@ class _CalendarCard extends StatelessWidget {
 }
 
 class _SelectedPlanCard extends StatelessWidget {
-  const _SelectedPlanCard({required this.plan});
+  const _SelectedPlanCard({super.key, required this.plan});
   final _DayPlan plan;
   @override
   Widget build(BuildContext context) => _PlannerCard(
@@ -1637,7 +1754,8 @@ class _TaskTile extends ConsumerWidget {
             GestureDetector(
               onTap: () => dao.toggleCompleted(task.id, !done),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
+                duration: DimiMotion.fast,
+                curve: DimiMotion.curve,
                 width: 22,
                 height: 22,
                 decoration: BoxDecoration(
@@ -1648,13 +1766,21 @@ class _TaskTile extends ConsumerWidget {
                     width: 1.5,
                   ),
                 ),
-                child: done
-                    ? const Icon(
-                        Icons.check_rounded,
-                        size: 13,
-                        color: AppColors.surface,
-                      )
-                    : null,
+                child: AnimatedSwitcher(
+                  duration: DimiMotion.fast,
+                  transitionBuilder: (child, animation) => ScaleTransition(
+                    scale: animation,
+                    child: FadeTransition(opacity: animation, child: child),
+                  ),
+                  child: done
+                      ? const Icon(
+                          Icons.check_rounded,
+                          key: ValueKey('planner-done'),
+                          size: 13,
+                          color: AppColors.surface,
+                        )
+                      : const SizedBox(key: ValueKey('planner-pending')),
+                ),
               ),
             ),
           ],

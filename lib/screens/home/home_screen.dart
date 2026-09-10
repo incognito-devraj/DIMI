@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../data/database.dart';
+import '../../core/widgets/dimi_fade_slide.dart';
+import '../../core/motion/dimi_motion.dart';
 import '../../providers/money_providers.dart';
 import '../../providers/profile_providers.dart';
 import '../../providers/reminder_providers.dart';
@@ -149,12 +151,14 @@ class HomeScreen extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.screenHorizontal,
                 ),
-                child: _ProfileHeroCard(
-                  name: name,
-                  role:
-                      profileAsync.valueOrNull?.role ??
-                      'Computer Science Engineer',
-                  points: profileAsync.valueOrNull?.points ?? 0,
+                child: DimiFadeSlide(
+                  child: _ProfileHeroCard(
+                    name: name,
+                    role:
+                        profileAsync.valueOrNull?.role ??
+                        'Computer Science Engineer',
+                    points: profileAsync.valueOrNull?.points ?? 0,
+                  ),
                 ),
               ),
             ),
@@ -167,13 +171,16 @@ class HomeScreen extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.screenHorizontal,
                 ),
-                child: _StatsCard(
-                  todayProgress: todayProgress,
-                  todayDone: todayDone,
-                  todayTotal: todayTotal,
-                  weeklyGoal: weeklyGoal,
-                  weeklySpent: weeklySpent,
-                  reminderCount: reminderCount,
+                child: DimiFadeSlide(
+                  delay: const Duration(milliseconds: 45),
+                  child: _StatsCard(
+                    todayProgress: todayProgress,
+                    todayDone: todayDone,
+                    todayTotal: todayTotal,
+                    weeklyGoal: weeklyGoal,
+                    weeklySpent: weeklySpent,
+                    reminderCount: reminderCount,
+                  ),
                 ),
               ),
             ),
@@ -185,7 +192,10 @@ class HomeScreen extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.screenHorizontal,
                 ),
-                child: const _HomeContentGrid() /*
+                child: DimiFadeSlide(
+                  delay: const Duration(milliseconds: 90),
+                  child: const _HomeContentGrid(),
+                ) /*
                 child: todaysTasksAsync.when(
                   data: (t) => plannerTasksAsync.when(
                     data: (plannerTasks) => Row(
@@ -446,7 +456,9 @@ class _HomeHeatmapCard extends StatelessWidget {
                       final ratio = total == 0
                           ? 0.0
                           : (completed[day] ?? 0) / total;
-                      return DecoratedBox(
+                      return AnimatedContainer(
+                        duration: DimiMotion.normal,
+                        curve: DimiMotion.curve,
                         decoration: BoxDecoration(
                           color: _homeHeatColor(ratio, total, day.isAfter(today)),
                           borderRadius: BorderRadius.circular(3),
@@ -1125,7 +1137,8 @@ class _MiniTaskRow extends StatelessWidget {
           GestureDetector(
             onTap: () => dao.toggleCompleted(task.id, !task.isCompleted),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
+              duration: DimiMotion.fast,
+              curve: DimiMotion.curve,
               width: compact ? 16 : 20,
               height: compact ? 16 : 20,
               decoration: BoxDecoration(
@@ -1138,13 +1151,21 @@ class _MiniTaskRow extends StatelessWidget {
                 ),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: task.isCompleted
-                  ? const Icon(
-                      Icons.check_rounded,
-                      size: 12,
-                      color: AppColors.surface,
-                    )
-                  : null,
+              child: AnimatedSwitcher(
+                duration: DimiMotion.fast,
+                transitionBuilder: (child, animation) => ScaleTransition(
+                  scale: animation,
+                  child: FadeTransition(opacity: animation, child: child),
+                ),
+                child: task.isCompleted
+                    ? const Icon(
+                        Icons.check_rounded,
+                        key: ValueKey('home-mini-done'),
+                        size: 12,
+                        color: AppColors.surface,
+                      )
+                    : const SizedBox(key: ValueKey('home-mini-pending')),
+              ),
             ),
           ),
           SizedBox(width: compact ? 5 : 10),
@@ -1210,7 +1231,6 @@ class _PlannerPreviewCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, size: 18),
             ],
           ),
           const SizedBox(height: 10),
@@ -1233,6 +1253,7 @@ class _PlannerPreviewCard extends StatelessWidget {
                       width: compact ? 31 : 52,
                       child: Text(
                         formatTime12Hour(task.dueTime),
+                        textAlign: TextAlign.center,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -1253,14 +1274,30 @@ class _PlannerPreviewCard extends StatelessWidget {
                     ),
                     SizedBox(width: compact ? 3 : 8),
                     Expanded(
-                      child: Text(
-                        task.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: compact ? 9 : 11,
-                          color: AppColors.textPrimary,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: compact ? 6 : 9,
+                          vertical: compact ? 5 : 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _plannerColor(task.category).withAlpha(22),
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: Text(
+                          task.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: compact ? 9 : 11,
+                            fontWeight: FontWeight.w500,
+                            color: task.isCompleted
+                                ? AppColors.textSecondary
+                                : AppColors.textPrimary,
+                            decoration: task.isCompleted
+                                ? TextDecoration.lineThrough
+                                : null,
+                          ),
                         ),
                       ),
                     ),
@@ -1328,27 +1365,37 @@ class _BalanceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(
-                Icons.account_balance_wallet_outlined,
-                size: compact ? 16 : 20,
-              ),
-              SizedBox(width: compact ? 4 : 8),
-              Expanded(
-                child: Text(
-                  'Current Balance',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: compact ? 10 : 12,
-                    color: AppColors.textSecondary,
+          InkWell(
+            onTap: () => context.go(AppRoutes.money),
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.account_balance_wallet_outlined,
+                    size: compact ? 16 : 20,
                   ),
-                ),
+                  SizedBox(width: compact ? 4 : 8),
+                  Expanded(
+                    child: Text(
+                      'Current Balance',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: compact ? 10 : 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: compact ? 15 : 18,
+                  ),
+                ],
               ),
-              Icon(Icons.chevron_right_rounded, size: compact ? 15 : 18),
-            ],
+            ),
           ),
           SizedBox(height: compact ? 5 : 8),
           Text(
@@ -1488,13 +1535,19 @@ class _SpendingCard extends StatelessWidget {
               ),
               GestureDetector(
                 onTap: () => context.go(AppRoutes.money),
-                child: Text(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 9,
+                  ),
+                  child: Text(
                   compact ? '›' : 'View All',
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: compact ? 16 : 12,
-                    color: AppColors.accent,
+                  color: AppColors.accent,
                   ),
+                ),
                 ),
               ),
             ],
@@ -1649,7 +1702,24 @@ class _HomeBarChart extends StatelessWidget {
             showingTooltipIndicators: const [],
           );
         }),
-        barTouchData: BarTouchData(enabled: false),
+        barTouchData: BarTouchData(
+          enabled: true,
+          handleBuiltInTouches: true,
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final amount = dayAmounts[group.x.toInt()];
+              return BarTooltipItem(
+                '₹${_currencyFmt.format(amount)}',
+                const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.surface,
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }

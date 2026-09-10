@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../data/database.dart';
+import '../../core/motion/dimi_motion.dart';
 import '../../providers/reminder_providers.dart';
 import '../../services/notification_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/dimi_add_action_button.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/pill_segmented_control.dart';
 import '../../widgets_modals/add_reminder_sheet.dart';
@@ -21,6 +25,23 @@ class RemindersScreen extends ConsumerStatefulWidget {
 
 class _RemindersScreenState extends ConsumerState<RemindersScreen> {
   int _tabIndex = 0;
+  Timer? _dayBoundaryTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Refresh the date boundary while this screen stays open so yesterday's
+    // reminders disappear without requiring navigation or an app restart.
+    _dayBoundaryTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _dayBoundaryTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,42 +86,74 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
             const SizedBox(height: 16),
             // ── Reminder list ────────────────────────────────────────────────
             Expanded(
-              child: remindersAsync.when(
-                data: (reminders) {
-                  if (reminders.isEmpty) {
-                    return const EmptyState(
-                      icon: Icons.notifications_outlined,
-                      title: 'No reminders',
-                      subtitle: 'Tap + to set a reminder.',
-                    );
-                  }
-                  return ListView.separated(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.screenHorizontal,
-                      vertical: 4,
-                    ),
-                    itemCount: reminders.length,
-                    separatorBuilder: (_, _) =>
-                        const SizedBox(height: AppSpacing.cardGap),
-                    itemBuilder: (context, i) =>
-                        _ReminderCard(reminder: reminders[i]),
-                  );
-                },
-                loading: () => const Center(
-                  child: CircularProgressIndicator(color: AppColors.accent),
+              child: AnimatedSwitcher(
+                duration: DimiMotion.normal,
+                switchInCurve: DimiMotion.curve,
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, .015),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
+                  ),
                 ),
-                error: (e, _) => Center(child: Text('Error: $e')),
+                child: KeyedSubtree(
+                  key: ValueKey(_tabIndex),
+                  child: remindersAsync.when(
+                    data: (reminders) {
+                      final today = DateTime.now();
+                      final startOfToday = DateTime(
+                        today.year,
+                        today.month,
+                        today.day,
+                      );
+                      final visibleReminders = reminders.where((reminder) {
+                        final dueDate = DateTime(
+                          reminder.dueAt.year,
+                          reminder.dueAt.month,
+                          reminder.dueAt.day,
+                        );
+                        return !dueDate.isBefore(startOfToday);
+                      }).toList();
+
+                      if (visibleReminders.isEmpty) {
+                        return const EmptyState(
+                          icon: Icons.notifications_outlined,
+                          title: 'No reminders',
+                          subtitle: 'Tap + to set a reminder.',
+                        );
+                      }
+                      return ListView.separated(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.screenHorizontal,
+                          vertical: 4,
+                        ),
+                        itemCount: visibleReminders.length,
+                        separatorBuilder: (_, _) =>
+                            const SizedBox(height: AppSpacing.cardGap),
+                        itemBuilder: (context, i) =>
+                            _ReminderCard(reminder: visibleReminders[i]),
+                      );
+                    },
+                    loading: () => const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.accent,
+                      ),
+                    ),
+                    error: (e, _) => Center(child: Text('Error: $e')),
+                  ),
+                ),
               ),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: DimiAddActionButton(
+        label: 'Add reminder',
+        icon: Icons.notifications_active_rounded,
         onPressed: () => showAddReminderSheet(context),
-        backgroundColor: AppColors.accent,
-        foregroundColor: AppColors.surface,
-        elevation: 3,
-        child: const Icon(Icons.add_rounded, size: 30),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
@@ -165,9 +218,14 @@ class _ReminderCard extends ConsumerWidget {
                     reminder.title,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: reminder.isEnabled
-                          ? AppColors.textPrimary
-                          : AppColors.textSecondary,
+                  color: reminder.isEnabled
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
+                      decoration: reminder.isEnabled
+                          ? TextDecoration.none
+                          : TextDecoration.lineThrough,
+                      decorationColor: AppColors.textSecondary,
+                      decorationThickness: 1.6,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

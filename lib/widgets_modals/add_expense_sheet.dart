@@ -9,12 +9,77 @@ import '../providers/money_providers.dart';
 import '../theme/app_theme.dart';
 
 Future<void> showAddExpenseSheet(BuildContext context) async {
-  await showModalBottomSheet<void>(
+  final saved = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (_) => const _AddExpenseSheet(),
   );
+  if (saved == true && context.mounted) {
+    await showDialog<void>(
+      context: context,
+      barrierColor: AppColors.textPrimary.withAlpha(150),
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: const BoxDecoration(
+                color: AppColors.accent,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.check_rounded,
+                color: AppColors.surface,
+                size: 36,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Expense Added!',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Your money picture is up to date.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                style: TextButton.styleFrom(
+                  backgroundColor: AppColors.background,
+                  foregroundColor: AppColors.textPrimary,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                ),
+                child: const Text(
+                  'Done',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _AddExpenseSheet extends ConsumerStatefulWidget {
@@ -114,7 +179,7 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
           ),
         );
 
-    if (mounted) Navigator.of(context).pop();
+    if (mounted) Navigator.of(context).pop(true);
   }
 
   @override
@@ -146,30 +211,59 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Add Transaction',
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: AppColors.accentSoft,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.account_balance_wallet_rounded,
+                    color: AppColors.accent,
+                    size: 23,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Add Expense',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Keep your money picture clear.',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 GestureDetector(
                   onTap: () => Navigator.of(context).pop(),
                   child: Container(
-                    width: 28,
-                    height: 28,
+                    width: 34,
+                    height: 34,
                     decoration: const BoxDecoration(
-                      color: AppColors.accentSoft,
+                      color: AppColors.background,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
                       Icons.close_rounded,
-                      size: 15,
-                      color: AppColors.textSecondary,
+                      size: 18,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),
@@ -250,6 +344,22 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                     ),
                     const SizedBox(height: 12),
 
+                    const SizedBox(height: 12),
+                    _Label('Description (optional)'),
+                    const SizedBox(height: 5),
+                    TextFormField(
+                      controller: _noteCtrl,
+                      textCapitalization: TextCapitalization.sentences,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 13,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: 'What was this for?',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
                     // Category dropdown
                     _Label('Category'),
                     const SizedBox(height: 5),
@@ -261,20 +371,11 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                     ),
                     const SizedBox(height: 12),
 
-                    // Note
-                    _Label('Note (optional)'),
+                    if (mounted && !mounted) ...[
+                    _Label('Description (optional)'),
                     const SizedBox(height: 5),
-                    TextFormField(
-                      controller: _noteCtrl,
-                      textCapitalization: TextCapitalization.sentences,
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 13,
-                      ),
-                      decoration: const InputDecoration(
-                        hintText: 'Add a note (optional)',
-                      ),
-                    ),
+                    TextFormField(controller: _noteCtrl),
+                    ],
                     const SizedBox(height: 12),
 
                     // Date
@@ -342,7 +443,14 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                                   color: AppColors.surface,
                                 ),
                               )
-                            : const Text('Add Transaction'),
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text('Add Expense'),
+                                  SizedBox(width: 8),
+                                  Icon(Icons.arrow_forward_rounded, size: 19),
+                                ],
+                              ),
                       ),
                     ),
                     const SizedBox(height: 20),
