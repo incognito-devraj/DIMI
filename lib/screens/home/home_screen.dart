@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -532,28 +533,12 @@ class _HomeContentGrid extends ConsumerWidget {
       data: (taskItems) => planner.when(
         data: (plannerItems) => weekly.when(
           data: (weeklyItems) => all.when(
-            data: (allItems) => Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            data: (allItems) => _AdaptiveMasonry(
               children: [
-                Expanded(
-                  child: Column(
-                    children: [
-                      _TodayTasksCard(tasks: taskItems, compact: true),
-                      const SizedBox(height: 10),
-                      _SpendingCard(transactions: weeklyItems, compact: true),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    children: [
-                      _PlannerPreviewCard(tasks: plannerItems, compact: true),
-                      const SizedBox(height: 10),
-                      _BalanceCard(transactions: allItems, compact: true),
-                    ],
-                  ),
-                ),
+                _TodayTasksCard(tasks: taskItems, compact: true),
+                _PlannerPreviewCard(tasks: plannerItems, compact: true),
+                _SpendingCard(transactions: weeklyItems, compact: true),
+                _BalanceCard(transactions: allItems, compact: true),
               ],
             ),
             loading: () => const _Shimmer(height: 220),
@@ -568,6 +553,79 @@ class _HomeContentGrid extends ConsumerWidget {
       loading: () => const _Shimmer(height: 280),
       error: (_, _) => const SizedBox.shrink(),
     );
+  }
+}
+
+/// Places cards in stable priority order, always assigning the next card to
+/// the column with the least accumulated height. Children are laid out first,
+/// so their real content height drives placement without fixed-height guesses.
+class _AdaptiveMasonry extends MultiChildRenderObjectWidget {
+  const _AdaptiveMasonry({required super.children});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) {
+    return _RenderAdaptiveMasonry();
+  }
+}
+
+class _MasonryParentData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderAdaptiveMasonry extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _MasonryParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _MasonryParentData> {
+  static const double _gap = 8;
+  static const double _singleColumnBreakpoint = 320;
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _MasonryParentData) {
+      child.parentData = _MasonryParentData();
+    }
+  }
+
+  @override
+  void performLayout() {
+    final width = constraints.maxWidth;
+    final columnCount = width < _singleColumnBreakpoint ? 1 : 2;
+    final columnWidth = columnCount == 1 ? width : (width - _gap) / 2;
+    final heights = List<double>.filled(columnCount, 0);
+
+    RenderBox? child = firstChild;
+    while (child != null) {
+      child.layout(
+        BoxConstraints.tightFor(width: columnWidth),
+        parentUsesSize: true,
+      );
+
+      var targetColumn = 0;
+      for (var i = 1; i < heights.length; i++) {
+        if (heights[i] < heights[targetColumn]) targetColumn = i;
+      }
+
+      final parentData = child.parentData! as _MasonryParentData;
+      parentData.offset = Offset(
+        targetColumn == 0 ? 0 : columnWidth + _gap,
+        heights[targetColumn],
+      );
+      heights[targetColumn] += child.size.height + _gap;
+      child = parentData.nextSibling;
+    }
+
+    final contentHeight = heights.isEmpty
+        ? 0.0
+        : heights.reduce((a, b) => a > b ? a : b) - _gap;
+    size = constraints.constrain(Size(width, contentHeight));
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    defaultPaint(context, offset);
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
+    return defaultHitTestChildren(result, position: position);
   }
 }
 
@@ -1210,7 +1268,12 @@ class _PlannerPreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sorted = [...tasks]
-      ..sort((a, b) => (a.dueTime ?? '99:99').compareTo(b.dueTime ?? '99:99'));
+      ..sort((a, b) {
+        if (compact && a.isCompleted != b.isCompleted) {
+          return a.isCompleted ? 1 : -1;
+        }
+        return (a.dueTime ?? '99:99').compareTo(b.dueTime ?? '99:99');
+      });
     return SectionCard(
       padding: EdgeInsets.all(compact ? 8 : AppSpacing.cardPadding),
       child: Column(
