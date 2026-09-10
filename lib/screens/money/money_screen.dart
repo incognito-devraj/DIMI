@@ -61,7 +61,12 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
         ],
       ),
     );
-    controller.dispose();
+    // The dialog route can still be detaching its TextField when the future
+    // completes. Dispose on the next frame so Flutter has released the
+    // controller's dependents first.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.dispose();
+    });
     if (query != null && mounted) setState(() => _searchQuery = query);
   }
 
