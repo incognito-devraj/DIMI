@@ -9,6 +9,8 @@ import '../screens/money/money_screen.dart';
 import '../screens/reminders/reminders_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../widgets/app_scaffold.dart';
+import '../core/motion/dimi_motion.dart';
+import '../core/motion/dimi_page_transition.dart';
 
 /// Route path constants.
 abstract class AppRoutes {
@@ -88,9 +90,8 @@ CustomTransitionPage<void> _fade(GoRouterState state, Widget child) {
   return CustomTransitionPage<void>(
     key: state.pageKey,
     child: child,
-    transitionDuration: const Duration(milliseconds: 180),
-    transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-        FadeTransition(opacity: animation, child: child),
+    transitionDuration: DimiMotion.smooth,
+    transitionsBuilder: dimiPageTransition,
   );
 }
 
@@ -98,7 +99,7 @@ CustomTransitionPage<void> _slide(GoRouterState state, Widget child) {
   return CustomTransitionPage<void>(
     key: state.pageKey,
     child: child,
-    transitionDuration: const Duration(milliseconds: 220),
+    transitionDuration: DimiMotion.smooth,
     transitionsBuilder: (_, animation, _, child) {
       final tween = Tween(
         begin: const Offset(1.0, 0.0),

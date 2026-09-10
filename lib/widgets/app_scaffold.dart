@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../theme/app_theme.dart';
+import '../core/motion/dimi_motion.dart';
 
 /// Shared shell — 4-tab bottom navigation.
 ///
@@ -142,29 +143,43 @@ class _NavTile extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
+              duration: DimiMotion.fast,
+              curve: DimiMotion.curve,
               width: 40,
               height: 40,
               decoration: BoxDecoration(
                 color: isActive ? AppColors.accent : Colors.transparent,
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                isActive ? item.activeIcon : item.icon,
-                size: 22,
-                color: isActive ? AppColors.surface : AppColors.textSecondary,
+              child: AnimatedScale(
+                scale: isActive ? 1.05 : 1,
+                duration: DimiMotion.fast,
+                curve: DimiMotion.curve,
+                child: AnimatedSwitcher(
+                  duration: DimiMotion.fast,
+                  switchInCurve: DimiMotion.curve,
+                  child: Icon(
+                    isActive ? item.activeIcon : item.icon,
+                    key: ValueKey(isActive),
+                    size: 22,
+                    color: isActive
+                        ? AppColors.surface
+                        : AppColors.textSecondary,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 2),
-            Text(
-              item.label,
+            AnimatedDefaultTextStyle(
+              duration: DimiMotion.fast,
+              curve: DimiMotion.curve,
               style: TextStyle(
                 fontFamily: 'Poppins',
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
                 color: isActive ? AppColors.accent : AppColors.textSecondary,
               ),
+              child: Text(item.label),
             ),
           ],
         ),

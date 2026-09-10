@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -9,6 +10,7 @@ import '../../providers/money_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/dimi_add_action_button.dart';
+import '../../core/motion/dimi_motion.dart';
 import '../../widgets/pill_segmented_control.dart';
 import '../../widgets_modals/add_expense_sheet.dart';
 
@@ -26,6 +28,107 @@ class MoneyScreen extends ConsumerStatefulWidget {
 
 class _MoneyScreenState extends ConsumerState<MoneyScreen> {
   int _tabIndex = 0;
+  bool _showAddButton = true;
+  String? _categoryFilter;
+  String _searchQuery = '';
+
+  Future<void> _openSearch() async {
+    final controller = TextEditingController(text: _searchQuery);
+    final query = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Search expenses'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textInputAction: TextInputAction.search,
+          decoration: const InputDecoration(
+            hintText: 'Search by description or category',
+            prefixIcon: Icon(Icons.search_rounded),
+          ),
+          onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Search'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (query != null && mounted) setState(() => _searchQuery = query);
+  }
+
+  Future<void> _openFilter(List<String> categories) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Filter expenses',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _FilterChip(
+                    label: 'All categories',
+                    selected: _categoryFilter == null,
+                    onTap: () => Navigator.pop(sheetContext, ''),
+                  ),
+                  ...categories.map(
+                    (category) => _FilterChip(
+                      label: category,
+                      selected: _categoryFilter == category,
+                      onTap: () => Navigator.pop(sheetContext, category),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected != null && mounted) {
+      setState(() => _categoryFilter = selected.isEmpty ? null : selected);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,8 +142,20 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
+      body: NotificationListener<UserScrollNotification>(
+        onNotification: (notification) {
+          final visible = switch (notification.direction) {
+            ScrollDirection.reverse => false,
+            ScrollDirection.forward => true,
+            ScrollDirection.idle => _showAddButton,
+          };
+          if (visible != _showAddButton && mounted) {
+            setState(() => _showAddButton = visible);
+          }
+          return false;
+        },
+        child: SafeArea(
+          child: Column(
           children: [
             // ── App bar ───────────────────────────────────────────────
             Padding(
@@ -62,9 +177,31 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                     ),
                   ),
                   const Spacer(),
-                  const Icon(
-                    Icons.bar_chart_rounded,
-                    color: AppColors.textSecondary,
+                  IconButton(
+                    tooltip: 'Filter expenses',
+                    onPressed: () {
+                      final categories = allAsync.maybeWhen(
+                        data: (items) => items
+                            .map((item) => item.category)
+                            .toSet()
+                            .toList()
+                          ..sort(),
+                        orElse: () => <String>[],
+                      );
+                      _openFilter(categories);
+                    },
+                    icon: const Icon(
+                      Icons.bar_chart_rounded,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Search expenses',
+                    onPressed: _openSearch,
+                    icon: const Icon(
+                      Icons.search_rounded,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -76,8 +213,8 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.screenHorizontal,
               ),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: double.infinity,
                 child: PillSegmentedControl(
                   options: _kTabs,
                   selected: _tabIndex,
@@ -152,9 +289,18 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                   // Transaction list
                   listAsync.when(
                     data: (txns) {
+                      final query = _searchQuery.toLowerCase();
+                      final filtered = txns.where((txn) {
+                        final matchesCategory = _categoryFilter == null ||
+                            txn.category == _categoryFilter;
+                        final matchesSearch = query.isEmpty ||
+                            txn.category.toLowerCase().contains(query) ||
+                            (txn.note?.toLowerCase().contains(query) ?? false);
+                        return matchesCategory && matchesSearch;
+                      }).toList();
                       final list = _tabIndex == 0
-                          ? txns.take(20).toList()
-                          : txns;
+                          ? filtered.take(20).toList()
+                          : filtered;
                       if (list.isEmpty) {
                         return const EmptyState(
                           icon: Icons.account_balance_wallet_outlined,
@@ -186,16 +332,30 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                     ),
                     error: (e, _) => Center(child: Text('Error: $e')),
                   ),
-                  const SizedBox(height: 80), // FAB clearance
+                  SizedBox(height: _showAddButton ? 80 : 0), // FAB clearance
                 ],
               ),
             ),
           ],
+          ),
         ),
       ),
-      floatingActionButton: DimiAddActionButton(
-        label: 'Add expense',
-        onPressed: () => showAddExpenseSheet(context),
+      floatingActionButton: IgnorePointer(
+        ignoring: !_showAddButton,
+        child: AnimatedSlide(
+          offset: _showAddButton ? Offset.zero : const Offset(0, 1.4),
+          duration: DimiMotion.normal,
+          curve: DimiMotion.curve,
+          child: AnimatedOpacity(
+            opacity: _showAddButton ? 1 : 0,
+            duration: DimiMotion.fast,
+            child: DimiAddActionButton(
+              label: 'Add expense',
+              icon: Icons.currency_rupee_rounded,
+              onPressed: () => showAddExpenseSheet(context),
+            ),
+          ),
+        ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
@@ -203,6 +363,45 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
 }
 
 // ── Summary cards ─────────────────────────────────────────────────────────────
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: DimiMotion.fast,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.textPrimary : AppColors.background,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? AppColors.textPrimary : AppColors.divider,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? AppColors.surface : AppColors.textPrimary,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _ExpenseSummaryCards extends StatelessWidget {
   const _ExpenseSummaryCards({
@@ -273,7 +472,7 @@ class _ExpenseSummaryCards extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _BalanceStat(
-                      icon: Icons.arrow_downward_rounded,
+                      icon: Icons.arrow_upward_rounded,
                       label: 'Total Spent',
                       value: '₹${_fmt.format(spent)}',
                       color: AppColors.danger,
@@ -281,7 +480,7 @@ class _ExpenseSummaryCards extends StatelessWidget {
                   ),
                   Expanded(
                     child: _BalanceStat(
-                      icon: Icons.arrow_upward_rounded,
+                      icon: Icons.arrow_downward_rounded,
                       label: 'Total Income',
                       value: '₹${_fmt.format(income)}',
                       color: AppColors.success,
@@ -716,19 +915,22 @@ class _TransactionTile extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    txn.category,
+                    txn.note?.trim().isNotEmpty == true
+                        ? txn.note!
+                        : txn.category,
                     style: const TextStyle(
                       fontFamily: 'Poppins',
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    txn.note ?? DateFormat('d MMM yyyy').format(txn.date),
+                    '${txn.category} · ${DateFormat('d MMM yyyy').format(txn.date)}',
                     style: const TextStyle(
                       fontFamily: 'Poppins',
-                      fontSize: 11,
+                      fontSize: 10,
                       color: AppColors.textSecondary,
                     ),
                     overflow: TextOverflow.ellipsis,

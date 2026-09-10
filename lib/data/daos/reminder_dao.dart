@@ -12,8 +12,14 @@ class ReminderDao extends DatabaseAccessor<AppDatabase>
 
   // ── Streams ────────────────────────────────────────────────────────────────
 
-  Stream<List<Reminder>> watchAllReminders() =>
-      (select(reminders)..orderBy([(r) => OrderingTerm.asc(r.dueAt)])).watch();
+  Stream<List<Reminder>> watchAllReminders() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return (select(reminders)
+          ..where((r) => r.dueAt.isBiggerOrEqualValue(today))
+          ..orderBy([(r) => OrderingTerm.asc(r.dueAt)]))
+        .watch();
+  }
 
   Stream<List<Reminder>> watchTodaysReminders() {
     final now = DateTime.now();
