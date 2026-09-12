@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import 'dart:io';
+
 import '../../data/database.dart';
 import '../../core/widgets/dimi_fade_slide.dart';
 import '../../core/motion/dimi_motion.dart';
@@ -20,6 +22,7 @@ import '../../widgets_modals/add_expense_sheet.dart';
 import '../../utils/time_format.dart';
 import '../../widgets_modals/add_reminder_sheet.dart';
 import '../../widgets_modals/add_task_sheet.dart';
+import '../../widgets/dimi_activity_heatmap.dart';
 
 final _currencyFmt = NumberFormat('#,##0', 'en_IN');
 
@@ -35,7 +38,8 @@ class HomeScreen extends ConsumerWidget {
     final weeklyTxnAsync = ref.watch(thisWeeksTransactionsProvider);
     final upcomingRemindersAsync = ref.watch(upcomingRemindersProvider);
 
-    final name = profileAsync.valueOrNull?.name ?? 'Student';
+    final fullName = profileAsync.valueOrNull?.name ?? 'Student';
+    final name = fullName.trim().split(RegExp(r'\s+')).first;
 
     // Derived stats (computed outside widgets so they're in one place)
     final todayTotal = todaysTasksAsync.valueOrNull?.length ?? 0;
@@ -101,8 +105,6 @@ class HomeScreen extends ConsumerWidget {
                         ],
                       ),
                     ),
-                    _HomeHeaderButton(icon: Icons.search_rounded, onTap: () {}),
-                    const SizedBox(width: 8),
                     Stack(
                       clipBehavior: Clip.none,
                       children: [
@@ -130,8 +132,16 @@ class HomeScreen extends ConsumerWidget {
                       child: CircleAvatar(
                         radius: 22,
                         backgroundColor: AppColors.surfaceDark,
+                        backgroundImage:
+                            profileAsync.valueOrNull?.photoPath == null
+                            ? null
+                            : FileImage(
+                                File(profileAsync.valueOrNull!.photoPath!),
+                              ),
                         child: Text(
-                          name.isEmpty ? 'DM' : name[0].toUpperCase(),
+                          profileAsync.valueOrNull?.photoPath == null
+                              ? (name.isEmpty ? 'DM' : name[0].toUpperCase())
+                              : '',
                           style: const TextStyle(
                             fontFamily: 'Poppins',
                             fontSize: 14,
@@ -158,7 +168,7 @@ class HomeScreen extends ConsumerWidget {
                     role:
                         profileAsync.valueOrNull?.role ??
                         'Computer Science Engineer',
-                    points: profileAsync.valueOrNull?.points ?? 0,
+                    photoPath: profileAsync.valueOrNull?.photoPath,
                   ),
                 ),
               ),
@@ -302,46 +312,12 @@ class _HomeHeatmapCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final today = _homeDateOnly(DateTime.now());
-    final availableWidth = MediaQuery.sizeOf(context).width -
-        AppSpacing.screenHorizontal * 2 -
-        29;
-    final weekCount = (availableWidth / 15).floor().clamp(13, 53).toInt();
-    final firstMonday = today.subtract(
-      Duration(days: today.weekday - 1 + (weekCount - 1) * 7),
+    return DimiActivityHeatmap(
+      tasks: tasks,
+      title: 'Completion rhythm',
+      subtitle: 'Activity over the last year',
     );
-    final days = List.generate(
-      weekCount * 7,
-      (index) => firstMonday.add(Duration(days: index)),
-    );
-    final totals = <DateTime, int>{};
-    final completed = <DateTime, int>{};
-    for (final task in tasks) {
-      final day = _homeDateOnly(task.dueDate);
-      totals[day] = (totals[day] ?? 0) + 1;
-      if (task.isCompleted) completed[day] = (completed[day] ?? 0) + 1;
-    }
-
-    final scoredDays = days.where((day) => !day.isAfter(today));
-    final planned = scoredDays.fold<int>(
-      0,
-      (sum, day) => sum + (totals[day] ?? 0),
-    );
-    final done = scoredDays.fold<int>(
-      0,
-      (sum, day) => sum + (completed[day] ?? 0),
-    );
-    final average = planned == 0 ? 0 : (done / planned * 100).round();
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 11),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    /*
         children: [
           Row(
             children: [
@@ -495,19 +471,22 @@ class _HomeHeatmapCard extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ); */
   }
 }
 
+// ignore: unused_element
 const _homeHeatmapLabelStyle = TextStyle(
   fontFamily: 'Poppins',
   fontSize: 9,
   color: AppColors.textSecondary,
 );
 
+// ignore: unused_element
 DateTime _homeDateOnly(DateTime date) =>
     DateTime(date.year, date.month, date.day);
 
+// ignore: unused_element
 Color _homeHeatColor(double ratio, int total, bool future) {
   if (future || total == 0 || ratio == 0) return AppColors.accentSoft;
   if (ratio < .25) return AppColors.accent.withAlpha(70);
@@ -633,12 +612,12 @@ class _ProfileHeroCard extends StatelessWidget {
   const _ProfileHeroCard({
     required this.name,
     required this.role,
-    required this.points,
+    this.photoPath,
   });
 
   final String name;
   final String role;
-  final int points;
+  final String? photoPath;
 
   @override
   Widget build(BuildContext context) {
@@ -655,7 +634,9 @@ class _ProfileHeroCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Image.asset('assets/profile/devraj.png', fit: BoxFit.cover),
+              photoPath != null
+                  ? Image.file(File(photoPath!), fit: BoxFit.cover)
+                  : Container(color: AppColors.surfaceDark),
               DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -728,40 +709,6 @@ class _ProfileHeroCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 3),
                       const Icon(Icons.chevron_right_rounded, size: 16),
-                    ],
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 16,
-                right: 16,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 11,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(220),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.star_rounded,
-                        size: 15,
-                        color: AppColors.textPrimary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '$points DIMI Points',
-                        style: const TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -1068,6 +1015,62 @@ class _QATile extends StatelessWidget {
 
 // ── Today's tasks card ────────────────────────────────────────────────────────
 
+class _HomeCardHeader extends StatelessWidget {
+  const _HomeCardHeader({
+    required this.icon,
+    required this.title,
+    this.trailing,
+    this.onTap,
+    this.compact = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final header = Row(
+      children: [
+        Container(
+          width: compact ? 24 : 30,
+          height: compact ? 24 : 30,
+          decoration: BoxDecoration(
+            color: AppColors.accentSoft,
+            borderRadius: BorderRadius.circular(compact ? 8 : 10),
+          ),
+          child: Icon(icon, size: compact ? 14 : 17, color: AppColors.accent),
+        ),
+        SizedBox(width: compact ? 6 : 8),
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: compact ? 11 : 14,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ),
+        ?trailing,
+      ],
+    );
+
+    return onTap == null
+        ? header
+        : InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(10),
+            child: header,
+          );
+  }
+}
+
 class _TodayTasksCard extends ConsumerWidget {
   const _TodayTasksCard({required this.tasks, this.compact = false});
   final List<Task> tasks;
@@ -1083,36 +1086,20 @@ class _TodayTasksCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  "Today's Tasks",
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: compact ? 10 : 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
+          _HomeCardHeader(
+            icon: Icons.check_circle_outline_rounded,
+            title: "Today's Tasks",
+            compact: compact,
+            onTap: () => context.go(AppRoutes.planner),
+            trailing: Text(
+              '$done/${tasks.length} done',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: compact ? 8 : 11,
+                color: AppColors.accent,
+                fontWeight: FontWeight.w600,
               ),
-              const SizedBox(width: 4),
-              GestureDetector(
-                onTap: () => context.go(AppRoutes.planner),
-                child: Text(
-                  '$done/${tasks.length} done',
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: compact ? 7 : 12,
-                    color: AppColors.accent,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
           if (tasks.isEmpty) ...[
             const SizedBox(height: 12),
@@ -1281,6 +1268,20 @@ class _PlannerPreviewCard extends StatelessWidget {
         children: [
           Row(
             children: [
+              Container(
+                width: compact ? 24 : 30,
+                height: compact ? 24 : 30,
+                decoration: BoxDecoration(
+                  color: AppColors.accentSoft,
+                  borderRadius: BorderRadius.circular(compact ? 8 : 10),
+                ),
+                child: Icon(
+                  Icons.calendar_today_outlined,
+                  size: compact ? 14 : 17,
+                  color: AppColors.accent,
+                ),
+              ),
+              SizedBox(width: compact ? 6 : 8),
               Expanded(
                 child: Text(
                   'Today · ${DateFormat('d MMM').format(DateTime.now())}',
@@ -1288,7 +1289,7 @@ class _PlannerPreviewCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'Poppins',
-                    fontSize: compact ? 11 : 16,
+                    fontSize: compact ? 11 : 14,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
@@ -1435,9 +1436,18 @@ class _BalanceCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 3),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.account_balance_wallet_outlined,
-                    size: compact ? 16 : 20,
+                  Container(
+                    width: compact ? 24 : 30,
+                    height: compact ? 24 : 30,
+                    decoration: BoxDecoration(
+                      color: AppColors.accentSoft,
+                      borderRadius: BorderRadius.circular(compact ? 8 : 10),
+                    ),
+                    child: Icon(
+                      Icons.account_balance_wallet_outlined,
+                      size: compact ? 14 : 17,
+                      color: AppColors.accent,
+                    ),
                   ),
                   SizedBox(width: compact ? 4 : 8),
                   Expanded(
@@ -1447,15 +1457,13 @@ class _BalanceCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'Poppins',
-                        fontSize: compact ? 10 : 12,
-                        color: AppColors.textSecondary,
+                        fontSize: compact ? 11 : 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                   ),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    size: compact ? 15 : 18,
-                  ),
+                  Icon(Icons.chevron_right_rounded, size: compact ? 15 : 18),
                 ],
               ),
             ),
@@ -1585,37 +1593,53 @@ class _SpendingCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                compact ? 'Spending' : 'Spending This Week',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: compact ? 13 : 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+              Container(
+                width: compact ? 24 : 30,
+                height: compact ? 24 : 30,
+                decoration: BoxDecoration(
+                  color: AppColors.accentSoft,
+                  borderRadius: BorderRadius.circular(compact ? 8 : 10),
+                ),
+                child: Icon(
+                  Icons.account_balance_wallet_outlined,
+                  size: compact ? 14 : 17,
+                  color: AppColors.accent,
+                ),
+              ),
+              SizedBox(width: compact ? 6 : 8),
+              Expanded(
+                child: Text(
+                  'Spending',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: compact ? 11 : 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
               GestureDetector(
                 onTap: () => context.go(AppRoutes.money),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 9,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: compact ? 4 : 14,
+                    vertical: compact ? 0 : 9,
                   ),
                   child: Text(
-                  compact ? '›' : 'View All',
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: compact ? 16 : 12,
-                  color: AppColors.accent,
+                    compact ? '›' : 'View All',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: compact ? 16 : 12,
+                      color: AppColors.accent,
+                    ),
                   ),
-                ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: compact ? 0 : 4),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -1665,7 +1689,7 @@ class _SpendingCard extends StatelessWidget {
               color: AppColors.textSecondary,
             ),
           ),
-          SizedBox(height: compact ? 8 : 14),
+          SizedBox(height: compact ? 4 : 12),
           if (maxAmt <= 0)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
@@ -1682,7 +1706,7 @@ class _SpendingCard extends StatelessWidget {
             )
           else
             SizedBox(
-              height: compact ? 60 : 90,
+              height: compact ? 54 : 90,
               child: _HomeBarChart(
                 dayAmounts: dayAmounts,
                 maxAmt: maxAmt,

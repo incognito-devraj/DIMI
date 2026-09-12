@@ -95,7 +95,7 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
   final _noteCtrl = TextEditingController();
 
   String _type = 'expense'; // "expense" | "income" | "loan"
-  String _category = 'Food & Dining';
+  String _category = 'Sundries';
   DateTime _date = DateTime.now();
   bool _saving = false;
 
@@ -106,6 +106,8 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
   ];
 
   static const _expenseCategories = [
+    'Sundries',
+    'Grocery',
     'Food & Dining',
     'Transport',
     'Shopping',
@@ -155,7 +157,15 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
         child: child!,
       ),
     );
-    if (picked != null) setState(() => _date = picked);
+    if (picked != null) {
+      setState(() => _date = DateTime(
+        picked.year,
+        picked.month,
+        picked.day,
+        _date.hour,
+        _date.minute,
+      ));
+    }
   }
 
   Future<void> _save() async {
@@ -666,6 +676,8 @@ class _FullCategoryPicker extends StatelessWidget {
 }
 
 IconData _categoryIcon(String category) => switch (category) {
+  'Sundries' => Icons.receipt_long_rounded,
+  'Grocery' => Icons.shopping_cart_rounded,
   'Food & Dining' => Icons.restaurant_rounded,
   'Transport' => Icons.directions_car_filled_rounded,
   'Shopping' => Icons.shopping_bag_rounded,

@@ -64,3 +64,25 @@ assets/
 - If Kiro suggests a different package or architecture than `tech.md`
   specifies, reject it and point it back at the steering file — that file
   exists specifically so decisions don't drift screen to screen.
+
+## Google sign-in setup
+
+The app supports Supabase Google OAuth. Supply the project values at runtime
+instead of committing them to the repository:
+
+```powershell
+flutter run -d 10MFAAG1GQ000A8 `
+  --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co `
+  --dart-define=SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
+```
+
+Enable Google under Supabase Authentication > Providers > Google. Add the
+Google OAuth client ID and secret there, then add this mobile callback URL
+under Authentication > URL Configuration > Redirect URLs:
+
+```text
+com.dimi.dimi_app://login-callback/
+```
+
+The Android app declares the same deep-link scheme. With no Supabase values,
+DIMI remains in its existing local-only mode.

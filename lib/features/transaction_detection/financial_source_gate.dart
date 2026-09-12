@@ -29,7 +29,12 @@ class FinancialSourceGate {
     if (_navi.contains(packageName)) return _validPaymentText(text) ? 'NAVI_NOTIFICATION' : null;
     if (_amazon.contains(packageName)) return _validPaymentText(text) ? 'AMAZON_PAY_NOTIFICATION' : null;
     if (_cred.contains(packageName)) return _validPaymentText(text) ? 'CRED_NOTIFICATION' : null;
-    if (_messages.contains(packageName)) return BankNotificationValidator.isValid(text) ? 'BANK_NOTIFICATION' : null;
+    // Banks frequently deliver SMS through the device's default SMS app,
+    // whose package name varies by manufacturer. Validate the message body
+    // instead of depending on one exact messaging package.
+    if (_messages.contains(packageName) || BankNotificationValidator.isValid(text)) {
+      return BankNotificationValidator.isValid(text) ? 'BANK_NOTIFICATION' : null;
+    }
     return null;
   }
 

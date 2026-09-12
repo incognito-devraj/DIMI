@@ -1,6 +1,9 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'dart:io';
 
 import '../../data/database.dart';
 import '../../providers/class_providers.dart';
@@ -158,6 +161,9 @@ class _AvatarCard extends StatelessWidget {
           CircleAvatar(
             radius: 34,
             backgroundColor: AppColors.accent,
+            backgroundImage: profile.photoPath != null
+                ? FileImage(File(profile.photoPath!))
+                : null,
             child: Text(
               profile.name.isNotEmpty
                   ? profile.name.substring(0, 1).toUpperCase()
@@ -227,21 +233,9 @@ class _AvatarCard extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.star_rounded,
-                  size: 13,
-                  color: AppColors.surfaceDark,
-                ),
+                const Icon(Icons.star_rounded, size: 13, color: AppColors.surfaceDark),
                 const SizedBox(width: 4),
-                Text(
-                  '${profile.points}',
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.surfaceDark,
-                  ),
-                ),
+                Text('${profile.points}', style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.surfaceDark)),
               ],
             ),
           ),
@@ -279,10 +273,6 @@ class _StatsRow extends StatelessWidget {
         const SizedBox(width: AppSpacing.cardGap),
         Expanded(
           child: _StatCard(label: 'Goal', value: '$goalPct%'),
-        ),
-        const SizedBox(width: AppSpacing.cardGap),
-        Expanded(
-          child: _StatCard(label: 'Points', value: '$points'),
         ),
       ],
     );
@@ -509,6 +499,8 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
   late final TextEditingController _quoteCtrl;
 
   bool _saving = false;
+  String? _photoPath;
+  final _picker = ImagePicker();
 
   @override
   void initState() {
@@ -521,6 +513,7 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
     _collegeCtrl = TextEditingController(text: p.college);
     _semesterCtrl = TextEditingController(text: p.semester);
     _quoteCtrl = TextEditingController(text: p.quote ?? '');
+    _photoPath = p.photoPath;
   }
 
   @override
@@ -553,12 +546,37 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
             semester: Value(_semesterCtrl.text.trim()),
             quote: Value(quoteText.isEmpty ? null : quoteText),
             // preserve existing photoPath and points
-            photoPath: Value(widget.profile.photoPath),
+            photoPath: Value(_photoPath),
             points: Value(widget.profile.points),
           ),
         );
 
     if (mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _choosePhoto() async {
+    final image = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      imageQuality: 85,
+    );
+    if (image == null) return;
+    final cropped = await ImageCropper().cropImage(
+      sourcePath: image.path,
+      compressQuality: 88,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Crop profile photo',
+          toolbarColor: AppColors.surfaceDark,
+          toolbarWidgetColor: AppColors.surface,
+          activeControlsWidgetColor: AppColors.accent,
+          initAspectRatio: CropAspectRatioPreset.square,
+          lockAspectRatio: false,
+        ),
+        IOSUiSettings(title: 'Crop profile photo'),
+      ],
+    );
+    if (cropped != null && mounted) setState(() => _photoPath = cropped.path);
   }
 
   @override
@@ -629,6 +647,54 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Center(
+                      child: GestureDetector(
+                        onTap: _choosePhoto,
+                        child: Stack(
+                          children: [
+                            CircleAvatar(
+                              radius: 42,
+                              backgroundColor: AppColors.accentSoft,
+                              backgroundImage: _photoPath == null
+                                  ? null
+                                  : FileImage(File(_photoPath!)),
+                              child: _photoPath == null
+                                  ? Text(
+                                      _nameCtrl.text.isEmpty
+                                          ? 'S'
+                                          : _nameCtrl.text[0].toUpperCase(),
+                                      style: const TextStyle(
+                                        fontSize: 30,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            Positioned(
+                              right: 0,
+                              bottom: 0,
+                              child: CircleAvatar(
+                                radius: 14,
+                                backgroundColor: AppColors.textPrimary,
+                                child: const Icon(
+                                  Icons.camera_alt_outlined,
+                                  size: 15,
+                                  color: AppColors.surface,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Center(
+                      child: Text(
+                        'Tap to choose your photo',
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
                     _FieldLabel('Name'),
                     const SizedBox(height: 6),
                     TextFormField(

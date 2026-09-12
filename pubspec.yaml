@@ -28,6 +28,7 @@ dependencies:
   # Utilities
   intl: ^0.20.2
   google_fonts: ^6.2.1
+  flutter_svg: ^2.2.3
 
   # Charts
   fl_chart: ^0.70.2
@@ -38,6 +39,12 @@ dependencies:
   # Local notifications for Reminders
   flutter_local_notifications: ^18.0.1
   timezone: ^0.9.4
+  url_launcher: ^6.3.2
+  image_picker: ^1.1.2
+  image_cropper: ^9.1.0
+
+  # Authentication
+  supabase_flutter: ^2.17.2
 
 dev_dependencies:
   flutter_test:
@@ -55,3 +62,6 @@ flutter:
     - assets/screens/
     - assets/style-guide.md
     - assets/profile/devraj.png
+    - assets/google_g_logo.svg
+    - DIMI logo/Logo_PNG.png
+    - DIMI logo/Main Logo.png

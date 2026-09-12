@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -25,6 +26,7 @@ class RemindersScreen extends ConsumerStatefulWidget {
 
 class _RemindersScreenState extends ConsumerState<RemindersScreen> {
   int _tabIndex = 0;
+  bool _showAddButton = true;
   Timer? _dayBoundaryTimer;
 
   @override
@@ -86,7 +88,19 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
             const SizedBox(height: 16),
             // ── Reminder list ────────────────────────────────────────────────
             Expanded(
-              child: AnimatedSwitcher(
+              child: NotificationListener<UserScrollNotification>(
+                onNotification: (notification) {
+                  final visible = switch (notification.direction) {
+                    ScrollDirection.reverse => false,
+                    ScrollDirection.forward => true,
+                    ScrollDirection.idle => _showAddButton,
+                  };
+                  if (visible != _showAddButton && mounted) {
+                    setState(() => _showAddButton = visible);
+                  }
+                  return false;
+                },
+                child: AnimatedSwitcher(
                 duration: DimiMotion.normal,
                 switchInCurve: DimiMotion.curve,
                 transitionBuilder: (child, animation) => FadeTransition(
@@ -97,7 +111,7 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
                       end: Offset.zero,
                     ).animate(animation),
                     child: child,
-                  ),
+                ),
                 ),
                 child: KeyedSubtree(
                   key: ValueKey(_tabIndex),
@@ -147,13 +161,26 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
                 ),
               ),
             ),
+            ),
           ],
         ),
       ),
-      floatingActionButton: DimiAddActionButton(
-        label: 'Add reminder',
-        icon: Icons.notifications_active_rounded,
-        onPressed: () => showAddReminderSheet(context),
+      floatingActionButton: IgnorePointer(
+        ignoring: !_showAddButton,
+        child: AnimatedSlide(
+          offset: _showAddButton ? Offset.zero : const Offset(0, 1.4),
+          duration: DimiMotion.normal,
+          curve: DimiMotion.curve,
+          child: AnimatedOpacity(
+            opacity: _showAddButton ? 1 : 0,
+            duration: DimiMotion.fast,
+            child: DimiAddActionButton(
+              label: 'Add reminder',
+              icon: Icons.notifications_active_rounded,
+              onPressed: () => showAddReminderSheet(context),
+            ),
+          ),
+        ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );

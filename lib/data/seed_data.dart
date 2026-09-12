@@ -13,12 +13,12 @@ Future<void> seedDatabase(AppDatabase db) async {
   await db.profileDao.upsertProfile(
     const ProfileTableCompanion(
       id: Value(1),
-      name: Value('Devraj'),
-      role: Value('CS Engineering Student'),
-      email: Value('devraj@example.com'),
-      phone: Value('+91 98765 43210'),
-      college: Value('IIT Example'),
-      semester: Value('Semester 5'),
+      name: Value('Student'),
+      role: Value(''),
+      email: Value(''),
+      phone: Value(''),
+      college: Value(''),
+      semester: Value(''),
       quote: Value('A better you, One day at a time.'),
       points: Value(320),
     ),

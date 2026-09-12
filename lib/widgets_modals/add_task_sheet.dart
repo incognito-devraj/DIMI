@@ -144,7 +144,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     _titleCtrl = TextEditingController(text: t?.title ?? '');
     _descCtrl = TextEditingController(text: t?.description ?? '');
     _dueDate = t?.dueDate ?? widget.initialDate ?? DateTime.now();
-    _category = t?.category ?? 'Study';
+    _category = t?.category ?? 'Personal';
     _reminderMinutes = t?.reminderMinutesBefore;
 
     if (t?.dueTime != null && t!.dueTime!.isNotEmpty) {
@@ -428,18 +428,11 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                     const SizedBox(height: 14),
                     _FieldLabel('Category'),
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _categories
-                          .map(
-                            (c) => _Chip(
-                              label: c,
-                              selected: _category == c,
-                              onTap: () => setState(() => _category = c),
-                            ),
-                          )
-                          .toList(),
+                    _TaskCategoryPicker(
+                      categories: _categories,
+                      selected: _category,
+                      onSelected: (category) =>
+                          setState(() => _category = category),
                     ),
                     const SizedBox(height: 14),
                     _FieldLabel('Reminder'),
@@ -601,3 +594,85 @@ class _Chip extends StatelessWidget {
     );
   }
 }
+
+class _TaskCategoryPicker extends StatelessWidget {
+  const _TaskCategoryPicker({
+    required this.categories,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final List<String> categories;
+  final String selected;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        height: 86,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: categories.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 12),
+          itemBuilder: (context, index) {
+            final category = categories[index];
+            final isSelected = category == selected;
+            final color = isSelected
+                ? AppColors.accent
+                : AppColors.textSecondary;
+            return GestureDetector(
+              onTap: () => onSelected(category),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.accentSoft
+                          : AppColors.background,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSelected
+                            ? AppColors.accent
+                            : AppColors.divider,
+                        width: isSelected ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Icon(_taskCategoryIcon(category), color: color),
+                  ),
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    width: 66,
+                    child: Text(
+                      category,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 9.5,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        color: color,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+}
+
+IconData _taskCategoryIcon(String category) => switch (category) {
+  'Study' => Icons.menu_book_rounded,
+  'Personal' => Icons.person_rounded,
+  'College' => Icons.school_rounded,
+  'Health' => Icons.favorite_rounded,
+  'Finance' => Icons.account_balance_wallet_rounded,
+  _ => Icons.more_horiz_rounded,
+};

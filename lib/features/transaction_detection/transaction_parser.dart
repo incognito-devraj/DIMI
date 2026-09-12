@@ -28,7 +28,7 @@ class MerchantParser {
       if (value != null && value.isNotEmpty && !value.contains('@')) return TransactionNormalizer.merchantDisplay(value);
     }
     final vpa = RegExp(r'\b([a-z0-9._-]{2,50}@[a-z]{2,20})\b', caseSensitive: false).firstMatch(text)?.group(1);
-    return vpa == null ? 'Unknown' : vpa;
+    return vpa ?? 'Unknown';
   }
 }
 

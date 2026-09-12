@@ -18,6 +18,24 @@ import '../../widgets/pill_segmented_control.dart';
 import '../../widgets_modals/add_expense_sheet.dart';
 
 const _kTabs = ['Overview', 'Transactions', 'Categories'];
+const _allMoneyCategories = [
+  'Sundries',
+  'Grocery',
+  'Food & Dining',
+  'Transport',
+  'Shopping',
+  'Entertainment',
+  'Health',
+  'Education',
+  'Utilities',
+  'Allowance',
+  'Salary',
+  'Freelance',
+  'Gift',
+  'Lent',
+  'Borrowed',
+  'Other',
+];
 
 // Currency formatter — ₹
 final _fmt = NumberFormat('#,##0.00', 'en_IN');
@@ -188,14 +206,15 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                   IconButton(
                     tooltip: 'Filter expenses',
                     onPressed: () {
-                      final categories = allAsync.maybeWhen(
-                        data: (items) => items
-                            .map((item) => item.category)
-                            .toSet()
-                            .toList()
-                          ..sort(),
-                        orElse: () => <String>[],
-                      );
+                      final categories = {
+                        ..._allMoneyCategories,
+                        ...allAsync.maybeWhen(
+                          data: (items) => items
+                              .map((item) => item.category)
+                              .toSet(),
+                          orElse: () => <String>{},
+                        ),
+                      }.toList()..sort();
                       _openFilter(categories);
                     },
                     icon: const Icon(
@@ -1080,7 +1099,7 @@ class _TransactionTile extends ConsumerWidget {
               const SizedBox(height: 22),
               _DetailRow(label: 'Category', value: txn.category, icon: Icons.sell_outlined),
               const SizedBox(height: 14),
-              _DetailRow(label: 'Date', value: DateFormat('EEEE, d MMM yyyy').format(txn.date), icon: Icons.calendar_today_outlined),
+              _DetailRow(label: 'Date and time', value: DateFormat('EEEE, d MMM yyyy · h:mm a').format(txn.date), icon: Icons.calendar_today_outlined),
               const SizedBox(height: 14),
               _DetailRow(label: 'Description', value: description, icon: Icons.notes_rounded),
               const SizedBox(height: 20),

@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../screens/home/home_screen.dart';
-import '../screens/onboarding/onboarding_screen.dart';
+import '../screens/splash/splash_screen.dart';
 import '../screens/planner/planner_screen.dart';
 import '../screens/money/money_screen.dart';
 import '../screens/reminders/reminders_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/settings/notification_detector_screen.dart';
+import '../screens/profile/profile_screen.dart';
 import '../widgets/app_scaffold.dart';
 import '../core/motion/dimi_motion.dart';
 import '../core/motion/dimi_page_transition.dart';
+import '../config/supabase_config.dart';
+import '../screens/auth/login_screen.dart';
 
 /// Route path constants.
 abstract class AppRoutes {
+  static const splash = '/splash';
+  static const login = '/login';
   static const onboarding = '/onboarding';
   static const home = '/home';
   static const planner = '/planner';
@@ -24,6 +28,7 @@ abstract class AppRoutes {
   static const reminders = '/reminders';
   static const settings = '/settings';
   static const notificationDetector = '/settings/notification-detector';
+  static const profile = '/profile';
 }
 
 int _tabIndex(String location) {
@@ -37,19 +42,41 @@ int _tabIndex(String location) {
 }
 
 final GoRouter appRouter = GoRouter(
-  initialLocation: AppRoutes.home,
+  initialLocation: AppRoutes.splash,
+  refreshListenable: SupabaseAuthRefreshNotifier(SupabaseBootstrap.authChanges),
   redirect: (context, state) async {
-    if (state.uri.path == AppRoutes.onboarding) return null;
-    final prefs = await SharedPreferences.getInstance();
-    final hasOnboarded = prefs.getBool(kHasOnboardedKey) ?? false;
-    if (!hasOnboarded) return AppRoutes.onboarding;
+    if (state.uri.path == AppRoutes.splash) return null;
+
+    // If the user has a valid session, always let them through.
+    final hasSession = SupabaseBootstrap.client?.auth.currentSession != null;
+
+    if (state.uri.path == AppRoutes.login) {
+      // Already signed in → skip login.
+      if (hasSession) return AppRoutes.home;
+      return null;
+    }
+
+    // Guard all other routes: only redirect to login when Supabase is
+    // configured, the user has no session, AND hasn't chosen offline mode.
+    if (SupabaseBootstrap.client != null &&
+        !hasSession &&
+        !SupabaseBootstrap.offlineMode) {
+      return AppRoutes.login;
+    }
+
     return null;
   },
   routes: [
-    // ── Onboarding (no bottom nav) ────────────────────────────────────────
+    // Startup animation stays outside the main shell so the existing Home
+    // screen and bottom navigation are reused unchanged after handoff.
     GoRoute(
-      path: AppRoutes.onboarding,
-      pageBuilder: (context, state) => _fade(state, const OnboardingScreen()),
+      path: AppRoutes.splash,
+      pageBuilder: (context, state) => _fade(state, const SplashScreen()),
+    ),
+
+    GoRoute(
+      path: AppRoutes.login,
+      pageBuilder: (context, state) => _fade(state, const LoginScreen()),
     ),
 
     // ── Main shell (bottom nav tabs 0–3) ──────────────────────────────────
@@ -80,14 +107,21 @@ final GoRouter appRouter = GoRouter(
       ],
     ),
 
+    GoRoute(
+      path: AppRoutes.profile,
+      pageBuilder: (context, state) => _fade(state, const ProfileScreen()),
+    ),
+
     // ── Settings — pushed on top (no bottom nav) ──────────────────────────
     GoRoute(
       path: AppRoutes.settings,
       pageBuilder: (ctx, state) => _slide(state, const SettingsScreen()),
     ),
+
     GoRoute(
       path: AppRoutes.notificationDetector,
-      pageBuilder: (ctx, state) => _slide(state, const NotificationDetectorScreen()),
+      pageBuilder: (ctx, state) =>
+          _slide(state, const NotificationDetectorScreen()),
     ),
   ],
 );
