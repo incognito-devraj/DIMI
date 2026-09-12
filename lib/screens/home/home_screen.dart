@@ -16,13 +16,13 @@ import '../../providers/reminder_providers.dart';
 import '../../providers/task_providers.dart';
 import '../../routing/app_router.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/dimi_progress_bar.dart';
 import '../../widgets/section_card.dart';
 import '../../widgets_modals/add_expense_sheet.dart';
 import '../../utils/time_format.dart';
 import '../../widgets_modals/add_reminder_sheet.dart';
 import '../../widgets_modals/add_task_sheet.dart';
 import '../../widgets/dimi_activity_heatmap.dart';
+import '../../widgets/youtube_playlist_card.dart';
 
 final _currencyFmt = NumberFormat('#,##0', 'en_IN');
 
@@ -32,34 +32,11 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(profileProvider);
-    final todaysTasksAsync = ref.watch(todaysTasksProvider);
-    final allTasksAsync = ref.watch(allTasksProvider);
     final plannerEntriesAsync = ref.watch(allPlannerEntriesProvider);
-    final weeklyTxnAsync = ref.watch(thisWeeksTransactionsProvider);
     final upcomingRemindersAsync = ref.watch(upcomingRemindersProvider);
 
     final fullName = profileAsync.valueOrNull?.name ?? 'Student';
     final name = fullName.trim().split(RegExp(r'\s+')).first;
-
-    // Derived stats (computed outside widgets so they're in one place)
-    final todayTotal = todaysTasksAsync.valueOrNull?.length ?? 0;
-    final todayDone =
-        todaysTasksAsync.valueOrNull?.where((t) => t.isCompleted).length ?? 0;
-    final allTotal = allTasksAsync.valueOrNull?.length ?? 0;
-    final allDone =
-        allTasksAsync.valueOrNull?.where((t) => t.isCompleted).length ?? 0;
-    final todayProgress = todayTotal == 0 ? 0.0 : todayDone / todayTotal;
-    final weeklyGoal = allTotal == 0 ? 0 : (allDone / allTotal * 100).round();
-    final weeklySpent =
-        weeklyTxnAsync.valueOrNull
-            ?.where((t) => t.type == 'expense')
-            .fold(0.0, (s, t) => s + t.amount) ??
-        0.0;
-    final reminderCount =
-        upcomingRemindersAsync.valueOrNull
-            ?.where((r) => r.isEnabled && r.dueAt.isAfter(DateTime.now()))
-            .length ??
-        0;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -79,8 +56,7 @@ class HomeScreen extends ConsumerWidget {
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 4)),
 
-            // ── Dark stats card ────────────────────────────────────────
-            // ── Quick actions ──────────────────────────────────────────
+            // ── YouTube playlist card (replaces dark stats card) ───────
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -88,14 +64,7 @@ class HomeScreen extends ConsumerWidget {
                 ),
                 child: DimiFadeSlide(
                   delay: const Duration(milliseconds: 45),
-                  child: _StatsCard(
-                    todayProgress: todayProgress,
-                    todayDone: todayDone,
-                    todayTotal: todayTotal,
-                    weeklyGoal: weeklyGoal,
-                    weeklySpent: weeklySpent,
-                    reminderCount: reminderCount,
-                  ),
+                  child: const YoutubePlaylistCard(),
                 ),
               ),
             ),
@@ -764,174 +733,6 @@ class _GreetingHero extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-// ── Dark stats card ───────────────────────────────────────────────────────────
-
-class _StatsCard extends StatelessWidget {
-  const _StatsCard({
-    required this.todayProgress,
-    required this.todayDone,
-    required this.todayTotal,
-    required this.weeklyGoal,
-    required this.weeklySpent,
-    required this.reminderCount,
-  });
-
-  final double todayProgress;
-  final int todayDone;
-  final int todayTotal;
-  final int weeklyGoal;
-  final double weeklySpent;
-  final int reminderCount;
-
-  @override
-  Widget build(BuildContext context) {
-    return SectionCard(
-      color: AppColors.surfaceDark,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Three stat chips
-          Row(
-            children: [
-              _StatChip(
-                label: "Today's Progress",
-                value: '${(todayProgress * 100).round()}%',
-              ),
-              const _VDiv(),
-              _StatChip(
-                label: 'Tasks Completed',
-                value: '$todayDone/$todayTotal',
-              ),
-              const _VDiv(),
-              _StatChip(label: 'Weekly Goal', value: '$weeklyGoal%'),
-            ],
-          ),
-          const SizedBox(height: 14),
-          DimiProgressBar(
-            value: todayProgress,
-            fillColor: AppColors.accent,
-            height: 6,
-          ),
-          const SizedBox(height: 16),
-          // Bottom icon-chip row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _IconStat(
-                icon: Icons.check_circle_outline_rounded,
-                label: 'Task',
-                value: '$todayTotal',
-              ),
-              _IconStat(
-                icon: Icons.account_balance_wallet_outlined,
-                label: 'Expense',
-                value: '₹${_currencyFmt.format(weeklySpent)}',
-              ),
-              _IconStat(
-                icon: Icons.notifications_outlined,
-                label: 'Reminder',
-                value: '$reminderCount',
-              ),
-              _IconStat(
-                icon: Icons.calendar_today_outlined,
-                label: 'Planner',
-                value: '→',
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  const _StatChip({required this.label, required this.value});
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: const TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppColors.surface,
-            ),
-          ),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 9,
-              color: AppColors.surface.withAlpha(180),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _VDiv extends StatelessWidget {
-  const _VDiv();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 32,
-      color: AppColors.surface.withAlpha(40),
-      margin: const EdgeInsets.symmetric(horizontal: 6),
-    );
-  }
-}
-
-class _IconStat extends StatelessWidget {
-  const _IconStat({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: AppColors.surface.withAlpha(180)),
-        const SizedBox(height: 3),
-        Text(
-          value,
-          style: const TextStyle(
-            fontFamily: 'Poppins',
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: AppColors.surface,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'Poppins',
-            fontSize: 9,
-            color: AppColors.surface.withAlpha(140),
-          ),
-        ),
-      ],
     );
   }
 }
