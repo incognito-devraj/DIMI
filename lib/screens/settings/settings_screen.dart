@@ -2,11 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
 
 import '../../providers/profile_providers.dart';
 import '../../routing/app_router.dart';
-import '../../screens/onboarding/onboarding_screen.dart';
 import '../../services/notification_service.dart';
 import '../../theme/app_theme.dart';
 import '../../features/transaction_detection/transaction_detection_service.dart';
@@ -34,9 +33,20 @@ class SettingsScreen extends ConsumerWidget {
                   AppSpacing.screenHorizontal,
                   0,
                 ),
-                child: Text(
-                  'Settings',
-                  style: Theme.of(context).textTheme.displayMedium,
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Back',
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: Text('Settings', style: Theme.of(context).textTheme.displayMedium),
+                      ),
+                    ),
+                    const SizedBox(width: 48),
+                  ],
                 ),
               ),
             ),
@@ -52,7 +62,8 @@ class SettingsScreen extends ConsumerWidget {
                   name: profile?.name ?? 'Student',
                   role: profile?.role ?? '',
                   email: profile?.email ?? '',
-                  onEditTap: () => _showComingSoon(context),
+                  photoPath: profile?.photoPath,
+                  onEditTap: () => context.push(AppRoutes.profile),
                 ),
               ),
             ),
@@ -331,9 +342,7 @@ class SettingsScreen extends ConsumerWidget {
     );
 
     if (ok == true && context.mounted) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(kHasOnboardedKey);
-      if (context.mounted) context.go(AppRoutes.onboarding);
+      if (context.mounted) context.go(AppRoutes.login);
     }
   }
 }
@@ -365,11 +374,13 @@ class _AccountCard extends StatelessWidget {
     required this.name,
     required this.role,
     required this.email,
+    this.photoPath,
     required this.onEditTap,
   });
   final String name;
   final String role;
   final String email;
+  final String? photoPath;
   final VoidCallback onEditTap;
 
   @override
@@ -377,16 +388,21 @@ class _AccountCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.cardPadding),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
-        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.divider),
+        boxShadow: const [
+          BoxShadow(color: Color(0x0A1B1B1B), blurRadius: 18, offset: Offset(0, 6)),
+        ],
       ),
       child: Row(
         children: [
           CircleAvatar(
             radius: 26,
             backgroundColor: AppColors.accent,
+            backgroundImage: photoPath == null ? null : FileImage(File(photoPath!)),
             child: Text(
-              name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'S',
+              photoPath == null && name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '',
               style: const TextStyle(
                 fontFamily: 'Poppins',
                 fontSize: 22,
@@ -406,7 +422,7 @@ class _AccountCard extends StatelessWidget {
                     fontFamily: 'Poppins',
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.surface,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 if (email.isNotEmpty)
@@ -415,7 +431,7 @@ class _AccountCard extends StatelessWidget {
                     style: const TextStyle(
                       fontFamily: 'Poppins',
                       fontSize: 12,
-                      color: AppColors.accentSoft,
+                    color: AppColors.textSecondary,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -427,7 +443,7 @@ class _AccountCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
-                color: AppColors.accent,
+              color: AppColors.accentSoft,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: const Text(
@@ -436,7 +452,7 @@ class _AccountCard extends StatelessWidget {
                   fontFamily: 'Poppins',
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.surfaceDark,
+                  color: AppColors.textPrimary,
                 ),
               ),
             ),

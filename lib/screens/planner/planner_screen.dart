@@ -12,6 +12,7 @@ import '../../widgets/dimi_add_action_button.dart';
 import '../../widgets/pill_segmented_control.dart';
 import '../../widgets_modals/add_task_sheet.dart';
 import '../../utils/time_format.dart';
+import '../../widgets/dimi_activity_heatmap.dart';
 
 const _kViews = ['Day', 'Week', 'Month'];
 
@@ -128,137 +129,141 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
         },
         child: SafeArea(
           child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── App bar ─────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenHorizontal,
-                20,
-                AppSpacing.screenHorizontal,
-                0,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Planner',
-                    style: Theme.of(context).textTheme.displayMedium,
-                  ),
-                  const SizedBox(height: 3),
-                  const Text(
-                    'Plan today. A better you tomorrow.',
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 13,
-                      color: AppColors.textSecondary,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── App bar ─────────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenHorizontal,
+                  20,
+                  AppSpacing.screenHorizontal,
+                  0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Planner',
+                      style: Theme.of(context).textTheme.displayMedium,
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // ── View selector (Day / Week / Month) ───────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.screenHorizontal,
-              ),
-              child: SizedBox(
-                width: double.infinity,
-                child: PillSegmentedControl(
-                  options: _kViews,
-                  selected: _view,
-                  onSelected: (i) => setState(() => _view = i),
+                    const SizedBox(height: 3),
+                    const Text(
+                      'Plan today. A better you tomorrow.',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 14),
+              const SizedBox(height: 14),
 
-            // ── Date navigation ──────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.screenHorizontal,
+              // ── View selector (Day / Week / Month) ───────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.screenHorizontal,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: PillSegmentedControl(
+                    options: _kViews,
+                    selected: _view,
+                    onSelected: (i) {
+                      if (i != _view) setState(() => _view = i);
+                    },
+                  ),
+                ),
               ),
-              child: Row(
-                children: [
-                  _NavArrow(icon: Icons.chevron_left_rounded, onTap: _prev),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: _pickDate,
-                      child: AnimatedSwitcher(
-                        duration: DimiMotion.fast,
-                        switchInCurve: DimiMotion.curve,
-                        switchOutCurve: DimiMotion.transitionCurve,
-                        transitionBuilder: (child, animation) => FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0, .08),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: child,
-                          ),
-                        ),
-                        child: Text(
-                          _headerLabel(),
-                          key: ValueKey(_headerLabel()),
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
+              const SizedBox(height: 14),
+
+              // ── Date navigation ──────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.screenHorizontal,
+                ),
+                child: Row(
+                  children: [
+                    _NavArrow(icon: Icons.chevron_left_rounded, onTap: _prev),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _pickDate,
+                        child: AnimatedSwitcher(
+                          duration: DimiMotion.fast,
+                          switchInCurve: DimiMotion.curve,
+                          switchOutCurve: DimiMotion.transitionCurve,
+                          transitionBuilder: (child, animation) =>
+                              FadeTransition(
+                                opacity: animation,
+                                child: SlideTransition(
+                                  position: Tween<Offset>(
+                                    begin: const Offset(0, .08),
+                                    end: Offset.zero,
+                                  ).animate(animation),
+                                  child: child,
+                                ),
+                              ),
+                          child: Text(
+                            _headerLabel(),
+                            key: ValueKey(_headerLabel()),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  _NavArrow(icon: Icons.chevron_right_rounded, onTap: _next),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // ── Content ──────────────────────────────────────────────────
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: DimiMotion.fast,
-                switchInCurve: DimiMotion.curve,
-                switchOutCurve: DimiMotion.transitionCurve,
-                transitionBuilder: (child, animation) =>
-                    FadeTransition(opacity: animation, child: child),
-                layoutBuilder: (currentChild, previousChildren) =>
-                    currentChild ?? const SizedBox.shrink(),
-                child: KeyedSubtree(
-                  key: ValueKey(_view),
-                  child: switch (_view) {
-                    1 => _WeekView(
-                      anchorDate: _selected,
-                      fabVisible: _showAddButton,
-                      onDayTap: (d) => setState(() {
-                        _selected = d;
-                        _view = 0;
-                      }),
-                    ),
-                    2 => _PremiumMonthView(
-                      anchorDate: _selected,
-                      fabVisible: _showAddButton,
-                      onDayTap: (d) => setState(() {
-                        _selected = d;
-                      }),
-                    ),
-                    _ => _DayView(
-                      date: _selected,
-                      fabVisible: _showAddButton,
-                    ),
-                  },
+                    const SizedBox(width: 8),
+                    _NavArrow(icon: Icons.chevron_right_rounded, onTap: _next),
+                  ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 14),
+
+              // ── Content ──────────────────────────────────────────────────
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 110),
+                  reverseDuration: const Duration(milliseconds: 80),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder: (child, animation) =>
+                      FadeTransition(opacity: animation, child: child),
+                  layoutBuilder: (currentChild, previousChildren) =>
+                      currentChild ?? const SizedBox.shrink(),
+                  child: RepaintBoundary(
+                    key: ValueKey(_view),
+                    child: switch (_view) {
+                      1 => _WeekView(
+                        anchorDate: _selected,
+                        fabVisible: _showAddButton,
+                        onDayTap: (d) => setState(() {
+                          _selected = d;
+                          _view = 0;
+                        }),
+                      ),
+                      2 => _PremiumMonthView(
+                        anchorDate: _selected,
+                        fabVisible: _showAddButton,
+                        onDayTap: (d) => setState(() {
+                          _selected = d;
+                        }),
+                      ),
+                      _ => _DayView(
+                        date: _selected,
+                        fabVisible: _showAddButton,
+                      ),
+                    },
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -289,14 +294,19 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
 
 // ─── Day View ─────────────────────────────────────────────────────────────────
 
-class _DayView extends ConsumerWidget {
+class _DayView extends ConsumerStatefulWidget {
   const _DayView({required this.date, required this.fabVisible});
   final DateTime date;
   final bool fabVisible;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final tasksAsync = ref.watch(tasksForDateProvider(_dateOnly(date)));
+  ConsumerState<_DayView> createState() => _DayViewState();
+}
+
+class _DayViewState extends ConsumerState<_DayView> {
+  @override
+  Widget build(BuildContext context) {
+    final tasksAsync = ref.watch(tasksForDateProvider(_dateOnly(widget.date)));
 
     return tasksAsync.when(
       loading: () => const Center(
@@ -314,25 +324,26 @@ class _DayView extends ConsumerWidget {
             return aMin.compareTo(bMin);
           });
 
-        if (sorted.isEmpty) {
-          return const EmptyState(
-            icon: Icons.calendar_today_outlined,
-            title: 'Nothing scheduled',
-            subtitle: 'Tap + to add a task for this day.',
-          );
-        }
-
-        return _ReferenceDaySchedule(
-          tasks: sorted,
-          bottomPadding: fabVisible ? 96 : 0,
-        );
+        return sorted.isEmpty
+            ? const EmptyState(
+                icon: Icons.calendar_today_outlined,
+                title: 'Nothing scheduled',
+                subtitle: 'Tap Add task to schedule your first task.',
+              )
+            : _ReferenceDaySchedule(
+                tasks: sorted,
+                bottomPadding: widget.fabVisible ? 96 : 0,
+              );
       },
     );
   }
 }
 
 class _ReferenceDaySchedule extends ConsumerWidget {
-  const _ReferenceDaySchedule({required this.tasks, required this.bottomPadding});
+  const _ReferenceDaySchedule({
+    required this.tasks,
+    required this.bottomPadding,
+  });
   final List<Task> tasks;
   final double bottomPadding;
 
@@ -607,7 +618,11 @@ class _WeekView extends ConsumerWidget {
                         .map(
                           (t) => Padding(
                             padding: const EdgeInsets.only(bottom: 6),
-                            child: _TaskTile(task: t, compact: true),
+                            child: _TaskTile(
+                              task: t,
+                              compact: true,
+                              tapToToggle: true,
+                            ),
                           ),
                         )
                         .toList(),
@@ -727,9 +742,10 @@ class _PremiumMonthViewState extends ConsumerState<_PremiumMonthView> {
           padding: EdgeInsets.only(bottom: widget.fabVisible ? 96 : 0),
           children: [
             RepaintBoundary(
-              child: _HeatmapCard(
-                planFor: planFor,
-                onTap: (day) => _showDetails(context, planFor(day)),
+              child: DimiActivityHeatmap(
+                tasks: tasks,
+                title: 'Completion heatmap',
+                subtitle: 'Activity over the last year',
               ),
             ),
             const SizedBox(height: 12),
@@ -757,25 +773,23 @@ class _PremiumMonthViewState extends ConsumerState<_PremiumMonthView> {
                   currentChild ?? const SizedBox.shrink(),
               child: RepaintBoundary(
                 child: _CalendarCard(
-                key: ValueKey(
-                  '${widget.anchorDate.year}-${widget.anchorDate.month}',
-                ),
-                month: widget.anchorDate,
-                cells: cells,
-                planFor: planFor,
-                today: today,
-                selected: widget.anchorDate,
-                onTap: widget.onDayTap,
+                  key: ValueKey(
+                    '${widget.anchorDate.year}-${widget.anchorDate.month}',
+                  ),
+                  month: widget.anchorDate,
+                  cells: cells,
+                  planFor: planFor,
+                  today: today,
+                  selected: widget.anchorDate,
+                  onTap: widget.onDayTap,
                 ),
               ),
             ),
             const SizedBox(height: 12),
             AnimatedSwitcher(
               duration: DimiMotion.fast,
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: child,
-              ),
+              transitionBuilder: (child, animation) =>
+                  FadeTransition(opacity: animation, child: child),
               child: _SelectedPlanCard(
                 key: ValueKey(_dateOnly(widget.anchorDate)),
                 plan: planFor(widget.anchorDate),
@@ -787,6 +801,7 @@ class _PremiumMonthViewState extends ConsumerState<_PremiumMonthView> {
     );
   }
 
+  // ignore: unused_element
   void _showDetails(
     BuildContext context,
     _DayPlan plan,
@@ -829,10 +844,7 @@ class _PremiumMonthViewState extends ConsumerState<_PremiumMonthView> {
 }
 
 class _HeatmapCard extends StatelessWidget {
-  const _HeatmapCard({
-    required this.planFor,
-    required this.onTap,
-  });
+  const _HeatmapCard({required this.planFor, required this.onTap});
   final _DayPlan Function(DateTime) planFor;
   final ValueChanged<DateTime> onTap;
   @override
@@ -1664,9 +1676,14 @@ class _CompletionHeatmap extends StatelessWidget {
 // ─── Task tile ────────────────────────────────────────────────────────────────
 
 class _TaskTile extends ConsumerWidget {
-  const _TaskTile({required this.task, this.compact = false});
+  const _TaskTile({
+    required this.task,
+    this.compact = false,
+    this.tapToToggle = false,
+  });
   final Task task;
   final bool compact;
+  final bool tapToToggle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1675,6 +1692,7 @@ class _TaskTile extends ConsumerWidget {
 
     return GestureDetector(
       onLongPress: () => _showOptions(context, ref),
+      onTap: tapToToggle ? () => dao.toggleCompleted(task.id, !done) : null,
       child: Container(
         padding: EdgeInsets.symmetric(
           horizontal: compact ? 10 : 14,
@@ -1752,7 +1770,9 @@ class _TaskTile extends ConsumerWidget {
             ),
             // Checkbox
             GestureDetector(
-              onTap: () => dao.toggleCompleted(task.id, !done),
+              onTap: tapToToggle
+                  ? null
+                  : () => dao.toggleCompleted(task.id, !done),
               child: AnimatedContainer(
                 duration: DimiMotion.fast,
                 curve: DimiMotion.curve,

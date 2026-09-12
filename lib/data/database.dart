@@ -65,6 +65,29 @@ class AppDatabase extends _$AppDatabase {
   @override
   int get schemaVersion => 7;
 
+  /// Removes only the original handoff/demo dataset. Real profiles are left
+  /// untouched, so existing user data is not wiped on upgrade.
+  Future<void> clearLegacyDemoContent() async {
+    final profile = await profileDao.getProfile();
+    if (profile?.name != 'Student' || profile?.email.isNotEmpty == true) {
+      return;
+    }
+    await transaction(() async {
+      await delete(tasks).go();
+      await delete(classSessions).go();
+      await delete(studySessions).go();
+      await delete(courses).go();
+      await delete(moneyTransactions).go();
+      await delete(notes).go();
+      await delete(reminders).go();
+      await delete(documentMeta).go();
+      await delete(transactionDetectionEvents).go();
+      await delete(transactionCandidates).go();
+      await delete(merchantCategoryRules).go();
+      await delete(profileTable).go();
+    });
+  }
+
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) => m.createAll(),
