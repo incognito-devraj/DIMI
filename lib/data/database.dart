@@ -15,6 +15,8 @@ import 'tables/reminders.dart';
 import 'tables/document_meta.dart';
 import 'tables/profile.dart';
 import 'tables/transaction_detection.dart';
+import 'tables/youtube_playlists.dart';
+import 'tables/youtube_videos.dart';
 
 // DAOs
 import 'daos/task_dao.dart';
@@ -26,6 +28,7 @@ import 'daos/reminder_dao.dart';
 import 'daos/document_dao.dart';
 import 'daos/profile_dao.dart';
 import 'daos/transaction_detection_dao.dart';
+import 'daos/youtube_playlist_dao.dart';
 
 part 'database.g.dart';
 
@@ -43,6 +46,8 @@ part 'database.g.dart';
     TransactionDetectionEvents,
     TransactionCandidates,
     MerchantCategoryRules,
+    YoutubePlaylists,
+    YoutubeVideos,
   ],
   daos: [
     TaskDao,
@@ -54,6 +59,7 @@ part 'database.g.dart';
     DocumentDao,
     ProfileDao,
     TransactionDetectionDao,
+    YoutubePlaylistDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -63,7 +69,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   /// Removes only the original handoff/demo dataset. Real profiles are left
   /// untouched, so existing user data is not wiped on upgrade.
@@ -114,6 +120,10 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 7) {
         await m.addColumn(transactionCandidates, transactionCandidates.bankConfirmationStatus);
+      }
+      if (from < 8) {
+        await m.createTable(youtubePlaylists);
+        await m.createTable(youtubeVideos);
       }
     },
   );
