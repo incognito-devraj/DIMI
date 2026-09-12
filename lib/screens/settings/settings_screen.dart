@@ -2,13 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'dart:io';
 
-import '../../providers/profile_providers.dart';
 import '../../routing/app_router.dart';
 import '../../services/notification_service.dart';
 import '../../theme/app_theme.dart';
-import '../../features/transaction_detection/transaction_detection_service.dart';
 import '../../providers/database_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -16,13 +13,11 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profileAsync = ref.watch(profileProvider);
-    final profile = profileAsync.valueOrNull;
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
           slivers: [
             // ── Header ────────────────────────────────────────────────────
             SliverToBoxAdapter(
@@ -35,270 +30,238 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    IconButton(
-                      tooltip: 'Back',
-                      onPressed: () => Navigator.of(context).maybePop(),
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: Text('Settings', style: Theme.of(context).textTheme.displayMedium),
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).maybePop(),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.divider),
+                        ),
+                        child: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 16,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 48),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Settings',
+                        style: Theme.of(context).textTheme.displayMedium,
+                      ),
+                    ),
+                    // Handwritten-style subtitle
+                    Text(
+                      'Small settings\nBig progress.',
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        fontFamily: 'serif',
+                        fontStyle: FontStyle.italic,
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                        height: 1.5,
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+            // ── App Preferences ───────────────────────────────────────────
+            _SectionHeader(title: 'App Preferences'),
+            _SectionCard(
+              items: [
+                _SettingsTile(
+                  icon: Icons.notifications_outlined,
+                  iconColor: AppColors.accent,
+                  label: 'Notifications',
+                  subtitle: 'Manage your reminders and alerts',
+                  onTap: () async {
+                    await NotificationService.instance.requestPermissions();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Notification permissions requested'),
+                          duration: Duration(seconds: 2),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  },
+                ),
+                _SettingsTile(
+                  icon: Icons.color_lens_outlined,
+                  iconColor: const Color(0xFF9B59B6),
+                  label: 'Appearance',
+                  subtitle: 'Light / Dark / System',
+                  trailing: const Text(
+                    'Light',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  onTap: () => _showComingSoon(context),
+                ),
+                _SettingsTile(
+                  icon: Icons.language_outlined,
+                  iconColor: AppColors.info,
+                  label: 'Language',
+                  subtitle: 'Choose your preferred language',
+                  trailing: const Text(
+                    'English',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  onTap: () => _showComingSoon(context),
+                ),
+              ],
+            ),
+
             const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
-            // ── Account info ──────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenHorizontal,
+            // ── Data & Sync ───────────────────────────────────────────────
+            _SectionHeader(title: 'Data & Sync'),
+            _SectionCard(
+              items: [
+                _SettingsTile(
+                  icon: Icons.cloud_outlined,
+                  iconColor: AppColors.info,
+                  label: 'Sync & Backup',
+                  subtitle: 'Keep your data safe across devices',
+                  onTap: () => _showComingSoon(context),
                 ),
-                child: _AccountCard(
-                  name: profile?.name ?? 'Student',
-                  role: profile?.role ?? '',
-                  email: profile?.email ?? '',
-                  photoPath: profile?.photoPath,
-                  onEditTap: () => context.push(AppRoutes.profile),
+                _SettingsTile(
+                  icon: Icons.storage_outlined,
+                  iconColor: const Color(0xFF27AE60),
+                  label: 'Manage Data',
+                  subtitle: 'View, edit or clear your data',
+                  onTap: () => _showComingSoon(context),
                 ),
-              ),
+                _SettingsTile(
+                  icon: Icons.download_outlined,
+                  iconColor: const Color(0xFF1ABC9C),
+                  label: 'Export Data',
+                  subtitle: 'Download your data anytime',
+                  onTap: () => _showComingSoon(context),
+                ),
+              ],
             ),
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
-            if (kDebugMode)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenHorizontal),
-                  child: _SettingsGroup(title: 'Developer', items: [
-                    _SettingsItem(icon: Icons.bug_report_outlined, label: 'Notification Detector', trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary), onTap: () => context.push(AppRoutes.notificationDetector)),
-                    _SettingsItem(icon: Icons.cleaning_services_outlined, label: 'Remove invalid detected transactions', trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary), onTap: () => _cleanupDetectedTransactions(context, ref)),
-                  ]),
-                ),
-              ),
-            if (kDebugMode) const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
-            // ── Appearance ────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenHorizontal,
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+
+            // ── Support & About ───────────────────────────────────────────
+            _SectionHeader(title: 'Support & About'),
+            _SectionCard(
+              items: [
+                _SettingsTile(
+                  icon: Icons.help_outline_rounded,
+                  iconColor: AppColors.textSecondary,
+                  label: 'Help & Support',
+                  subtitle: 'Get help or contact us',
+                  onTap: () => _showComingSoon(context),
                 ),
-                child: _SettingsGroup(
-                  title: 'Appearance',
-                  items: [
-                    _SettingsItem(
-                      icon: Icons.color_lens_outlined,
-                      label: 'Theme',
-                      trailing: const Text(
-                        'Light',
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                        ),
+                _SettingsTile(
+                  icon: Icons.description_outlined,
+                  iconColor: AppColors.textSecondary,
+                  label: 'Privacy Policy',
+                  subtitle: 'How we handle your data',
+                  onTap: () => _showComingSoon(context),
+                ),
+                _SettingsTile(
+                  icon: Icons.verified_user_outlined,
+                  iconColor: AppColors.textSecondary,
+                  label: 'Terms of Service',
+                  subtitle: 'Our terms and guidelines',
+                  onTap: () => _showComingSoon(context),
+                ),
+              ],
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+
+            // ── Account ───────────────────────────────────────────────────
+            _SectionHeader(title: 'Account'),
+            _SectionCard(
+              items: [
+                _SettingsTile(
+                  icon: Icons.logout_rounded,
+                  iconColor: AppColors.danger,
+                  label: 'Log Out',
+                  subtitle: 'Sign out from your account',
+                  labelColor: AppColors.danger,
+                  onTap: () => _confirmLogout(context),
+                  showChevron: false,
+                ),
+              ],
+            ),
+
+            // ── Debug-only developer section ──────────────────────────────
+            if (kDebugMode) ...[
+              const SliverToBoxAdapter(child: SizedBox(height: 20)),
+              _SectionHeader(title: 'Developer'),
+              _SectionCard(
+                items: [
+                  _SettingsTile(
+                    icon: Icons.bug_report_outlined,
+                    iconColor: AppColors.textSecondary,
+                    label: 'Notification Detector',
+                    onTap: () => context.push(AppRoutes.notificationDetector),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.cleaning_services_outlined,
+                    iconColor: AppColors.textSecondary,
+                    label: 'Remove invalid detected transactions',
+                    onTap: () => _cleanupDetectedTransactions(context, ref),
+                  ),
+                ],
+              ),
+            ],
+
+            // ── DIMI wordmark footer ──────────────────────────────────────
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 28),
+                child: Column(
+                  children: [
+                    Text(
+                      'DIMI',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textSecondary,
+                        letterSpacing: 3,
                       ),
-                      onTap: () => _showComingSoon(context),
                     ),
-                    _SettingsItem(
-                      icon: Icons.text_fields_outlined,
-                      label: 'Font size',
-                      trailing: const Text(
-                        'Default',
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                        ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Digital Interface For Monitoring and Improvement',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 10,
+                        color: AppColors.textSecondary,
                       ),
-                      onTap: () => _showComingSoon(context),
                     ),
                   ],
                 ),
               ),
             ),
-            const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenHorizontal),
-                child: _ExpenseDetectionSettings(ref: ref),
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-            // ── Notifications ─────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenHorizontal,
-                ),
-                child: _SettingsGroup(
-                  title: 'Notifications',
-                  items: [
-                    _SettingsItem(
-                      icon: Icons.notifications_outlined,
-                      label: 'Reminder notifications',
-                      trailing: const Text(
-                        'Manage',
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      onTap: () async {
-                        await NotificationService.instance.requestPermissions();
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Notification permissions requested',
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-            // ── Data & Backup ─────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenHorizontal,
-                ),
-                child: _SettingsGroup(
-                  title: 'Data & Backup',
-                  items: [
-                    _SettingsItem(
-                      icon: Icons.storage_outlined,
-                      label: 'Local storage',
-                      trailing: const Text(
-                        'SQLite',
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      onTap: null,
-                    ),
-                    _SettingsItem(
-                      icon: Icons.cloud_sync_outlined,
-                      label: 'Cloud sync',
-                      trailing: const Text(
-                        'Coming soon',
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      onTap: () => _showComingSoon(context),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-            // ── Security ──────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenHorizontal,
-                ),
-                child: _SettingsGroup(
-                  title: 'Security',
-                  items: [
-                    _SettingsItem(
-                      icon: Icons.lock_outline_rounded,
-                      label: 'App lock',
-                      trailing: const Text(
-                        'Coming soon',
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      onTap: () => _showComingSoon(context),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-            // ── About ─────────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenHorizontal,
-                ),
-                child: _SettingsGroup(
-                  title: 'About',
-                  items: [
-                    _SettingsItem(
-                      icon: Icons.info_outline_rounded,
-                      label: 'Version',
-                      trailing: const Text(
-                        '1.0.0',
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      onTap: null,
-                    ),
-                    _SettingsItem(
-                      icon: Icons.description_outlined,
-                      label: 'Privacy Policy',
-                      onTap: () => _showComingSoon(context),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-            // ── Logout ────────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenHorizontal,
-                ),
-                child: _LogoutButton(onTap: () => _confirmLogout(context)),
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
           ],
         ),
       ),
     );
-  }
-
-  Future<void> _cleanupDetectedTransactions(BuildContext context, WidgetRef ref) async {
-    final dao = ref.read(databaseProvider).moneyDao;
-    final rows = await dao.suspiciousDetectedTransactions();
-    if (!context.mounted) return;
-    if (rows.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No obviously invalid detected transactions found.')));
-      return;
-    }
-    final confirmed = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('Remove invalid transactions?'), content: Text('${rows.length} malformed automatic transaction(s) with Unknown merchant and Other category will be removed. Manual transactions are not affected.'), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Remove'))]));
-    if (confirmed == true) {
-      final count = await dao.deleteSuspiciousDetectedTransactions();
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$count invalid transaction(s) removed.')));
-    }
   }
 
   void _showComingSoon(BuildContext context) {
@@ -311,6 +274,50 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _cleanupDetectedTransactions(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final dao = ref.read(databaseProvider).moneyDao;
+    final rows = await dao.suspiciousDetectedTransactions();
+    if (!context.mounted) return;
+    if (rows.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No obviously invalid detected transactions found.'),
+        ),
+      );
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove invalid transactions?'),
+        content: Text(
+          '${rows.length} malformed automatic transaction(s) with Unknown merchant and Other category will be removed. Manual transactions are not affected.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      final count = await dao.deleteSuspiciousDetectedTransactions();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$count invalid transaction(s) removed.')),
+        );
+      }
+    }
+  }
+
   Future<void> _confirmLogout(BuildContext context) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -320,11 +327,11 @@ class SettingsScreen extends ConsumerWidget {
           borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
         ),
         title: const Text(
-          'Logout?',
+          'Log Out?',
           style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
         ),
         content: const Text(
-          'This will clear the onboarding flag and return you to the welcome screen. Your data is NOT deleted.',
+          'This will sign you out. Your local data is NOT deleted.',
           style: TextStyle(fontFamily: 'Poppins', fontSize: 13),
         ),
         actions: [
@@ -335,164 +342,89 @@ class SettingsScreen extends ConsumerWidget {
           TextButton(
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Logout'),
+            child: const Text('Log Out'),
           ),
         ],
       ),
     );
-
     if (ok == true && context.mounted) {
-      if (context.mounted) context.go(AppRoutes.login);
+      context.go(AppRoutes.login);
     }
   }
 }
 
-class _ExpenseDetectionSettings extends StatefulWidget {
-  const _ExpenseDetectionSettings({required this.ref});
-  final WidgetRef ref;
-  @override State<_ExpenseDetectionSettings> createState() => _ExpenseDetectionSettingsState();
-}
+// ── Section header ────────────────────────────────────────────────────────────
 
-class _ExpenseDetectionSettingsState extends State<_ExpenseDetectionSettings> {
-  String _mode = 'Detect & Ask';
-  bool _enabled = false;
-  late final TransactionDetectionService _service;
-  @override void initState() { super.initState(); _service = TransactionDetectionService(widget.ref.read(databaseProvider)); _refresh(); _loadMode(); }
-  Future<void> _loadMode() async { final mode = await _service.detectionMode(); if (mounted) setState(() => _mode = mode); }
-  Future<void> _refresh() async { final value = await _service.isNotificationAccessEnabled(); if (mounted) setState(() => _enabled = value); }
-  @override Widget build(BuildContext context) => _SettingsGroup(title: 'Expense Detection', items: [
-    _SettingsItem(icon: Icons.account_balance_wallet_outlined, label: 'Automatic detection', trailing: Text(_mode, style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, color: AppColors.textSecondary)), onTap: () async { final value = await showModalBottomSheet<String>(context: context, builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: ['Off', 'Detect & Ask', 'Auto-add high confidence'].map((item) => ListTile(title: Text(item), onTap: () => Navigator.pop(ctx, item))).toList()))); if (value != null) { await _service.setDetectionMode(value); if (value == 'Auto-add high confidence') await _service.autoAddPendingHighConfidence(); if (mounted) setState(() => _mode = value); } }),
-    _SettingsItem(icon: Icons.notifications_active_outlined, label: 'Notification access', trailing: Text(_enabled ? 'Enabled' : 'Not enabled', style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, color: AppColors.textSecondary)), onTap: () async { await _service.openNotificationAccessSettings(); }),
-    _SettingsItem(icon: Icons.info_outline, label: 'Why this is needed', trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary), onTap: () => showDialog<void>(context: context, builder: (ctx) => AlertDialog(title: const Text('Expense detection'), content: const Text('DIMI reads relevant payment notifications locally to suggest expenses. Notification access can be revoked at any time; notification contents are not uploaded.'), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))]))),
-  ]);
-}
-
-// ── Account card ──────────────────────────────────────────────────────────────
-
-class _AccountCard extends StatelessWidget {
-  const _AccountCard({
-    required this.name,
-    required this.role,
-    required this.email,
-    this.photoPath,
-    required this.onEditTap,
-  });
-  final String name;
-  final String role;
-  final String email;
-  final String? photoPath;
-  final VoidCallback onEditTap;
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+  final String title;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.cardPadding),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.divider),
-        boxShadow: const [
-          BoxShadow(color: Color(0x0A1B1B1B), blurRadius: 18, offset: Offset(0, 6)),
-        ],
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.screenHorizontal,
+          0,
+          AppSpacing.screenHorizontal,
+          8,
+        ),
+        child: Row(
+          children: [
+            _sectionIcon(title),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
       ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 26,
-            backgroundColor: AppColors.accent,
-            backgroundImage: photoPath == null ? null : FileImage(File(photoPath!)),
-            child: Text(
-              photoPath == null && name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '',
-              style: const TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                color: AppColors.surfaceDark,
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                if (email.isNotEmpty)
-                  Text(
-                    email,
-                    style: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 12,
-                    color: AppColors.textSecondary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ],
-            ),
-          ),
-          GestureDetector(
-            onTap: onEditTap,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-              color: AppColors.accentSoft,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Text(
-                'Edit',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+    );
+  }
+
+  Widget _sectionIcon(String title) {
+    final icons = <String, IconData>{
+      'App Preferences': Icons.tune_rounded,
+      'Data & Sync': Icons.storage_rounded,
+      'Support & About': Icons.help_outline_rounded,
+      'Account': Icons.person_outline_rounded,
+      'Developer': Icons.code_rounded,
+    };
+    return Icon(
+      icons[title] ?? Icons.settings_outlined,
+      size: 18,
+      color: AppColors.textPrimary,
     );
   }
 }
 
-// ── Settings group ────────────────────────────────────────────────────────────
+// ── Section card ──────────────────────────────────────────────────────────────
 
-class _SettingsGroup extends StatelessWidget {
-  const _SettingsGroup({required this.title, required this.items});
-  final String title;
-  final List<_SettingsItem> items;
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.items});
+  final List<_SettingsTile> items;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            title.toUpperCase(),
-            style: const TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
-              letterSpacing: 1.0,
-            ),
-          ),
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.screenHorizontal,
         ),
-        Container(
+        child: Container(
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
             border: Border.all(color: AppColors.divider),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0A1C1C1E),
+                blurRadius: 12,
+                offset: Offset(0, 3),
+              ),
+            ],
           ),
           child: Column(
             children: List.generate(items.length, (i) {
@@ -501,28 +433,44 @@ class _SettingsGroup extends StatelessWidget {
                 children: [
                   items[i],
                   if (!isLast)
-                    const Divider(height: 1, indent: 48, endIndent: 0),
+                    const Divider(
+                      height: 1,
+                      indent: 54,
+                      endIndent: 0,
+                      color: AppColors.divider,
+                    ),
                 ],
               );
             }),
           ),
         ),
-      ],
+      ),
     );
   }
 }
 
-class _SettingsItem extends StatelessWidget {
-  const _SettingsItem({
+// ── Settings tile ─────────────────────────────────────────────────────────────
+
+class _SettingsTile extends StatelessWidget {
+  const _SettingsTile({
     required this.icon,
+    required this.iconColor,
     required this.label,
+    this.subtitle,
     this.trailing,
+    this.labelColor,
     this.onTap,
+    this.showChevron = true,
   });
+
   final IconData icon;
+  final Color iconColor;
   final String label;
+  final String? subtitle;
   final Widget? trailing;
+  final Color? labelColor;
   final VoidCallback? onTap;
+  final bool showChevron;
 
   @override
   Widget build(BuildContext context) {
@@ -530,57 +478,57 @@ class _SettingsItem extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: AppColors.textSecondary),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(label, style: Theme.of(context).textTheme.bodyLarge),
+            // Icon container
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: iconColor.withAlpha(26),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 18, color: iconColor),
             ),
-            if (trailing != null) trailing!, // ignore: use_null_aware_elements
-            if (onTap != null) ...[
-              const SizedBox(width: 6),
+            const SizedBox(width: 14),
+            // Labels
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: labelColor ?? AppColors.textPrimary,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 1),
+                    Text(
+                      subtitle!,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (trailing != null) ...[trailing!, const SizedBox(width: 4)],
+            if (showChevron)
               const Icon(
                 Icons.chevron_right_rounded,
                 size: 18,
                 color: AppColors.textSecondary,
               ),
-            ],
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ── Logout button ─────────────────────────────────────────────────────────────
-
-class _LogoutButton extends StatelessWidget {
-  const _LogoutButton({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: OutlinedButton.icon(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.danger,
-          side: const BorderSide(color: AppColors.danger),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
-          ),
-          textStyle: const TextStyle(
-            fontFamily: 'Poppins',
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        icon: const Icon(Icons.logout_rounded, size: 18),
-        label: const Text('Logout'),
       ),
     );
   }
