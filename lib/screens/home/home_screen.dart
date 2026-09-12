@@ -66,114 +66,18 @@ class HomeScreen extends ConsumerWidget {
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
-            // ── App bar ────────────────────────────────────────────────
+            // ── App bar + greeting hero (no card, bleeds into bg) ─────
             SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenHorizontal,
-                  20,
-                  AppSpacing.screenHorizontal,
-                  0,
-                ),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'DIMI',
-                            style: TextStyle(
-                              fontFamily: 'Poppins',
-                              fontSize: 28,
-                              height: 1,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                              letterSpacing: 1.5,
-                            ),
-                          ),
-                          SizedBox(height: 5),
-                          Text(
-                            'Plan  ·  Track  ·  Grow',
-                            style: TextStyle(
-                              fontFamily: 'Poppins',
-                              fontSize: 11,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        _HomeHeaderButton(
-                          icon: Icons.notifications_none_rounded,
-                          onTap: () => context.go(AppRoutes.reminders),
-                        ),
-                        Positioned(
-                          right: 7,
-                          top: 6,
-                          child: Container(
-                            width: 7,
-                            height: 7,
-                            decoration: const BoxDecoration(
-                              color: AppColors.danger,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: () => context.push(AppRoutes.settings),
-                      child: CircleAvatar(
-                        radius: 22,
-                        backgroundColor: AppColors.surfaceDark,
-                        backgroundImage:
-                            profileAsync.valueOrNull?.photoPath == null
-                            ? null
-                            : FileImage(
-                                File(profileAsync.valueOrNull!.photoPath!),
-                              ),
-                        child: Text(
-                          profileAsync.valueOrNull?.photoPath == null
-                              ? (name.isEmpty ? 'DM' : name[0].toUpperCase())
-                              : '',
-                          style: const TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.surface,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+              child: DimiFadeSlide(
+                child: _GreetingHero(
+                  name: name,
+                  profileAsync: profileAsync,
+                  onNotificationTap: () => context.go(AppRoutes.reminders),
+                  onProfileTap: () => context.push(AppRoutes.profile),
                 ),
               ),
             ),
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenHorizontal,
-                ),
-                child: DimiFadeSlide(
-                  child: _ProfileHeroCard(
-                    name: name,
-                    role:
-                        profileAsync.valueOrNull?.role ??
-                        'Computer Science Engineer',
-                    photoPath: profileAsync.valueOrNull?.photoPath,
-                  ),
-                ),
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 14)),
+            const SliverToBoxAdapter(child: SizedBox(height: 4)),
 
             // ── Dark stats card ────────────────────────────────────────
             // ── Quick actions ──────────────────────────────────────────
@@ -608,114 +512,257 @@ class _RenderAdaptiveMasonry extends RenderBox
   }
 }
 
-class _ProfileHeroCard extends StatelessWidget {
-  const _ProfileHeroCard({
+// ── Unified greeting hero — no card, bleeds into app background ──────────────
+
+class _GreetingHero extends StatelessWidget {
+  const _GreetingHero({
     required this.name,
-    required this.role,
-    this.photoPath,
+    required this.profileAsync,
+    required this.onNotificationTap,
+    required this.onProfileTap,
   });
 
   final String name;
-  final String role;
-  final String? photoPath;
+  final AsyncValue<dynamic> profileAsync;
+  final VoidCallback onNotificationTap;
+  final VoidCallback onProfileTap;
+
+  static String _greeting() {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Good morning,';
+    if (h < 17) return 'Good afternoon,';
+    return 'Good evening,';
+  }
+
+  static String _tagline() {
+    final h = DateTime.now().hour;
+    if (h < 12) return '"Discipline today,\na better tomorrow."';
+    if (h < 17) return 'Keep the momentum going.';
+    return 'You showed up. That matters.';
+  }
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: .92, end: 1),
-      duration: const Duration(milliseconds: 520),
-      curve: Curves.easeOutCubic,
-      builder: (context, scale, child) =>
-          Transform.scale(scale: scale, child: child),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: SizedBox(
-          height: 164,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              photoPath != null
-                  ? Image.file(File(photoPath!), fit: BoxFit.cover)
-                  : Container(color: AppColors.surfaceDark),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [
-                      Colors.black.withAlpha(180),
-                      Colors.transparent,
-                      AppColors.accent.withAlpha(90),
+    final photoPath = profileAsync.valueOrNull?.photoPath as String?;
+    final initials = name.isEmpty ? 'DM' : name[0].toUpperCase();
+
+    // The image zone starts below the DIMI title (~72px from top)
+    // and extends to the bottom of the hero area.
+    const double imageTopOffset = 72.0;
+    const double totalHeight = 260.0;
+
+    return SizedBox(
+      height: totalHeight,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // ── Artwork — starts below the title row ──────────────────────
+          Positioned(
+            top: imageTopOffset,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Image.asset(
+              'assets/Greeting/GreetingsBG.png',
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+              opacity: const AlwaysStoppedAnimation(0.75),
+            ),
+          ),
+
+          // ── Top fade: bg colour → transparent (hides hard image edge) ─
+          Positioned(
+            top: imageTopOffset,
+            left: 0,
+            right: 0,
+            height: 60,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    AppColors.background,
+                    AppColors.background.withAlpha(0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // ── Bottom fade: transparent → bg colour (melts into next card) ─
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 80,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    AppColors.background.withAlpha(0),
+                    AppColors.background,
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // ── Left fade: keeps text legible over the artwork ────────────
+          Positioned(
+            top: imageTopOffset,
+            left: 0,
+            bottom: 0,
+            width: 220,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    AppColors.background,
+                    AppColors.background.withAlpha(180),
+                    AppColors.background.withAlpha(0),
+                  ],
+                  stops: const [0.0, 0.55, 1.0],
+                ),
+              ),
+            ),
+          ),
+
+          // ── DIMI title + action buttons ───────────────────────────────
+          Positioned(
+            top: 20,
+            left: AppSpacing.screenHorizontal,
+            right: AppSpacing.screenHorizontal,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'DIMI',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 28,
+                          height: 1,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      SizedBox(height: 5),
+                      Text(
+                        'Plan  ·  Track  ·  Grow',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Stack(
+                  clipBehavior: Clip.none,
                   children: [
-                    Text(
-                      'Welcome back, $name 👋',
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 19,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
+                    _HomeHeaderButton(
+                      icon: Icons.notifications_none_rounded,
+                      onTap: onNotificationTap,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      role,
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 11,
-                        color: Colors.white.withAlpha(220),
+                    Positioned(
+                      right: 7,
+                      top: 6,
+                      child: Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(
+                          color: AppColors.danger,
+                          shape: BoxShape.circle,
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-              Positioned(
-                top: 16,
-                right: 16,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 11,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(230),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.calendar_today_outlined,
-                        size: 14,
-                        color: AppColors.textPrimary,
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: onProfileTap,
+                  child: CircleAvatar(
+                    radius: 22,
+                    backgroundColor: AppColors.surfaceDark,
+                    backgroundImage: photoPath == null
+                        ? null
+                        : FileImage(File(photoPath)),
+                    child: Text(
+                      photoPath == null ? initials : '',
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.surface,
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        DateFormat('EEE, d MMM yyyy').format(DateTime.now()),
-                        style: const TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(width: 3),
-                      const Icon(Icons.chevron_right_rounded, size: 16),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+
+          // ── Greeting text — lower left ────────────────────────────────
+          Positioned(
+            bottom: 32,
+            left: AppSpacing.screenHorizontal,
+            right: 160,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _greeting(),
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 17,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
+                    height: 1.2,
+                  ),
+                ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 26,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.accent,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text('👋', style: TextStyle(fontSize: 22)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _tagline(),
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                    color: AppColors.textSecondary,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1116,47 +1163,40 @@ class _TodayTasksCard extends ConsumerWidget {
             ...tasks.map(
               (t) => _MiniTaskRow(task: t, dao: dao, compact: compact),
             ),
-            const SizedBox(height: 3),
-            GestureDetector(
-              onTap: () => showAddTaskSheet(context),
-              child: Container(
-                width: double.infinity,
-                padding: EdgeInsets.symmetric(
-                  horizontal: compact ? 8 : 14,
-                  vertical: compact ? 8 : 12,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.add_rounded,
-                      size: compact ? 16 : 20,
-                      color: AppColors.textPrimary,
-                    ),
-                    SizedBox(width: compact ? 6 : 10),
-                    Expanded(
-                      child: Text(
-                        'Add a new task',
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: compact ? 9 : 13,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      size: compact ? 16 : 20,
+          ],
+          const SizedBox(height: 3),
+          GestureDetector(
+            onTap: () => showAddTaskSheet(context),
+            child: Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(
+                horizontal: compact ? 8 : 14,
+                vertical: compact ? 8 : 12,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.add_rounded,
+                    size: compact ? 16 : 20,
+                    color: AppColors.textPrimary,
+                  ),
+                  SizedBox(width: compact ? 6 : 10),
+                  Text(
+                    'Add a new task',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: compact ? 9 : 13,
                       color: AppColors.textSecondary,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ],
       ),
     );
