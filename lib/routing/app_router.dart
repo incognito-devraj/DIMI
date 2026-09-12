@@ -14,6 +14,12 @@ import '../core/motion/dimi_motion.dart';
 import '../core/motion/dimi_page_transition.dart';
 import '../config/supabase_config.dart';
 import '../screens/auth/login_screen.dart';
+import '../features/youtube_playlist/data/mock_youtube_playlist.dart';
+import '../features/youtube_playlist/models/youtube_playlist.dart';
+import '../features/youtube_playlist/models/youtube_video.dart';
+import '../features/youtube_playlist/screens/playlist_details_screen.dart';
+import '../features/youtube_playlist/screens/playlist_videos_screen.dart';
+import '../features/youtube_playlist/screens/video_details_screen.dart';
 
 /// Route path constants.
 abstract class AppRoutes {
@@ -29,6 +35,9 @@ abstract class AppRoutes {
   static const settings = '/settings';
   static const notificationDetector = '/settings/notification-detector';
   static const profile = '/profile';
+  static const playlistDetails = '/youtube-playlist';
+  static const playlistVideos = '/youtube-playlist/videos';
+  static const videoDetails = '/youtube-playlist/video';
 }
 
 int _tabIndex(String location) {
@@ -110,6 +119,40 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.profile,
       pageBuilder: (context, state) => _fade(state, const ProfileScreen()),
+    ),
+
+    GoRoute(
+      path: AppRoutes.playlistDetails,
+      pageBuilder: (context, state) => _slide(
+        state,
+        PlaylistDetailsScreen(
+          playlist: state.extra is YouTubePlaylist
+              ? state.extra! as YouTubePlaylist
+              : mockYouTubePlaylist,
+        ),
+      ),
+    ),
+    GoRoute(
+      path: AppRoutes.playlistVideos,
+      pageBuilder: (context, state) => _slide(
+        state,
+        PlaylistVideosScreen(
+          playlist: state.extra is YouTubePlaylist
+              ? state.extra! as YouTubePlaylist
+              : mockYouTubePlaylist,
+        ),
+      ),
+    ),
+    GoRoute(
+      path: AppRoutes.videoDetails,
+      pageBuilder: (context, state) => _slide(
+        state,
+        VideoDetailsScreen(
+          video: state.extra is YouTubeVideo
+              ? state.extra! as YouTubeVideo
+              : mockYouTubePlaylist.currentVideo,
+        ),
+      ),
     ),
 
     // ── Settings — pushed on top (no bottom nav) ──────────────────────────

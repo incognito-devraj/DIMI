@@ -6074,6 +6074,1502 @@ class MerchantCategoryRulesCompanion
   }
 }
 
+class $YoutubePlaylistsTable extends YoutubePlaylists
+    with TableInfo<$YoutubePlaylistsTable, YoutubePlaylist> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $YoutubePlaylistsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _youtubePlaylistIdMeta = const VerificationMeta(
+    'youtubePlaylistId',
+  );
+  @override
+  late final GeneratedColumn<String> youtubePlaylistId =
+      GeneratedColumn<String>(
+        'youtube_playlist_id',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _channelTitleMeta = const VerificationMeta(
+    'channelTitle',
+  );
+  @override
+  late final GeneratedColumn<String> channelTitle = GeneratedColumn<String>(
+    'channel_title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _thumbnailUrlMeta = const VerificationMeta(
+    'thumbnailUrl',
+  );
+  @override
+  late final GeneratedColumn<String> thumbnailUrl = GeneratedColumn<String>(
+    'thumbnail_url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _totalVideosMeta = const VerificationMeta(
+    'totalVideos',
+  );
+  @override
+  late final GeneratedColumn<int> totalVideos = GeneratedColumn<int>(
+    'total_videos',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _totalDurationSecondsMeta =
+      const VerificationMeta('totalDurationSeconds');
+  @override
+  late final GeneratedColumn<int> totalDurationSeconds = GeneratedColumn<int>(
+    'total_duration_seconds',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastSyncedAtMeta = const VerificationMeta(
+    'lastSyncedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastSyncedAt = GeneratedColumn<DateTime>(
+    'last_synced_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    userId,
+    youtubePlaylistId,
+    title,
+    description,
+    channelTitle,
+    thumbnailUrl,
+    totalVideos,
+    totalDurationSeconds,
+    createdAt,
+    updatedAt,
+    lastSyncedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'youtube_playlists';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<YoutubePlaylist> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('youtube_playlist_id')) {
+      context.handle(
+        _youtubePlaylistIdMeta,
+        youtubePlaylistId.isAcceptableOrUnknown(
+          data['youtube_playlist_id']!,
+          _youtubePlaylistIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_youtubePlaylistIdMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('channel_title')) {
+      context.handle(
+        _channelTitleMeta,
+        channelTitle.isAcceptableOrUnknown(
+          data['channel_title']!,
+          _channelTitleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('thumbnail_url')) {
+      context.handle(
+        _thumbnailUrlMeta,
+        thumbnailUrl.isAcceptableOrUnknown(
+          data['thumbnail_url']!,
+          _thumbnailUrlMeta,
+        ),
+      );
+    }
+    if (data.containsKey('total_videos')) {
+      context.handle(
+        _totalVideosMeta,
+        totalVideos.isAcceptableOrUnknown(
+          data['total_videos']!,
+          _totalVideosMeta,
+        ),
+      );
+    }
+    if (data.containsKey('total_duration_seconds')) {
+      context.handle(
+        _totalDurationSecondsMeta,
+        totalDurationSeconds.isAcceptableOrUnknown(
+          data['total_duration_seconds']!,
+          _totalDurationSecondsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('last_synced_at')) {
+      context.handle(
+        _lastSyncedAtMeta,
+        lastSyncedAt.isAcceptableOrUnknown(
+          data['last_synced_at']!,
+          _lastSyncedAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {userId, youtubePlaylistId},
+  ];
+  @override
+  YoutubePlaylist map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return YoutubePlaylist(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      )!,
+      youtubePlaylistId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}youtube_playlist_id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      )!,
+      channelTitle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}channel_title'],
+      )!,
+      thumbnailUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}thumbnail_url'],
+      )!,
+      totalVideos: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}total_videos'],
+      )!,
+      totalDurationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}total_duration_seconds'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      lastSyncedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_synced_at'],
+      ),
+    );
+  }
+
+  @override
+  $YoutubePlaylistsTable createAlias(String alias) {
+    return $YoutubePlaylistsTable(attachedDatabase, alias);
+  }
+}
+
+class YoutubePlaylist extends DataClass implements Insertable<YoutubePlaylist> {
+  final int id;
+  final String userId;
+  final String youtubePlaylistId;
+  final String title;
+  final String description;
+  final String channelTitle;
+  final String thumbnailUrl;
+  final int totalVideos;
+  final int totalDurationSeconds;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? lastSyncedAt;
+  const YoutubePlaylist({
+    required this.id,
+    required this.userId,
+    required this.youtubePlaylistId,
+    required this.title,
+    required this.description,
+    required this.channelTitle,
+    required this.thumbnailUrl,
+    required this.totalVideos,
+    required this.totalDurationSeconds,
+    required this.createdAt,
+    required this.updatedAt,
+    this.lastSyncedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['user_id'] = Variable<String>(userId);
+    map['youtube_playlist_id'] = Variable<String>(youtubePlaylistId);
+    map['title'] = Variable<String>(title);
+    map['description'] = Variable<String>(description);
+    map['channel_title'] = Variable<String>(channelTitle);
+    map['thumbnail_url'] = Variable<String>(thumbnailUrl);
+    map['total_videos'] = Variable<int>(totalVideos);
+    map['total_duration_seconds'] = Variable<int>(totalDurationSeconds);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || lastSyncedAt != null) {
+      map['last_synced_at'] = Variable<DateTime>(lastSyncedAt);
+    }
+    return map;
+  }
+
+  YoutubePlaylistsCompanion toCompanion(bool nullToAbsent) {
+    return YoutubePlaylistsCompanion(
+      id: Value(id),
+      userId: Value(userId),
+      youtubePlaylistId: Value(youtubePlaylistId),
+      title: Value(title),
+      description: Value(description),
+      channelTitle: Value(channelTitle),
+      thumbnailUrl: Value(thumbnailUrl),
+      totalVideos: Value(totalVideos),
+      totalDurationSeconds: Value(totalDurationSeconds),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      lastSyncedAt: lastSyncedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastSyncedAt),
+    );
+  }
+
+  factory YoutubePlaylist.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return YoutubePlaylist(
+      id: serializer.fromJson<int>(json['id']),
+      userId: serializer.fromJson<String>(json['userId']),
+      youtubePlaylistId: serializer.fromJson<String>(json['youtubePlaylistId']),
+      title: serializer.fromJson<String>(json['title']),
+      description: serializer.fromJson<String>(json['description']),
+      channelTitle: serializer.fromJson<String>(json['channelTitle']),
+      thumbnailUrl: serializer.fromJson<String>(json['thumbnailUrl']),
+      totalVideos: serializer.fromJson<int>(json['totalVideos']),
+      totalDurationSeconds: serializer.fromJson<int>(
+        json['totalDurationSeconds'],
+      ),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      lastSyncedAt: serializer.fromJson<DateTime?>(json['lastSyncedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'userId': serializer.toJson<String>(userId),
+      'youtubePlaylistId': serializer.toJson<String>(youtubePlaylistId),
+      'title': serializer.toJson<String>(title),
+      'description': serializer.toJson<String>(description),
+      'channelTitle': serializer.toJson<String>(channelTitle),
+      'thumbnailUrl': serializer.toJson<String>(thumbnailUrl),
+      'totalVideos': serializer.toJson<int>(totalVideos),
+      'totalDurationSeconds': serializer.toJson<int>(totalDurationSeconds),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'lastSyncedAt': serializer.toJson<DateTime?>(lastSyncedAt),
+    };
+  }
+
+  YoutubePlaylist copyWith({
+    int? id,
+    String? userId,
+    String? youtubePlaylistId,
+    String? title,
+    String? description,
+    String? channelTitle,
+    String? thumbnailUrl,
+    int? totalVideos,
+    int? totalDurationSeconds,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> lastSyncedAt = const Value.absent(),
+  }) => YoutubePlaylist(
+    id: id ?? this.id,
+    userId: userId ?? this.userId,
+    youtubePlaylistId: youtubePlaylistId ?? this.youtubePlaylistId,
+    title: title ?? this.title,
+    description: description ?? this.description,
+    channelTitle: channelTitle ?? this.channelTitle,
+    thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+    totalVideos: totalVideos ?? this.totalVideos,
+    totalDurationSeconds: totalDurationSeconds ?? this.totalDurationSeconds,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    lastSyncedAt: lastSyncedAt.present ? lastSyncedAt.value : this.lastSyncedAt,
+  );
+  YoutubePlaylist copyWithCompanion(YoutubePlaylistsCompanion data) {
+    return YoutubePlaylist(
+      id: data.id.present ? data.id.value : this.id,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      youtubePlaylistId: data.youtubePlaylistId.present
+          ? data.youtubePlaylistId.value
+          : this.youtubePlaylistId,
+      title: data.title.present ? data.title.value : this.title,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      channelTitle: data.channelTitle.present
+          ? data.channelTitle.value
+          : this.channelTitle,
+      thumbnailUrl: data.thumbnailUrl.present
+          ? data.thumbnailUrl.value
+          : this.thumbnailUrl,
+      totalVideos: data.totalVideos.present
+          ? data.totalVideos.value
+          : this.totalVideos,
+      totalDurationSeconds: data.totalDurationSeconds.present
+          ? data.totalDurationSeconds.value
+          : this.totalDurationSeconds,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      lastSyncedAt: data.lastSyncedAt.present
+          ? data.lastSyncedAt.value
+          : this.lastSyncedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('YoutubePlaylist(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('youtubePlaylistId: $youtubePlaylistId, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('channelTitle: $channelTitle, ')
+          ..write('thumbnailUrl: $thumbnailUrl, ')
+          ..write('totalVideos: $totalVideos, ')
+          ..write('totalDurationSeconds: $totalDurationSeconds, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('lastSyncedAt: $lastSyncedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    userId,
+    youtubePlaylistId,
+    title,
+    description,
+    channelTitle,
+    thumbnailUrl,
+    totalVideos,
+    totalDurationSeconds,
+    createdAt,
+    updatedAt,
+    lastSyncedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is YoutubePlaylist &&
+          other.id == this.id &&
+          other.userId == this.userId &&
+          other.youtubePlaylistId == this.youtubePlaylistId &&
+          other.title == this.title &&
+          other.description == this.description &&
+          other.channelTitle == this.channelTitle &&
+          other.thumbnailUrl == this.thumbnailUrl &&
+          other.totalVideos == this.totalVideos &&
+          other.totalDurationSeconds == this.totalDurationSeconds &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.lastSyncedAt == this.lastSyncedAt);
+}
+
+class YoutubePlaylistsCompanion extends UpdateCompanion<YoutubePlaylist> {
+  final Value<int> id;
+  final Value<String> userId;
+  final Value<String> youtubePlaylistId;
+  final Value<String> title;
+  final Value<String> description;
+  final Value<String> channelTitle;
+  final Value<String> thumbnailUrl;
+  final Value<int> totalVideos;
+  final Value<int> totalDurationSeconds;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> lastSyncedAt;
+  const YoutubePlaylistsCompanion({
+    this.id = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.youtubePlaylistId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.description = const Value.absent(),
+    this.channelTitle = const Value.absent(),
+    this.thumbnailUrl = const Value.absent(),
+    this.totalVideos = const Value.absent(),
+    this.totalDurationSeconds = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.lastSyncedAt = const Value.absent(),
+  });
+  YoutubePlaylistsCompanion.insert({
+    this.id = const Value.absent(),
+    required String userId,
+    required String youtubePlaylistId,
+    required String title,
+    this.description = const Value.absent(),
+    this.channelTitle = const Value.absent(),
+    this.thumbnailUrl = const Value.absent(),
+    this.totalVideos = const Value.absent(),
+    this.totalDurationSeconds = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.lastSyncedAt = const Value.absent(),
+  }) : userId = Value(userId),
+       youtubePlaylistId = Value(youtubePlaylistId),
+       title = Value(title),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<YoutubePlaylist> custom({
+    Expression<int>? id,
+    Expression<String>? userId,
+    Expression<String>? youtubePlaylistId,
+    Expression<String>? title,
+    Expression<String>? description,
+    Expression<String>? channelTitle,
+    Expression<String>? thumbnailUrl,
+    Expression<int>? totalVideos,
+    Expression<int>? totalDurationSeconds,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? lastSyncedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (userId != null) 'user_id': userId,
+      if (youtubePlaylistId != null) 'youtube_playlist_id': youtubePlaylistId,
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (channelTitle != null) 'channel_title': channelTitle,
+      if (thumbnailUrl != null) 'thumbnail_url': thumbnailUrl,
+      if (totalVideos != null) 'total_videos': totalVideos,
+      if (totalDurationSeconds != null)
+        'total_duration_seconds': totalDurationSeconds,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (lastSyncedAt != null) 'last_synced_at': lastSyncedAt,
+    });
+  }
+
+  YoutubePlaylistsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? userId,
+    Value<String>? youtubePlaylistId,
+    Value<String>? title,
+    Value<String>? description,
+    Value<String>? channelTitle,
+    Value<String>? thumbnailUrl,
+    Value<int>? totalVideos,
+    Value<int>? totalDurationSeconds,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? lastSyncedAt,
+  }) {
+    return YoutubePlaylistsCompanion(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      youtubePlaylistId: youtubePlaylistId ?? this.youtubePlaylistId,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      channelTitle: channelTitle ?? this.channelTitle,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      totalVideos: totalVideos ?? this.totalVideos,
+      totalDurationSeconds: totalDurationSeconds ?? this.totalDurationSeconds,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (youtubePlaylistId.present) {
+      map['youtube_playlist_id'] = Variable<String>(youtubePlaylistId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (channelTitle.present) {
+      map['channel_title'] = Variable<String>(channelTitle.value);
+    }
+    if (thumbnailUrl.present) {
+      map['thumbnail_url'] = Variable<String>(thumbnailUrl.value);
+    }
+    if (totalVideos.present) {
+      map['total_videos'] = Variable<int>(totalVideos.value);
+    }
+    if (totalDurationSeconds.present) {
+      map['total_duration_seconds'] = Variable<int>(totalDurationSeconds.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (lastSyncedAt.present) {
+      map['last_synced_at'] = Variable<DateTime>(lastSyncedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('YoutubePlaylistsCompanion(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('youtubePlaylistId: $youtubePlaylistId, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('channelTitle: $channelTitle, ')
+          ..write('thumbnailUrl: $thumbnailUrl, ')
+          ..write('totalVideos: $totalVideos, ')
+          ..write('totalDurationSeconds: $totalDurationSeconds, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('lastSyncedAt: $lastSyncedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $YoutubeVideosTable extends YoutubeVideos
+    with TableInfo<$YoutubeVideosTable, YoutubeVideo> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $YoutubeVideosTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _playlistLocalIdMeta = const VerificationMeta(
+    'playlistLocalId',
+  );
+  @override
+  late final GeneratedColumn<int> playlistLocalId = GeneratedColumn<int>(
+    'playlist_local_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES youtube_playlists (id)',
+    ),
+  );
+  static const VerificationMeta _youtubeVideoIdMeta = const VerificationMeta(
+    'youtubeVideoId',
+  );
+  @override
+  late final GeneratedColumn<String> youtubeVideoId = GeneratedColumn<String>(
+    'youtube_video_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _thumbnailUrlMeta = const VerificationMeta(
+    'thumbnailUrl',
+  );
+  @override
+  late final GeneratedColumn<String> thumbnailUrl = GeneratedColumn<String>(
+    'thumbnail_url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _durationSecondsMeta = const VerificationMeta(
+    'durationSeconds',
+  );
+  @override
+  late final GeneratedColumn<int> durationSeconds = GeneratedColumn<int>(
+    'duration_seconds',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _durationIsoMeta = const VerificationMeta(
+    'durationIso',
+  );
+  @override
+  late final GeneratedColumn<String> durationIso = GeneratedColumn<String>(
+    'duration_iso',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _completedMeta = const VerificationMeta(
+    'completed',
+  );
+  @override
+  late final GeneratedColumn<bool> completed = GeneratedColumn<bool>(
+    'completed',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("completed" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _watchedAtMeta = const VerificationMeta(
+    'watchedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> watchedAt = GeneratedColumn<DateTime>(
+    'watched_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastPositionSecondsMeta =
+      const VerificationMeta('lastPositionSeconds');
+  @override
+  late final GeneratedColumn<int> lastPositionSeconds = GeneratedColumn<int>(
+    'last_position_seconds',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    playlistLocalId,
+    youtubeVideoId,
+    title,
+    thumbnailUrl,
+    position,
+    durationSeconds,
+    durationIso,
+    completed,
+    watchedAt,
+    lastPositionSeconds,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'youtube_videos';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<YoutubeVideo> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('playlist_local_id')) {
+      context.handle(
+        _playlistLocalIdMeta,
+        playlistLocalId.isAcceptableOrUnknown(
+          data['playlist_local_id']!,
+          _playlistLocalIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_playlistLocalIdMeta);
+    }
+    if (data.containsKey('youtube_video_id')) {
+      context.handle(
+        _youtubeVideoIdMeta,
+        youtubeVideoId.isAcceptableOrUnknown(
+          data['youtube_video_id']!,
+          _youtubeVideoIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_youtubeVideoIdMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('thumbnail_url')) {
+      context.handle(
+        _thumbnailUrlMeta,
+        thumbnailUrl.isAcceptableOrUnknown(
+          data['thumbnail_url']!,
+          _thumbnailUrlMeta,
+        ),
+      );
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_positionMeta);
+    }
+    if (data.containsKey('duration_seconds')) {
+      context.handle(
+        _durationSecondsMeta,
+        durationSeconds.isAcceptableOrUnknown(
+          data['duration_seconds']!,
+          _durationSecondsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('duration_iso')) {
+      context.handle(
+        _durationIsoMeta,
+        durationIso.isAcceptableOrUnknown(
+          data['duration_iso']!,
+          _durationIsoMeta,
+        ),
+      );
+    }
+    if (data.containsKey('completed')) {
+      context.handle(
+        _completedMeta,
+        completed.isAcceptableOrUnknown(data['completed']!, _completedMeta),
+      );
+    }
+    if (data.containsKey('watched_at')) {
+      context.handle(
+        _watchedAtMeta,
+        watchedAt.isAcceptableOrUnknown(data['watched_at']!, _watchedAtMeta),
+      );
+    }
+    if (data.containsKey('last_position_seconds')) {
+      context.handle(
+        _lastPositionSecondsMeta,
+        lastPositionSeconds.isAcceptableOrUnknown(
+          data['last_position_seconds']!,
+          _lastPositionSecondsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {playlistLocalId, youtubeVideoId},
+  ];
+  @override
+  YoutubeVideo map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return YoutubeVideo(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      playlistLocalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}playlist_local_id'],
+      )!,
+      youtubeVideoId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}youtube_video_id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      thumbnailUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}thumbnail_url'],
+      )!,
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      )!,
+      durationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_seconds'],
+      )!,
+      durationIso: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}duration_iso'],
+      )!,
+      completed: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}completed'],
+      )!,
+      watchedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}watched_at'],
+      ),
+      lastPositionSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_position_seconds'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $YoutubeVideosTable createAlias(String alias) {
+    return $YoutubeVideosTable(attachedDatabase, alias);
+  }
+}
+
+class YoutubeVideo extends DataClass implements Insertable<YoutubeVideo> {
+  final int id;
+  final int playlistLocalId;
+  final String youtubeVideoId;
+  final String title;
+  final String thumbnailUrl;
+  final int position;
+  final int durationSeconds;
+  final String durationIso;
+  final bool completed;
+  final DateTime? watchedAt;
+  final int lastPositionSeconds;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const YoutubeVideo({
+    required this.id,
+    required this.playlistLocalId,
+    required this.youtubeVideoId,
+    required this.title,
+    required this.thumbnailUrl,
+    required this.position,
+    required this.durationSeconds,
+    required this.durationIso,
+    required this.completed,
+    this.watchedAt,
+    required this.lastPositionSeconds,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['playlist_local_id'] = Variable<int>(playlistLocalId);
+    map['youtube_video_id'] = Variable<String>(youtubeVideoId);
+    map['title'] = Variable<String>(title);
+    map['thumbnail_url'] = Variable<String>(thumbnailUrl);
+    map['position'] = Variable<int>(position);
+    map['duration_seconds'] = Variable<int>(durationSeconds);
+    map['duration_iso'] = Variable<String>(durationIso);
+    map['completed'] = Variable<bool>(completed);
+    if (!nullToAbsent || watchedAt != null) {
+      map['watched_at'] = Variable<DateTime>(watchedAt);
+    }
+    map['last_position_seconds'] = Variable<int>(lastPositionSeconds);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  YoutubeVideosCompanion toCompanion(bool nullToAbsent) {
+    return YoutubeVideosCompanion(
+      id: Value(id),
+      playlistLocalId: Value(playlistLocalId),
+      youtubeVideoId: Value(youtubeVideoId),
+      title: Value(title),
+      thumbnailUrl: Value(thumbnailUrl),
+      position: Value(position),
+      durationSeconds: Value(durationSeconds),
+      durationIso: Value(durationIso),
+      completed: Value(completed),
+      watchedAt: watchedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(watchedAt),
+      lastPositionSeconds: Value(lastPositionSeconds),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory YoutubeVideo.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return YoutubeVideo(
+      id: serializer.fromJson<int>(json['id']),
+      playlistLocalId: serializer.fromJson<int>(json['playlistLocalId']),
+      youtubeVideoId: serializer.fromJson<String>(json['youtubeVideoId']),
+      title: serializer.fromJson<String>(json['title']),
+      thumbnailUrl: serializer.fromJson<String>(json['thumbnailUrl']),
+      position: serializer.fromJson<int>(json['position']),
+      durationSeconds: serializer.fromJson<int>(json['durationSeconds']),
+      durationIso: serializer.fromJson<String>(json['durationIso']),
+      completed: serializer.fromJson<bool>(json['completed']),
+      watchedAt: serializer.fromJson<DateTime?>(json['watchedAt']),
+      lastPositionSeconds: serializer.fromJson<int>(
+        json['lastPositionSeconds'],
+      ),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'playlistLocalId': serializer.toJson<int>(playlistLocalId),
+      'youtubeVideoId': serializer.toJson<String>(youtubeVideoId),
+      'title': serializer.toJson<String>(title),
+      'thumbnailUrl': serializer.toJson<String>(thumbnailUrl),
+      'position': serializer.toJson<int>(position),
+      'durationSeconds': serializer.toJson<int>(durationSeconds),
+      'durationIso': serializer.toJson<String>(durationIso),
+      'completed': serializer.toJson<bool>(completed),
+      'watchedAt': serializer.toJson<DateTime?>(watchedAt),
+      'lastPositionSeconds': serializer.toJson<int>(lastPositionSeconds),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  YoutubeVideo copyWith({
+    int? id,
+    int? playlistLocalId,
+    String? youtubeVideoId,
+    String? title,
+    String? thumbnailUrl,
+    int? position,
+    int? durationSeconds,
+    String? durationIso,
+    bool? completed,
+    Value<DateTime?> watchedAt = const Value.absent(),
+    int? lastPositionSeconds,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => YoutubeVideo(
+    id: id ?? this.id,
+    playlistLocalId: playlistLocalId ?? this.playlistLocalId,
+    youtubeVideoId: youtubeVideoId ?? this.youtubeVideoId,
+    title: title ?? this.title,
+    thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+    position: position ?? this.position,
+    durationSeconds: durationSeconds ?? this.durationSeconds,
+    durationIso: durationIso ?? this.durationIso,
+    completed: completed ?? this.completed,
+    watchedAt: watchedAt.present ? watchedAt.value : this.watchedAt,
+    lastPositionSeconds: lastPositionSeconds ?? this.lastPositionSeconds,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  YoutubeVideo copyWithCompanion(YoutubeVideosCompanion data) {
+    return YoutubeVideo(
+      id: data.id.present ? data.id.value : this.id,
+      playlistLocalId: data.playlistLocalId.present
+          ? data.playlistLocalId.value
+          : this.playlistLocalId,
+      youtubeVideoId: data.youtubeVideoId.present
+          ? data.youtubeVideoId.value
+          : this.youtubeVideoId,
+      title: data.title.present ? data.title.value : this.title,
+      thumbnailUrl: data.thumbnailUrl.present
+          ? data.thumbnailUrl.value
+          : this.thumbnailUrl,
+      position: data.position.present ? data.position.value : this.position,
+      durationSeconds: data.durationSeconds.present
+          ? data.durationSeconds.value
+          : this.durationSeconds,
+      durationIso: data.durationIso.present
+          ? data.durationIso.value
+          : this.durationIso,
+      completed: data.completed.present ? data.completed.value : this.completed,
+      watchedAt: data.watchedAt.present ? data.watchedAt.value : this.watchedAt,
+      lastPositionSeconds: data.lastPositionSeconds.present
+          ? data.lastPositionSeconds.value
+          : this.lastPositionSeconds,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('YoutubeVideo(')
+          ..write('id: $id, ')
+          ..write('playlistLocalId: $playlistLocalId, ')
+          ..write('youtubeVideoId: $youtubeVideoId, ')
+          ..write('title: $title, ')
+          ..write('thumbnailUrl: $thumbnailUrl, ')
+          ..write('position: $position, ')
+          ..write('durationSeconds: $durationSeconds, ')
+          ..write('durationIso: $durationIso, ')
+          ..write('completed: $completed, ')
+          ..write('watchedAt: $watchedAt, ')
+          ..write('lastPositionSeconds: $lastPositionSeconds, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    playlistLocalId,
+    youtubeVideoId,
+    title,
+    thumbnailUrl,
+    position,
+    durationSeconds,
+    durationIso,
+    completed,
+    watchedAt,
+    lastPositionSeconds,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is YoutubeVideo &&
+          other.id == this.id &&
+          other.playlistLocalId == this.playlistLocalId &&
+          other.youtubeVideoId == this.youtubeVideoId &&
+          other.title == this.title &&
+          other.thumbnailUrl == this.thumbnailUrl &&
+          other.position == this.position &&
+          other.durationSeconds == this.durationSeconds &&
+          other.durationIso == this.durationIso &&
+          other.completed == this.completed &&
+          other.watchedAt == this.watchedAt &&
+          other.lastPositionSeconds == this.lastPositionSeconds &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class YoutubeVideosCompanion extends UpdateCompanion<YoutubeVideo> {
+  final Value<int> id;
+  final Value<int> playlistLocalId;
+  final Value<String> youtubeVideoId;
+  final Value<String> title;
+  final Value<String> thumbnailUrl;
+  final Value<int> position;
+  final Value<int> durationSeconds;
+  final Value<String> durationIso;
+  final Value<bool> completed;
+  final Value<DateTime?> watchedAt;
+  final Value<int> lastPositionSeconds;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  const YoutubeVideosCompanion({
+    this.id = const Value.absent(),
+    this.playlistLocalId = const Value.absent(),
+    this.youtubeVideoId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.thumbnailUrl = const Value.absent(),
+    this.position = const Value.absent(),
+    this.durationSeconds = const Value.absent(),
+    this.durationIso = const Value.absent(),
+    this.completed = const Value.absent(),
+    this.watchedAt = const Value.absent(),
+    this.lastPositionSeconds = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  YoutubeVideosCompanion.insert({
+    this.id = const Value.absent(),
+    required int playlistLocalId,
+    required String youtubeVideoId,
+    required String title,
+    this.thumbnailUrl = const Value.absent(),
+    required int position,
+    this.durationSeconds = const Value.absent(),
+    this.durationIso = const Value.absent(),
+    this.completed = const Value.absent(),
+    this.watchedAt = const Value.absent(),
+    this.lastPositionSeconds = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+  }) : playlistLocalId = Value(playlistLocalId),
+       youtubeVideoId = Value(youtubeVideoId),
+       title = Value(title),
+       position = Value(position),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<YoutubeVideo> custom({
+    Expression<int>? id,
+    Expression<int>? playlistLocalId,
+    Expression<String>? youtubeVideoId,
+    Expression<String>? title,
+    Expression<String>? thumbnailUrl,
+    Expression<int>? position,
+    Expression<int>? durationSeconds,
+    Expression<String>? durationIso,
+    Expression<bool>? completed,
+    Expression<DateTime>? watchedAt,
+    Expression<int>? lastPositionSeconds,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (playlistLocalId != null) 'playlist_local_id': playlistLocalId,
+      if (youtubeVideoId != null) 'youtube_video_id': youtubeVideoId,
+      if (title != null) 'title': title,
+      if (thumbnailUrl != null) 'thumbnail_url': thumbnailUrl,
+      if (position != null) 'position': position,
+      if (durationSeconds != null) 'duration_seconds': durationSeconds,
+      if (durationIso != null) 'duration_iso': durationIso,
+      if (completed != null) 'completed': completed,
+      if (watchedAt != null) 'watched_at': watchedAt,
+      if (lastPositionSeconds != null)
+        'last_position_seconds': lastPositionSeconds,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  YoutubeVideosCompanion copyWith({
+    Value<int>? id,
+    Value<int>? playlistLocalId,
+    Value<String>? youtubeVideoId,
+    Value<String>? title,
+    Value<String>? thumbnailUrl,
+    Value<int>? position,
+    Value<int>? durationSeconds,
+    Value<String>? durationIso,
+    Value<bool>? completed,
+    Value<DateTime?>? watchedAt,
+    Value<int>? lastPositionSeconds,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+  }) {
+    return YoutubeVideosCompanion(
+      id: id ?? this.id,
+      playlistLocalId: playlistLocalId ?? this.playlistLocalId,
+      youtubeVideoId: youtubeVideoId ?? this.youtubeVideoId,
+      title: title ?? this.title,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      position: position ?? this.position,
+      durationSeconds: durationSeconds ?? this.durationSeconds,
+      durationIso: durationIso ?? this.durationIso,
+      completed: completed ?? this.completed,
+      watchedAt: watchedAt ?? this.watchedAt,
+      lastPositionSeconds: lastPositionSeconds ?? this.lastPositionSeconds,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (playlistLocalId.present) {
+      map['playlist_local_id'] = Variable<int>(playlistLocalId.value);
+    }
+    if (youtubeVideoId.present) {
+      map['youtube_video_id'] = Variable<String>(youtubeVideoId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (thumbnailUrl.present) {
+      map['thumbnail_url'] = Variable<String>(thumbnailUrl.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    if (durationSeconds.present) {
+      map['duration_seconds'] = Variable<int>(durationSeconds.value);
+    }
+    if (durationIso.present) {
+      map['duration_iso'] = Variable<String>(durationIso.value);
+    }
+    if (completed.present) {
+      map['completed'] = Variable<bool>(completed.value);
+    }
+    if (watchedAt.present) {
+      map['watched_at'] = Variable<DateTime>(watchedAt.value);
+    }
+    if (lastPositionSeconds.present) {
+      map['last_position_seconds'] = Variable<int>(lastPositionSeconds.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('YoutubeVideosCompanion(')
+          ..write('id: $id, ')
+          ..write('playlistLocalId: $playlistLocalId, ')
+          ..write('youtubeVideoId: $youtubeVideoId, ')
+          ..write('title: $title, ')
+          ..write('thumbnailUrl: $thumbnailUrl, ')
+          ..write('position: $position, ')
+          ..write('durationSeconds: $durationSeconds, ')
+          ..write('durationIso: $durationIso, ')
+          ..write('completed: $completed, ')
+          ..write('watchedAt: $watchedAt, ')
+          ..write('lastPositionSeconds: $lastPositionSeconds, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -6093,6 +7589,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $TransactionCandidatesTable(this);
   late final $MerchantCategoryRulesTable merchantCategoryRules =
       $MerchantCategoryRulesTable(this);
+  late final $YoutubePlaylistsTable youtubePlaylists = $YoutubePlaylistsTable(
+    this,
+  );
+  late final $YoutubeVideosTable youtubeVideos = $YoutubeVideosTable(this);
   late final TaskDao taskDao = TaskDao(this as AppDatabase);
   late final ClassDao classDao = ClassDao(this as AppDatabase);
   late final StudyDao studyDao = StudyDao(this as AppDatabase);
@@ -6103,6 +7603,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final ProfileDao profileDao = ProfileDao(this as AppDatabase);
   late final TransactionDetectionDao transactionDetectionDao =
       TransactionDetectionDao(this as AppDatabase);
+  late final YoutubePlaylistDao youtubePlaylistDao = YoutubePlaylistDao(
+    this as AppDatabase,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -6120,6 +7623,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     transactionDetectionEvents,
     transactionCandidates,
     merchantCategoryRules,
+    youtubePlaylists,
+    youtubeVideos,
   ];
 }
 
@@ -9331,6 +10836,935 @@ typedef $$MerchantCategoryRulesTableProcessedTableManager =
       MerchantCategoryRule,
       PrefetchHooks Function()
     >;
+typedef $$YoutubePlaylistsTableCreateCompanionBuilder =
+    YoutubePlaylistsCompanion Function({
+      Value<int> id,
+      required String userId,
+      required String youtubePlaylistId,
+      required String title,
+      Value<String> description,
+      Value<String> channelTitle,
+      Value<String> thumbnailUrl,
+      Value<int> totalVideos,
+      Value<int> totalDurationSeconds,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> lastSyncedAt,
+    });
+typedef $$YoutubePlaylistsTableUpdateCompanionBuilder =
+    YoutubePlaylistsCompanion Function({
+      Value<int> id,
+      Value<String> userId,
+      Value<String> youtubePlaylistId,
+      Value<String> title,
+      Value<String> description,
+      Value<String> channelTitle,
+      Value<String> thumbnailUrl,
+      Value<int> totalVideos,
+      Value<int> totalDurationSeconds,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> lastSyncedAt,
+    });
+
+final class $$YoutubePlaylistsTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $YoutubePlaylistsTable, YoutubePlaylist> {
+  $$YoutubePlaylistsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static MultiTypedResultKey<$YoutubeVideosTable, List<YoutubeVideo>>
+  _youtubeVideosRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.youtubeVideos,
+    aliasName: 'youtube_playlists__id__youtube_videos__playlist_local_id',
+  );
+
+  $$YoutubeVideosTableProcessedTableManager get youtubeVideosRefs {
+    final manager = $$YoutubeVideosTableTableManager(
+      $_db,
+      $_db.youtubeVideos,
+    ).filter((f) => f.playlistLocalId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_youtubeVideosRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$YoutubePlaylistsTableFilterComposer
+    extends Composer<_$AppDatabase, $YoutubePlaylistsTable> {
+  $$YoutubePlaylistsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get youtubePlaylistId => $composableBuilder(
+    column: $table.youtubePlaylistId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get channelTitle => $composableBuilder(
+    column: $table.channelTitle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get totalVideos => $composableBuilder(
+    column: $table.totalVideos,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get totalDurationSeconds => $composableBuilder(
+    column: $table.totalDurationSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastSyncedAt => $composableBuilder(
+    column: $table.lastSyncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> youtubeVideosRefs(
+    Expression<bool> Function($$YoutubeVideosTableFilterComposer f) f,
+  ) {
+    final $$YoutubeVideosTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.youtubeVideos,
+      getReferencedColumn: (t) => t.playlistLocalId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$YoutubeVideosTableFilterComposer(
+            $db: $db,
+            $table: $db.youtubeVideos,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$YoutubePlaylistsTableOrderingComposer
+    extends Composer<_$AppDatabase, $YoutubePlaylistsTable> {
+  $$YoutubePlaylistsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get youtubePlaylistId => $composableBuilder(
+    column: $table.youtubePlaylistId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get channelTitle => $composableBuilder(
+    column: $table.channelTitle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get totalVideos => $composableBuilder(
+    column: $table.totalVideos,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get totalDurationSeconds => $composableBuilder(
+    column: $table.totalDurationSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastSyncedAt => $composableBuilder(
+    column: $table.lastSyncedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$YoutubePlaylistsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $YoutubePlaylistsTable> {
+  $$YoutubePlaylistsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get youtubePlaylistId => $composableBuilder(
+    column: $table.youtubePlaylistId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get channelTitle => $composableBuilder(
+    column: $table.channelTitle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get totalVideos => $composableBuilder(
+    column: $table.totalVideos,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get totalDurationSeconds => $composableBuilder(
+    column: $table.totalDurationSeconds,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastSyncedAt => $composableBuilder(
+    column: $table.lastSyncedAt,
+    builder: (column) => column,
+  );
+
+  Expression<T> youtubeVideosRefs<T extends Object>(
+    Expression<T> Function($$YoutubeVideosTableAnnotationComposer a) f,
+  ) {
+    final $$YoutubeVideosTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.youtubeVideos,
+      getReferencedColumn: (t) => t.playlistLocalId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$YoutubeVideosTableAnnotationComposer(
+            $db: $db,
+            $table: $db.youtubeVideos,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$YoutubePlaylistsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $YoutubePlaylistsTable,
+          YoutubePlaylist,
+          $$YoutubePlaylistsTableFilterComposer,
+          $$YoutubePlaylistsTableOrderingComposer,
+          $$YoutubePlaylistsTableAnnotationComposer,
+          $$YoutubePlaylistsTableCreateCompanionBuilder,
+          $$YoutubePlaylistsTableUpdateCompanionBuilder,
+          (YoutubePlaylist, $$YoutubePlaylistsTableReferences),
+          YoutubePlaylist,
+          PrefetchHooks Function({bool youtubeVideosRefs})
+        > {
+  $$YoutubePlaylistsTableTableManager(
+    _$AppDatabase db,
+    $YoutubePlaylistsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$YoutubePlaylistsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$YoutubePlaylistsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$YoutubePlaylistsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> userId = const Value.absent(),
+                Value<String> youtubePlaylistId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> description = const Value.absent(),
+                Value<String> channelTitle = const Value.absent(),
+                Value<String> thumbnailUrl = const Value.absent(),
+                Value<int> totalVideos = const Value.absent(),
+                Value<int> totalDurationSeconds = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> lastSyncedAt = const Value.absent(),
+              }) => YoutubePlaylistsCompanion(
+                id: id,
+                userId: userId,
+                youtubePlaylistId: youtubePlaylistId,
+                title: title,
+                description: description,
+                channelTitle: channelTitle,
+                thumbnailUrl: thumbnailUrl,
+                totalVideos: totalVideos,
+                totalDurationSeconds: totalDurationSeconds,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                lastSyncedAt: lastSyncedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String userId,
+                required String youtubePlaylistId,
+                required String title,
+                Value<String> description = const Value.absent(),
+                Value<String> channelTitle = const Value.absent(),
+                Value<String> thumbnailUrl = const Value.absent(),
+                Value<int> totalVideos = const Value.absent(),
+                Value<int> totalDurationSeconds = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> lastSyncedAt = const Value.absent(),
+              }) => YoutubePlaylistsCompanion.insert(
+                id: id,
+                userId: userId,
+                youtubePlaylistId: youtubePlaylistId,
+                title: title,
+                description: description,
+                channelTitle: channelTitle,
+                thumbnailUrl: thumbnailUrl,
+                totalVideos: totalVideos,
+                totalDurationSeconds: totalDurationSeconds,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                lastSyncedAt: lastSyncedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$YoutubePlaylistsTable, YoutubePlaylist>(table),
+                  $$YoutubePlaylistsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({youtubeVideosRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (youtubeVideosRefs) db.youtubeVideos,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (youtubeVideosRefs)
+                    await $_getPrefetchedData<
+                      YoutubePlaylist,
+                      $YoutubePlaylistsTable,
+                      YoutubeVideo
+                    >(
+                      currentTable: table,
+                      referencedTable: $$YoutubePlaylistsTableReferences
+                          ._youtubeVideosRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$YoutubePlaylistsTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).youtubeVideosRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where(
+                            (e) => e.playlistLocalId == item.id,
+                          ),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$YoutubePlaylistsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $YoutubePlaylistsTable,
+      YoutubePlaylist,
+      $$YoutubePlaylistsTableFilterComposer,
+      $$YoutubePlaylistsTableOrderingComposer,
+      $$YoutubePlaylistsTableAnnotationComposer,
+      $$YoutubePlaylistsTableCreateCompanionBuilder,
+      $$YoutubePlaylistsTableUpdateCompanionBuilder,
+      (YoutubePlaylist, $$YoutubePlaylistsTableReferences),
+      YoutubePlaylist,
+      PrefetchHooks Function({bool youtubeVideosRefs})
+    >;
+typedef $$YoutubeVideosTableCreateCompanionBuilder =
+    YoutubeVideosCompanion Function({
+      Value<int> id,
+      required int playlistLocalId,
+      required String youtubeVideoId,
+      required String title,
+      Value<String> thumbnailUrl,
+      required int position,
+      Value<int> durationSeconds,
+      Value<String> durationIso,
+      Value<bool> completed,
+      Value<DateTime?> watchedAt,
+      Value<int> lastPositionSeconds,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+    });
+typedef $$YoutubeVideosTableUpdateCompanionBuilder =
+    YoutubeVideosCompanion Function({
+      Value<int> id,
+      Value<int> playlistLocalId,
+      Value<String> youtubeVideoId,
+      Value<String> title,
+      Value<String> thumbnailUrl,
+      Value<int> position,
+      Value<int> durationSeconds,
+      Value<String> durationIso,
+      Value<bool> completed,
+      Value<DateTime?> watchedAt,
+      Value<int> lastPositionSeconds,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+    });
+
+final class $$YoutubeVideosTableReferences
+    extends BaseReferences<_$AppDatabase, $YoutubeVideosTable, YoutubeVideo> {
+  $$YoutubeVideosTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $YoutubePlaylistsTable _playlistLocalIdTable(_$AppDatabase db) => db
+      .youtubePlaylists
+      .createAlias('youtube_videos__playlist_local_id__youtube_playlists__id');
+
+  $$YoutubePlaylistsTableProcessedTableManager get playlistLocalId {
+    final $_column = $_itemColumn<int>('playlist_local_id')!;
+
+    final manager = $$YoutubePlaylistsTableTableManager(
+      $_db,
+      $_db.youtubePlaylists,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_playlistLocalIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$YoutubeVideosTableFilterComposer
+    extends Composer<_$AppDatabase, $YoutubeVideosTable> {
+  $$YoutubeVideosTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get youtubeVideoId => $composableBuilder(
+    column: $table.youtubeVideoId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get durationIso => $composableBuilder(
+    column: $table.durationIso,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get completed => $composableBuilder(
+    column: $table.completed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get watchedAt => $composableBuilder(
+    column: $table.watchedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastPositionSeconds => $composableBuilder(
+    column: $table.lastPositionSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$YoutubePlaylistsTableFilterComposer get playlistLocalId {
+    final $$YoutubePlaylistsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.playlistLocalId,
+      referencedTable: $db.youtubePlaylists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$YoutubePlaylistsTableFilterComposer(
+            $db: $db,
+            $table: $db.youtubePlaylists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$YoutubeVideosTableOrderingComposer
+    extends Composer<_$AppDatabase, $YoutubeVideosTable> {
+  $$YoutubeVideosTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get youtubeVideoId => $composableBuilder(
+    column: $table.youtubeVideoId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get durationIso => $composableBuilder(
+    column: $table.durationIso,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get completed => $composableBuilder(
+    column: $table.completed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get watchedAt => $composableBuilder(
+    column: $table.watchedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastPositionSeconds => $composableBuilder(
+    column: $table.lastPositionSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$YoutubePlaylistsTableOrderingComposer get playlistLocalId {
+    final $$YoutubePlaylistsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.playlistLocalId,
+      referencedTable: $db.youtubePlaylists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$YoutubePlaylistsTableOrderingComposer(
+            $db: $db,
+            $table: $db.youtubePlaylists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$YoutubeVideosTableAnnotationComposer
+    extends Composer<_$AppDatabase, $YoutubeVideosTable> {
+  $$YoutubeVideosTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get youtubeVideoId => $composableBuilder(
+    column: $table.youtubeVideoId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+
+  GeneratedColumn<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get durationIso => $composableBuilder(
+    column: $table.durationIso,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get completed =>
+      $composableBuilder(column: $table.completed, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get watchedAt =>
+      $composableBuilder(column: $table.watchedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get lastPositionSeconds => $composableBuilder(
+    column: $table.lastPositionSeconds,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$YoutubePlaylistsTableAnnotationComposer get playlistLocalId {
+    final $$YoutubePlaylistsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.playlistLocalId,
+      referencedTable: $db.youtubePlaylists,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$YoutubePlaylistsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.youtubePlaylists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$YoutubeVideosTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $YoutubeVideosTable,
+          YoutubeVideo,
+          $$YoutubeVideosTableFilterComposer,
+          $$YoutubeVideosTableOrderingComposer,
+          $$YoutubeVideosTableAnnotationComposer,
+          $$YoutubeVideosTableCreateCompanionBuilder,
+          $$YoutubeVideosTableUpdateCompanionBuilder,
+          (YoutubeVideo, $$YoutubeVideosTableReferences),
+          YoutubeVideo,
+          PrefetchHooks Function({bool playlistLocalId})
+        > {
+  $$YoutubeVideosTableTableManager(_$AppDatabase db, $YoutubeVideosTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$YoutubeVideosTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$YoutubeVideosTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$YoutubeVideosTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> playlistLocalId = const Value.absent(),
+                Value<String> youtubeVideoId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> thumbnailUrl = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<int> durationSeconds = const Value.absent(),
+                Value<String> durationIso = const Value.absent(),
+                Value<bool> completed = const Value.absent(),
+                Value<DateTime?> watchedAt = const Value.absent(),
+                Value<int> lastPositionSeconds = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => YoutubeVideosCompanion(
+                id: id,
+                playlistLocalId: playlistLocalId,
+                youtubeVideoId: youtubeVideoId,
+                title: title,
+                thumbnailUrl: thumbnailUrl,
+                position: position,
+                durationSeconds: durationSeconds,
+                durationIso: durationIso,
+                completed: completed,
+                watchedAt: watchedAt,
+                lastPositionSeconds: lastPositionSeconds,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int playlistLocalId,
+                required String youtubeVideoId,
+                required String title,
+                Value<String> thumbnailUrl = const Value.absent(),
+                required int position,
+                Value<int> durationSeconds = const Value.absent(),
+                Value<String> durationIso = const Value.absent(),
+                Value<bool> completed = const Value.absent(),
+                Value<DateTime?> watchedAt = const Value.absent(),
+                Value<int> lastPositionSeconds = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+              }) => YoutubeVideosCompanion.insert(
+                id: id,
+                playlistLocalId: playlistLocalId,
+                youtubeVideoId: youtubeVideoId,
+                title: title,
+                thumbnailUrl: thumbnailUrl,
+                position: position,
+                durationSeconds: durationSeconds,
+                durationIso: durationIso,
+                completed: completed,
+                watchedAt: watchedAt,
+                lastPositionSeconds: lastPositionSeconds,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$YoutubeVideosTable, YoutubeVideo>(table),
+                  $$YoutubeVideosTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({playlistLocalId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (playlistLocalId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.playlistLocalId,
+                        referencedTable: $$YoutubeVideosTableReferences
+                            ._playlistLocalIdTable(db),
+                        referencedColumn: $$YoutubeVideosTableReferences
+                            ._playlistLocalIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$YoutubeVideosTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $YoutubeVideosTable,
+      YoutubeVideo,
+      $$YoutubeVideosTableFilterComposer,
+      $$YoutubeVideosTableOrderingComposer,
+      $$YoutubeVideosTableAnnotationComposer,
+      $$YoutubeVideosTableCreateCompanionBuilder,
+      $$YoutubeVideosTableUpdateCompanionBuilder,
+      (YoutubeVideo, $$YoutubeVideosTableReferences),
+      YoutubeVideo,
+      PrefetchHooks Function({bool playlistLocalId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -9363,4 +11797,8 @@ class $AppDatabaseManager {
       $$TransactionCandidatesTableTableManager(_db, _db.transactionCandidates);
   $$MerchantCategoryRulesTableTableManager get merchantCategoryRules =>
       $$MerchantCategoryRulesTableTableManager(_db, _db.merchantCategoryRules);
+  $$YoutubePlaylistsTableTableManager get youtubePlaylists =>
+      $$YoutubePlaylistsTableTableManager(_db, _db.youtubePlaylists);
+  $$YoutubeVideosTableTableManager get youtubeVideos =>
+      $$YoutubeVideosTableTableManager(_db, _db.youtubeVideos);
 }
