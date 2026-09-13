@@ -27,10 +27,20 @@ abstract final class SupabaseConfig {
   static const redirectUrl = 'com.dimi.dimi://login-callback/';
 
   static bool get isConfigured => url.isNotEmpty && publishableKey.isNotEmpty;
+
+  static String? get configurationError {
+    if (url.isEmpty && publishableKey.isEmpty) {
+      return 'Supabase is not configured. Google sign-in and online YouTube sync are unavailable in this build.';
+    }
+    if (url.isEmpty) return 'SUPABASE_URL is missing.';
+    if (publishableKey.isEmpty) return 'SUPABASE_PUBLISHABLE_KEY is missing.';
+    return null;
+  }
 }
 
 abstract final class SupabaseBootstrap {
   static SupabaseClient? _client;
+  static Future<void>? _initialization;
   // appRouter is created before main() initializes Supabase. Keep this stream
   // stable so its refresh notifier does not accidentally subscribe to an empty
   // stream during startup.
@@ -38,17 +48,25 @@ abstract final class SupabaseBootstrap {
       StreamController<AuthState>.broadcast();
   static StreamSubscription<AuthState>? _authForwarder;
 
-  /// Set to true when the user explicitly chooses "Continue offline".
-  /// When true the router will not redirect unauthenticated users to /login,
-  /// even when Supabase is configured.
+  /// Retained for compatibility with existing callers; it is not an auth
+  /// state and must not be used to enter protected routes.
   static bool offlineMode = false;
 
   static SupabaseClient? get client => _client;
 
   static Future<void> initialize() async {
+    final activeInitialization = _initialization;
+    if (activeInitialization != null) return activeInitialization;
+
+    final initialization = _initializeOnce();
+    _initialization = initialization;
+    return initialization;
+  }
+
+  static Future<void> _initializeOnce() async {
     if (!SupabaseConfig.isConfigured) {
       if (kDebugMode) {
-        debugPrint('[Supabase] Not configured; running local-only mode.');
+        debugPrint('[Supabase] ${SupabaseConfig.configurationError}');
       }
       return;
     }
@@ -56,6 +74,11 @@ abstract final class SupabaseBootstrap {
     await Supabase.initialize(
       url: SupabaseConfig.url,
       publishableKey: SupabaseConfig.publishableKey,
+      authOptions: FlutterAuthClientOptions(
+        authFlowType: AuthFlowType.pkce,
+        detectSessionInUri: true,
+        detectSessionInUriPredicate: _isSupabaseAuthCallback,
+      ),
     );
     _client = Supabase.instance.client;
     await _authForwarder?.cancel();
@@ -69,3 +92,6 @@ abstract final class SupabaseBootstrap {
 
   static Stream<AuthState> get authChanges => _authEvents.stream;
 }
+
+bool _isSupabaseAuthCallback(Uri uri) =>
+    uri.scheme == 'com.dimi.dimi' && uri.host == 'login-callback';

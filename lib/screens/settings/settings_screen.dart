@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../config/supabase_config.dart';
 import '../../routing/app_router.dart';
+import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/database_provider.dart';
@@ -192,18 +194,27 @@ class SettingsScreen extends ConsumerWidget {
 
             // ── Account ───────────────────────────────────────────────────
             _SectionHeader(title: 'Account'),
-            _SectionCard(
-              items: [
-                _SettingsTile(
-                  icon: Icons.logout_rounded,
-                  iconColor: AppColors.danger,
-                  label: 'Log Out',
-                  subtitle: 'Sign out from your account',
-                  labelColor: AppColors.danger,
-                  onTap: () => _confirmLogout(context),
-                  showChevron: false,
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.screenHorizontal,
                 ),
-              ],
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+                    border: Border.all(color: AppColors.divider),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x0A1C1C1E),
+                        blurRadius: 12,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: const _AccountSection(),
+                ),
+              ),
             ),
 
             // ── Debug-only developer section ──────────────────────────────
@@ -317,8 +328,21 @@ class SettingsScreen extends ConsumerWidget {
       }
     }
   }
+}
 
-  Future<void> _confirmLogout(BuildContext context) async {
+// ── Account section (needs StatefulWidget for async logout) ──────────────────
+
+class _AccountSection extends StatefulWidget {
+  const _AccountSection();
+
+  @override
+  State<_AccountSection> createState() => _AccountSectionState();
+}
+
+class _AccountSectionState extends State<_AccountSection> {
+  bool _loggingOut = false;
+
+  Future<void> _confirmLogout() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -347,13 +371,42 @@ class SettingsScreen extends ConsumerWidget {
         ],
       ),
     );
-    if (ok == true && context.mounted) {
-      context.go(AppRoutes.login);
+
+    if (ok != true) return;
+    if (!mounted) return;
+
+    setState(() => _loggingOut = true);
+
+    // Clear offline mode flag regardless of auth method.
+    SupabaseBootstrap.offlineMode = false;
+
+    // Sign out from Supabase if an active session exists.
+    if (SupabaseBootstrap.client?.auth.currentSession != null) {
+      try {
+        await AuthService.instance.signOut();
+      } catch (_) {
+        // Ignore errors — we still navigate to login.
+      }
     }
+
+    if (!mounted) return;
+    setState(() => _loggingOut = false);
+    context.go(AppRoutes.login);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingsTile(
+      icon: Icons.logout_rounded,
+      iconColor: AppColors.danger,
+      label: _loggingOut ? 'Signing out…' : 'Log Out',
+      subtitle: 'Sign out from your account',
+      labelColor: AppColors.danger,
+      onTap: _loggingOut ? null : _confirmLogout,
+      showChevron: false,
+    );
   }
 }
-
-// ── Section header ────────────────────────────────────────────────────────────
 
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.title});
