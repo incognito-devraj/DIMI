@@ -81,8 +81,9 @@ Google OAuth client ID and secret there, then add this mobile callback URL
 under Authentication > URL Configuration > Redirect URLs:
 
 ```text
-com.dimi.dimi_app://login-callback/
+com.dimi.dimi://login-callback/
 ```
 
 The Android app declares the same deep-link scheme. With no Supabase values,
-DIMI remains in its existing local-only mode.
+DIMI remains usable in offline mode, and the login screen reports that Google
+sign-in and online YouTube sync are unavailable.

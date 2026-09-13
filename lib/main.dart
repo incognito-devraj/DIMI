@@ -63,8 +63,7 @@ class _DimiAppState extends ConsumerState<DimiApp> {
               .syncPendingEvents(),
     );
     _authSubscription = SupabaseBootstrap.authChanges.listen((authState) {
-      // When user signs in, exit offline mode so the router guards work.
-      if (authState.session != null) {
+      if (authState.session == null) {
         SupabaseBootstrap.offlineMode = false;
       }
       unawaited(

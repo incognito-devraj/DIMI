@@ -53,27 +53,47 @@ int _tabIndex(String location) {
 final GoRouter appRouter = GoRouter(
   initialLocation: AppRoutes.splash,
   refreshListenable: SupabaseAuthRefreshNotifier(SupabaseBootstrap.authChanges),
+  onException: (context, state, router) {
+    // supabase_flutter consumes this URI through its deep-link observer. If
+    // the platform also forwards it to Flutter's route information parser,
+    // keep it inside startup instead of exposing it as an app route.
+    if (_isSupabaseCallback(state.uri)) {
+      router.go(AppRoutes.splash);
+    }
+  },
   redirect: (context, state) async {
-    if (state.uri.path == AppRoutes.splash) return null;
+    final path = state.uri.path;
 
-    // If the user has a valid session, always let them through.
+    if (_isSupabaseCallback(state.uri)) return AppRoutes.splash;
+
+    // Splash never redirects itself.
+    if (path == AppRoutes.splash) return null;
+
+    // ── Offline mode: user tapped "Continue offline" ─────────────────────
+    // Allow free navigation — no session required.
+    if (SupabaseBootstrap.offlineMode) {
+      // Keep them off the login screen once they've chosen offline.
+      if (path == AppRoutes.login) return AppRoutes.home;
+      return null;
+    }
+
+    // ── No Supabase configured (CI / offline-only build) ─────────────────
+    if (!SupabaseConfig.isConfigured) {
+      if (path == AppRoutes.login) return null;
+      // Block until user picks an auth path (Google or offline).
+      return AppRoutes.login;
+    }
+
+    // ── Supabase IS configured ───────────────────────────────────────────
     final hasSession = SupabaseBootstrap.client?.auth.currentSession != null;
 
-    if (state.uri.path == AppRoutes.login) {
-      // Already signed in → skip login.
+    if (path == AppRoutes.login) {
       if (hasSession) return AppRoutes.home;
       return null;
     }
 
-    // Guard all other routes: only redirect to login when Supabase is
-    // configured, the user has no session, AND hasn't chosen offline mode.
-    if (SupabaseBootstrap.client != null &&
-        !hasSession &&
-        !SupabaseBootstrap.offlineMode) {
-      return AppRoutes.login;
-    }
-
-    return null;
+    // Block protected routes until session is started.
+    return hasSession ? null : AppRoutes.login;
   },
   routes: [
     // Startup animation stays outside the main shell so the existing Home
@@ -168,6 +188,9 @@ final GoRouter appRouter = GoRouter(
     ),
   ],
 );
+
+bool _isSupabaseCallback(Uri uri) =>
+    uri.scheme == 'com.dimi.dimi' || uri.path == '/login-callback';
 
 CustomTransitionPage<void> _fade(GoRouterState state, Widget child) {
   return CustomTransitionPage<void>(
