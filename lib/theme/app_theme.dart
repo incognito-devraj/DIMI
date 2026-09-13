@@ -44,28 +44,28 @@ class AppTextStyles {
   AppTextStyles._();
 
   // Screen titles: 24–28 sp, semibold
-  static TextStyle screenTitle(BuildContext context) => GoogleFonts.poppins(
+  static TextStyle screenTitle(BuildContext context) => GoogleFonts.inter(
     fontSize: 26,
     fontWeight: FontWeight.w600,
     color: AppColors.textPrimary,
   );
 
   // Card titles: 15–16 sp, semibold
-  static TextStyle cardTitle(BuildContext context) => GoogleFonts.poppins(
+  static TextStyle cardTitle(BuildContext context) => GoogleFonts.inter(
     fontSize: 15,
     fontWeight: FontWeight.w600,
     color: AppColors.textPrimary,
   );
 
   // Body / labels: 13–14 sp, regular
-  static TextStyle body(BuildContext context) => GoogleFonts.poppins(
+  static TextStyle body(BuildContext context) => GoogleFonts.inter(
     fontSize: 13,
     fontWeight: FontWeight.w400,
     color: AppColors.textPrimary,
   );
 
   // Captions / timestamps: 11–12 sp, secondary color
-  static TextStyle caption(BuildContext context) => GoogleFonts.poppins(
+  static TextStyle caption(BuildContext context) => GoogleFonts.inter(
     fontSize: 11,
     fontWeight: FontWeight.w400,
     color: AppColors.textSecondary,
@@ -101,63 +101,63 @@ class AppTheme {
         error: AppColors.danger,
         onError: AppColors.surface,
       ),
-      textTheme: GoogleFonts.poppinsTextTheme(base.textTheme).copyWith(
-        displayLarge: GoogleFonts.poppins(
+      textTheme: GoogleFonts.interTextTheme(base.textTheme).copyWith(
+        displayLarge: GoogleFonts.inter(
           fontSize: 28,
           fontWeight: FontWeight.w700,
           color: AppColors.textPrimary,
         ),
-        displayMedium: GoogleFonts.poppins(
+        displayMedium: GoogleFonts.inter(
           fontSize: 26,
           fontWeight: FontWeight.w600,
           color: AppColors.textPrimary,
         ),
-        headlineLarge: GoogleFonts.poppins(
+        headlineLarge: GoogleFonts.inter(
           fontSize: 22,
           fontWeight: FontWeight.w600,
           color: AppColors.textPrimary,
         ),
-        headlineMedium: GoogleFonts.poppins(
+        headlineMedium: GoogleFonts.inter(
           fontSize: 18,
           fontWeight: FontWeight.w600,
           color: AppColors.textPrimary,
         ),
-        titleLarge: GoogleFonts.poppins(
+        titleLarge: GoogleFonts.inter(
           fontSize: 16,
           fontWeight: FontWeight.w600,
           color: AppColors.textPrimary,
         ),
-        titleMedium: GoogleFonts.poppins(
+        titleMedium: GoogleFonts.inter(
           fontSize: 15,
           fontWeight: FontWeight.w500,
           color: AppColors.textPrimary,
         ),
-        titleSmall: GoogleFonts.poppins(
+        titleSmall: GoogleFonts.inter(
           fontSize: 13,
           fontWeight: FontWeight.w500,
           color: AppColors.textPrimary,
         ),
-        bodyLarge: GoogleFonts.poppins(
+        bodyLarge: GoogleFonts.inter(
           fontSize: 14,
           fontWeight: FontWeight.w400,
           color: AppColors.textPrimary,
         ),
-        bodyMedium: GoogleFonts.poppins(
+        bodyMedium: GoogleFonts.inter(
           fontSize: 13,
           fontWeight: FontWeight.w400,
           color: AppColors.textPrimary,
         ),
-        bodySmall: GoogleFonts.poppins(
+        bodySmall: GoogleFonts.inter(
           fontSize: 12,
           fontWeight: FontWeight.w400,
           color: AppColors.textSecondary,
         ),
-        labelLarge: GoogleFonts.poppins(
+        labelLarge: GoogleFonts.inter(
           fontSize: 13,
           fontWeight: FontWeight.w600,
           color: AppColors.textPrimary,
         ),
-        labelSmall: GoogleFonts.poppins(
+        labelSmall: GoogleFonts.inter(
           fontSize: 11,
           fontWeight: FontWeight.w400,
           color: AppColors.textSecondary,
@@ -168,7 +168,7 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.poppins(
+        titleTextStyle: GoogleFonts.inter(
           fontSize: 22,
           fontWeight: FontWeight.w600,
           color: AppColors.textPrimary,
@@ -201,7 +201,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
           ),
-          textStyle: GoogleFonts.poppins(
+          textStyle: GoogleFonts.inter(
             fontSize: 15,
             fontWeight: FontWeight.w600,
           ),
@@ -227,7 +227,7 @@ class AppTheme {
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
         ),
-        hintStyle: GoogleFonts.poppins(
+        hintStyle: GoogleFonts.inter(
           fontSize: 13,
           color: AppColors.textSecondary,
         ),

@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,7 +7,7 @@ import '../../routing/app_router.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 import '../../theme/app_theme.dart';
-import '../../providers/database_provider.dart';
+import '../../widgets/dimi_hero.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -23,58 +22,18 @@ class SettingsScreen extends ConsumerWidget {
           slivers: [
             // ── Header ────────────────────────────────────────────────────
             SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenHorizontal,
-                  20,
-                  AppSpacing.screenHorizontal,
-                  0,
-                ),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => Navigator.of(context).maybePop(),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.divider),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back_ios_new_rounded,
-                          size: 16,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Settings',
-                        style: Theme.of(context).textTheme.displayMedium,
-                      ),
-                    ),
-                    // Handwritten-style subtitle
-                    Text(
-                      'Small settings\nBig progress.',
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        fontFamily: 'serif',
-                        fontStyle: FontStyle.italic,
-                        fontSize: 11,
-                        color: AppColors.textSecondary,
-                        height: 1.5,
-                      ),
-                    ),
-                  ],
+              child: DimiHero(
+                title: 'Settings',
+                subtitle: '        Small settings. Big progress.',
+                height: 200,
+                leading: DimiHeroCircleButton(
+                  icon: Icons.arrow_back_ios_new_rounded,
+                  onTap: () => Navigator.of(context).maybePop(),
                 ),
               ),
             ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
+            const SliverToBoxAdapter(child: SizedBox(height: 5)),
             // ── App Preferences ───────────────────────────────────────────
             _SectionHeader(title: 'App Preferences'),
             _SectionCard(
@@ -105,7 +64,7 @@ class SettingsScreen extends ConsumerWidget {
                   trailing: const Text(
                     'Light',
                     style: TextStyle(
-                      fontFamily: 'Poppins',
+                      fontFamily: 'Inter',
                       fontSize: 13,
                       color: AppColors.textSecondary,
                     ),
@@ -120,7 +79,7 @@ class SettingsScreen extends ConsumerWidget {
                   trailing: const Text(
                     'English',
                     style: TextStyle(
-                      fontFamily: 'Poppins',
+                      fontFamily: 'Inter',
                       fontSize: 13,
                       color: AppColors.textSecondary,
                     ),
@@ -218,27 +177,6 @@ class SettingsScreen extends ConsumerWidget {
             ),
 
             // ── Debug-only developer section ──────────────────────────────
-            if (kDebugMode) ...[
-              const SliverToBoxAdapter(child: SizedBox(height: 20)),
-              _SectionHeader(title: 'Developer'),
-              _SectionCard(
-                items: [
-                  _SettingsTile(
-                    icon: Icons.bug_report_outlined,
-                    iconColor: AppColors.textSecondary,
-                    label: 'Notification Detector',
-                    onTap: () => context.push(AppRoutes.notificationDetector),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.cleaning_services_outlined,
-                    iconColor: AppColors.textSecondary,
-                    label: 'Remove invalid detected transactions',
-                    onTap: () => _cleanupDetectedTransactions(context, ref),
-                  ),
-                ],
-              ),
-            ],
-
             // ── DIMI wordmark footer ──────────────────────────────────────
             const SliverToBoxAdapter(
               child: Padding(
@@ -248,7 +186,7 @@ class SettingsScreen extends ConsumerWidget {
                     Text(
                       'DIMI',
                       style: TextStyle(
-                        fontFamily: 'Poppins',
+                        fontFamily: 'Inter',
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                         color: AppColors.textSecondary,
@@ -260,7 +198,16 @@ class SettingsScreen extends ConsumerWidget {
                       'Digital Interface For Monitoring and Improvement',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontFamily: 'Poppins',
+                        fontFamily: 'Inter',
+                        fontSize: 10,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Created by incognito-devraj',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
                         fontSize: 10,
                         color: AppColors.textSecondary,
                       ),
@@ -283,50 +230,6 @@ class SettingsScreen extends ConsumerWidget {
         behavior: SnackBarBehavior.floating,
       ),
     );
-  }
-
-  Future<void> _cleanupDetectedTransactions(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    final dao = ref.read(databaseProvider).moneyDao;
-    final rows = await dao.suspiciousDetectedTransactions();
-    if (!context.mounted) return;
-    if (rows.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No obviously invalid detected transactions found.'),
-        ),
-      );
-      return;
-    }
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Remove invalid transactions?'),
-        content: Text(
-          '${rows.length} malformed automatic transaction(s) with Unknown merchant and Other category will be removed. Manual transactions are not affected.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      final count = await dao.deleteSuspiciousDetectedTransactions();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$count invalid transaction(s) removed.')),
-        );
-      }
-    }
   }
 }
 
@@ -352,11 +255,11 @@ class _AccountSectionState extends State<_AccountSection> {
         ),
         title: const Text(
           'Log Out?',
-          style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
+          style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600),
         ),
         content: const Text(
           'This will sign you out. Your local data is NOT deleted.',
-          style: TextStyle(fontFamily: 'Poppins', fontSize: 13),
+          style: TextStyle(fontFamily: 'Inter', fontSize: 13),
         ),
         actions: [
           TextButton(
@@ -422,22 +325,16 @@ class _SectionHeader extends StatelessWidget {
           AppSpacing.screenHorizontal,
           8,
         ),
-        child: Row(
-          children: [
-            _sectionIcon(title),
-            const SizedBox(width: 8),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
-            ),
-          ],
+        child: DimiSectionHeading(
+          icon: _iconForTitle(title),
+          title: title,
+          subtitle: _subtitleForTitle(title),
         ),
       ),
     );
   }
 
-  Widget _sectionIcon(String title) {
+  IconData _iconForTitle(String title) {
     final icons = <String, IconData>{
       'App Preferences': Icons.tune_rounded,
       'Data & Sync': Icons.storage_rounded,
@@ -445,11 +342,18 @@ class _SectionHeader extends StatelessWidget {
       'Account': Icons.person_outline_rounded,
       'Developer': Icons.code_rounded,
     };
-    return Icon(
-      icons[title] ?? Icons.settings_outlined,
-      size: 18,
-      color: AppColors.textPrimary,
-    );
+    return icons[title] ?? Icons.settings_outlined;
+  }
+
+  String? _subtitleForTitle(String title) {
+    const subtitles = <String, String>{
+      'App Preferences': 'Make it feel like home.',
+      'Data & Sync': 'Your data, your control.',
+      'Support & About': 'We’re here for you.',
+      'Account': 'Manage your account.',
+      'Developer': 'Advanced tools.',
+    };
+    return subtitles[title];
   }
 }
 
@@ -531,18 +435,18 @@ class _SettingsTile extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
             // Icon container
             Container(
-              width: 36,
-              height: 36,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
                 color: iconColor.withAlpha(26),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 18, color: iconColor),
+              child: Icon(icon, size: 22, color: iconColor),
             ),
             const SizedBox(width: 14),
             // Labels
@@ -553,8 +457,8 @@ class _SettingsTile extends StatelessWidget {
                   Text(
                     label,
                     style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 14,
+                      fontFamily: 'Inter',
+                      fontSize: 16,
                       fontWeight: FontWeight.w500,
                       color: labelColor ?? AppColors.textPrimary,
                     ),
@@ -564,8 +468,8 @@ class _SettingsTile extends StatelessWidget {
                     Text(
                       subtitle!,
                       style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 11,
+                        fontFamily: 'Inter',
+                        fontSize: 13,
                         color: AppColors.textSecondary,
                       ),
                     ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../routing/app_router.dart';
@@ -81,15 +82,17 @@ class _AddYouTubePlaylistSheetState
   }
 
   @override
-  Widget build(BuildContext context) => SafeArea(
-    child: Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.screenHorizontal,
-        10,
-        AppSpacing.screenHorizontal,
-        MediaQuery.viewInsetsOf(context).bottom + 22,
-      ),
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
+    return SafeArea(
       child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          18,
+          8,
+          18,
+          bottomInset + 18,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -105,48 +108,83 @@ class _AddYouTubePlaylistSheetState
               alignment: Alignment.centerRight,
               child: IconButton(
                 onPressed: _loading ? null : () => context.pop(),
-                icon: const Icon(Icons.close_rounded, color: AppColors.accent),
+                style: IconButton.styleFrom(
+                  backgroundColor: AppColors.background,
+                  foregroundColor: AppColors.textPrimary,
+                ),
+                icon: const Icon(Icons.close_rounded, size: 20),
               ),
             ),
             Container(
-              width: 48,
-              height: 36,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFE9E6),
-                borderRadius: BorderRadius.circular(10),
+              width: 92,
+              height: 78,
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFF0EC),
+                shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.play_arrow_rounded,
-                color: Color(0xFFFF2727),
-                size: 28,
+              child: Center(
+                child: Container(
+                  width: 58,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF0000),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: const Icon(
+                    Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Text(
               'Add YouTube Playlist',
-              style: Theme.of(context).textTheme.headlineMedium,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 5),
             Text(
-              'Paste a YouTube playlist link to get started.\nTrack your learning progress with DIMI.',
+              'Paste a YouTube playlist link to get started.\n'
+              'Track your learning progress with DIMI.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall,
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 18),
             TextField(
               controller: _controller,
               enabled: !_loading,
               keyboardType: TextInputType.url,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.link_rounded, size: 20),
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.link_rounded, size: 20),
                 hintText: 'https://www.youtube.com/playlist?list=...',
+                suffixIcon: IconButton(
+                  tooltip: 'Paste',
+                  onPressed: _loading
+                      ? null
+                      : () async {
+                          final data = await Clipboard.getData(
+                            Clipboard.kTextPlain,
+                          );
+                          if (data?.text != null) {
+                            _controller.text = data!.text!;
+                            _controller.selection = TextSelection.collapsed(
+                              offset: _controller.text.length,
+                            );
+                          }
+                        },
+                  icon: const Icon(Icons.content_paste_rounded),
+                ),
               ),
             ),
             if (_error != null)
               Padding(
-                padding: const EdgeInsets.only(top: 10),
+                padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   _error!,
+                  textAlign: TextAlign.center,
                   style: const TextStyle(color: AppColors.danger),
                 ),
               ),
@@ -156,49 +194,7 @@ class _AddYouTubePlaylistSheetState
               icon: _loading ? Icons.hourglass_top_rounded : Icons.add_rounded,
               onPressed: _loading ? () {} : _add,
             ),
-            const SizedBox(height: 26),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Examples',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-            ),
-            const SizedBox(height: 8),
-            ...[
-              'https://www.youtube.com/playlist?list=PL4c...',
-              'https://www.youtube.com/playlist?list=PL6n9...',
-            ].map(
-              (link) => Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  border: Border.all(color: AppColors.divider),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        link,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelSmall,
-                      ),
-                    ),
-                    const Icon(
-                      Icons.content_copy_rounded,
-                      size: 16,
-                      color: AppColors.accent,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 22),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -217,6 +213,6 @@ class _AddYouTubePlaylistSheetState
           ],
         ),
       ),
-    ),
-  );
+    );
+  }
 }

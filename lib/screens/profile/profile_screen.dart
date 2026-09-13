@@ -9,10 +9,13 @@ import 'package:intl/intl.dart';
 import 'dart:io';
 
 import '../../data/database.dart';
+import '../../config/supabase_config.dart';
 import '../../providers/profile_providers.dart';
 import '../../providers/task_providers.dart';
 import '../../routing/app_router.dart';
+import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/dimi_hero.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -38,7 +41,47 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
-// ── No profile placeholder ────────────────────────────────────────────────────
+// ── Logout ────────────────────────────────────────────────────────────────────
+
+Future<void> _confirmProfileLogout(BuildContext context) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Log Out?'),
+      content: const Text(
+        'This will sign you out. Your local data is NOT deleted.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: const Text('Log Out'),
+        ),
+      ],
+    ),
+  );
+
+  if (confirmed != true || !context.mounted) return;
+
+  SupabaseBootstrap.offlineMode = false;
+
+  if (SupabaseBootstrap.client?.auth.currentSession != null) {
+    try {
+      await AuthService.instance.signOut();
+    } catch (_) {
+      // Continue to login if the remote session is already unavailable.
+    }
+  }
+
+  if (context.mounted) {
+    context.go(AppRoutes.login);
+  }
+}
+
+// ── No profile state ──────────────────────────────────────────────────────────
 
 class _NoProfileState extends StatelessWidget {
   const _NoProfileState();
@@ -58,7 +101,7 @@ class _NoProfileState extends StatelessWidget {
           Text(
             'No profile yet.',
             style: TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: 'Inter',
               fontSize: 15,
               color: AppColors.textSecondary,
             ),
@@ -73,25 +116,31 @@ class _NoProfileState extends StatelessWidget {
 
 class _ProfileBody extends ConsumerWidget {
   const _ProfileBody({required this.profile});
+
   final ProfileTableData profile;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final allTasksAsync = ref.watch(allTasksProvider);
     final allTasks = allTasksAsync.valueOrNull ?? [];
-    final goalsInProgress = allTasks.where((t) => !t.isCompleted).length;
 
-    // Day streak from consecutive completed days
+    final goalsInProgress = allTasks.where((task) => !task.isCompleted).length;
+
+    // Calculate completed dates.
     final completedByDate = <DateTime>{};
-    for (final t in allTasks) {
-      if (t.isCompleted) {
+
+    for (final task in allTasks) {
+      if (task.isCompleted) {
         completedByDate.add(
-          DateTime(t.dueDate.year, t.dueDate.month, t.dueDate.day),
+          DateTime(task.dueDate.year, task.dueDate.month, task.dueDate.day),
         );
       }
     }
+
+    // Calculate current streak.
     int dayStreak = 0;
     var checkDate = DateTime.now();
+
     while (completedByDate.contains(
       DateTime(checkDate.year, checkDate.month, checkDate.day),
     )) {
@@ -99,53 +148,60 @@ class _ProfileBody extends ConsumerWidget {
       checkDate = checkDate.subtract(const Duration(days: 1));
     }
 
-    // Active days
+    // Calculate active days.
     final activeDays = <DateTime>{};
-    for (final t in allTasks) {
-      activeDays.add(DateTime(t.dueDate.year, t.dueDate.month, t.dueDate.day));
+
+    for (final task in allTasks) {
+      activeDays.add(
+        DateTime(task.dueDate.year, task.dueDate.month, task.dueDate.day),
+      );
     }
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
-        // ── Top bar ────────────────────────────────────────────────────────
+        // ────────────────────────────────────────────────────────────────────
+        // HERO + PROFILE CARD
+        //
+        // These MUST live inside the same Stack.
+        // This guarantees the profile card paints above the hero.
+        // ────────────────────────────────────────────────────────────────────
+
         SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.screenHorizontal,
-              20,
-              AppSpacing.screenHorizontal,
-              0,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: SizedBox(
+            height: 420,
+            child: Stack(
+              clipBehavior: Clip.none,
               children: [
-                Text(
-                  'Profile',
-                  style: Theme.of(context).textTheme.displayLarge,
+                // Hero background.
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: DimiHero(
+                    title: 'Profile',
+                    subtitle: 'Good to see you back!',
+                    height: 200,
+                    trailing: DimiHeroCircleButton(
+                      icon: Icons.settings_outlined,
+                      onTap: () => context.push(AppRoutes.settings),
+                    ),
+                  ),
                 ),
-                GestureDetector(
-                  onTap: () => context.push(AppRoutes.settings),
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.divider),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x0D1C1C1E),
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.settings_outlined,
-                      size: 20,
-                      color: AppColors.textPrimary,
-                    ),
+
+                // Profile card.
+                //
+                // Positioned ABOVE the hero rather than being a separate
+                // sliver translated upward.
+                Positioned(
+                  top: 200,
+                  left: AppSpacing.screenHorizontal,
+                  right: AppSpacing.screenHorizontal,
+                  child: _HeroCard(
+                    profile: profile,
+                    dayStreak: dayStreak,
+                    activeDays: activeDays.length,
+                    goalsInProgress: goalsInProgress,
                   ),
                 ),
               ],
@@ -153,21 +209,9 @@ class _ProfileBody extends ConsumerWidget {
           ),
         ),
 
-        const SliverToBoxAdapter(child: SizedBox(height: 20)),
+        const SliverToBoxAdapter(child: SizedBox(height: 0)),
 
-        // ── Hero header card ───────────────────────────────────────────────
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.screenHorizontal,
-            ),
-            child: _HeroCard(profile: profile),
-          ),
-        ),
-
-        const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-        // ── Personal info card (single card with pen edit) ─────────────────
+        // ── Personal Information ────────────────────────────────────────────
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -177,64 +221,68 @@ class _ProfileBody extends ConsumerWidget {
           ),
         ),
 
-        const SliverToBoxAdapter(child: SizedBox(height: 12)),
+        const SliverToBoxAdapter(child: SizedBox(height: 4)),
 
-        // ── Progress summary ───────────────────────────────────────────────
+        // ── Go Premium ──────────────────────────────────────────────────────
+        // ── Sync Status ─────────────────────────────────────────────────────
+        // ── Remaining actions ───────────────────────────────────────────────
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.screenHorizontal,
             ),
-            child: _ProgressRow(
-              dayStreak: dayStreak,
-              activeDays: activeDays.length,
-              goalsInProgress: goalsInProgress,
+            child: Column(
+              children: [
+                _CompactLogoutButton(
+                  onTap: () {
+                    _confirmProfileLogout(context);
+                  },
+                ),
+              ],
             ),
           ),
         ),
 
-        const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-        // ── Go Premium card ────────────────────────────────────────────────
-        SliverToBoxAdapter(
+        const SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.screenHorizontal,
+            padding: EdgeInsets.fromLTRB(16, 14, 16, 24),
+            child: Text(
+              'Keep going. You’re doing great. ♥',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
             ),
-            child: const _GoPremiumCard(),
           ),
         ),
-
-        const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-        // ── Sync status card ───────────────────────────────────────────────
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.screenHorizontal,
-            ),
-            child: const _SyncStatusCard(),
-          ),
-        ),
-
-        const SliverToBoxAdapter(child: SizedBox(height: 32)),
       ],
     );
   }
 }
 
-// ── Hero card (avatar + name, centred) ───────────────────────────────────────
+// ── Profile card ──────────────────────────────────────────────────────────────
 
 class _HeroCard extends ConsumerStatefulWidget {
-  const _HeroCard({required this.profile});
+  const _HeroCard({
+    required this.profile,
+    required this.dayStreak,
+    required this.activeDays,
+    required this.goalsInProgress,
+  });
+
   final ProfileTableData profile;
+  final int dayStreak;
+  final int activeDays;
+  final int goalsInProgress;
 
   @override
   ConsumerState<_HeroCard> createState() => _HeroCardState();
 }
 
 class _HeroCardState extends ConsumerState<_HeroCard> {
-  final _picker = ImagePicker();
+  final ImagePicker _picker = ImagePicker();
 
   Future<void> _pickPhoto() async {
     final image = await _picker.pickImage(
@@ -242,7 +290,9 @@ class _HeroCardState extends ConsumerState<_HeroCard> {
       maxWidth: 1200,
       imageQuality: 85,
     );
+
     if (image == null) return;
+
     final cropped = await ImageCropper().cropImage(
       sourcePath: image.path,
       compressQuality: 88,
@@ -258,7 +308,9 @@ class _HeroCardState extends ConsumerState<_HeroCard> {
         IOSUiSettings(title: 'Crop profile photo'),
       ],
     );
+
     if (cropped == null || !mounted) return;
+
     await ref
         .read(profileDaoProvider)
         .upsertProfile(
@@ -280,170 +332,80 @@ class _HeroCardState extends ConsumerState<_HeroCard> {
   @override
   Widget build(BuildContext context) {
     final p = widget.profile;
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(color: AppColors.divider),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x0A1C1C1E),
+            color: Color(0x121C1C1E),
             blurRadius: 14,
-            offset: Offset(0, 4),
+            offset: Offset(0, 5),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-        child: Stack(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 27, 12, 10),
+        child: Column(
           children: [
-            // Subtle warm gradient band at top
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                height: 80,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFFEDE0C8), Color(0xFFF9F3E8)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Avatar intentionally overlaps the profile card edge.
+                Transform.translate(
+                  offset: const Offset(0, -30),
+                  child: _AvatarWithCamera(profile: p, onPickPhoto: _pickPhoto),
                 ),
-              ),
-            ),
-            // Decorative soft circle
-            Positioned(
-              top: -28,
-              right: -24,
-              child: Container(
-                width: 110,
-                height: 110,
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withAlpha(25),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-            // Content — centred
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // Avatar with camera button
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Container(
-                        width: 92,
-                        height: 92,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AppColors.surface,
-                            width: 3,
-                          ),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x1A1C1C1E),
-                              blurRadius: 14,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: ClipOval(
-                          child: p.photoPath != null
-                              ? Image.file(
-                                  File(p.photoPath!),
-                                  fit: BoxFit.cover,
-                                )
-                              : Container(
-                                  color: AppColors.accent,
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    p.name.isNotEmpty
-                                        ? p.name[0].toUpperCase()
-                                        : 'S',
-                                    style: const TextStyle(
-                                      fontFamily: 'Poppins',
-                                      fontSize: 34,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.surface,
-                                    ),
-                                  ),
-                                ),
-                        ),
-                      ),
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: GestureDetector(
-                          onTap: _pickPhoto,
-                          child: Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: AppColors.divider),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x14000000),
-                                  blurRadius: 4,
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.camera_alt_outlined,
-                              size: 14,
-                              color: AppColors.textPrimary,
-                            ),
+
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 1),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          p.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  // Name
-                  Text(
-                    p.name,
-                    style: Theme.of(context).textTheme.headlineLarge
-                        ?.copyWith(fontWeight: FontWeight.w700),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 3),
-                  // Role
-                  Text(
-                    p.role.isNotEmpty ? p.role : 'CS Engineering Student',
-                    style: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 13,
-                      color: AppColors.textSecondary,
+
+                        const SizedBox(height: 2),
+
+                        Text(
+                          p.role.isNotEmpty ? p.role : 'CS Engineering Student',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
-                    textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 6),
-                  // Quote — Poppins, small, italic, DIMI font style
-                  Text(
-                    p.quote != null && p.quote!.isNotEmpty
-                        ? '"${p.quote!}"'
-                        : '"Discipline today, a better tomorrow."',
-                    style: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontStyle: FontStyle.italic,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w400,
-                      color: AppColors.textSecondary,
-                      height: 1.5,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 2),
+
+            _ProgressRow(
+              dayStreak: widget.dayStreak,
+              activeDays: widget.activeDays,
+              goalsInProgress: widget.goalsInProgress,
+              achievements: p.points,
             ),
           ],
         ),
@@ -452,10 +414,88 @@ class _HeroCardState extends ConsumerState<_HeroCard> {
   }
 }
 
-// ── Personal info card — single card, one pen icon to edit all ───────────────
+// ── Avatar ────────────────────────────────────────────────────────────────────
+
+class _AvatarWithCamera extends StatelessWidget {
+  const _AvatarWithCamera({required this.profile, required this.onPickPhoto});
+
+  final ProfileTableData profile;
+  final VoidCallback onPickPhoto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 84,
+          height: 84,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.surface, width: 3),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x181C1C1E),
+                blurRadius: 9,
+                offset: Offset(0, 3),
+              ),
+            ],
+          ),
+          child: ClipOval(
+            child: profile.photoPath != null
+                ? Image.file(File(profile.photoPath!), fit: BoxFit.cover)
+                : Container(
+                    color: AppColors.accent,
+                    alignment: Alignment.center,
+                    child: Text(
+                      profile.name.isNotEmpty
+                          ? profile.name[0].toUpperCase()
+                          : 'S',
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 32,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.surface,
+                      ),
+                    ),
+                  ),
+          ),
+        ),
+
+        Positioned(
+          right: -3,
+          bottom: -3,
+          child: GestureDetector(
+            onTap: onPickPhoto,
+            child: Container(
+              width: 29,
+              height: 29,
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.divider),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x16000000), blurRadius: 4),
+                ],
+              ),
+              child: const Icon(
+                Icons.camera_alt_outlined,
+                size: 15,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Personal information ──────────────────────────────────────────────────────
 
 class _PersonalInfoCard extends StatelessWidget {
   const _PersonalInfoCard({required this.profile});
+
   final ProfileTableData profile;
 
   void _openEdit(BuildContext context) {
@@ -463,58 +503,59 @@ class _PersonalInfoCard extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _EditProfileSheet(profile: profile),
+      builder: (_) {
+        return _EditProfileSheet(profile: profile);
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final joinedText =
-        'Joined ${DateFormat('MMMM yyyy').format(DateTime.now())}';
+    final joinedText = DateFormat('MMMM yyyy').format(DateTime.now());
 
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(color: AppColors.divider),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x0A1C1C1E),
-            blurRadius: 12,
-            offset: Offset(0, 3),
+            color: Color(0x081C1C1E),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         children: [
-          // Header row with pen edit
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 12, 0),
+            padding: const EdgeInsets.fromLTRB(18, 16, 16, 0),
             child: Row(
               children: [
                 const Text(
-                  'Personal Info',
+                  'Personal Information',
                   style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                    letterSpacing: 0.2,
+                    fontFamily: 'Inter',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
                   ),
                 ),
+
                 const Spacer(),
+
                 GestureDetector(
                   onTap: () => _openEdit(context),
                   child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
+                    width: 40,
+                    height: 40,
+                    decoration: const BoxDecoration(
                       color: AppColors.accentSoft,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
                       Icons.edit_outlined,
-                      size: 15,
+                      size: 18,
                       color: AppColors.accent,
                     ),
                   ),
@@ -522,19 +563,27 @@ class _PersonalInfoCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 4),
-          // Info rows — no arrows, clean
+
+          const SizedBox(height: 2),
+
           _InfoLine(
             icon: Icons.mail_outline_rounded,
+            label: 'Email',
             value: profile.email.isNotEmpty ? profile.email : 'Not set',
           ),
+
           const Divider(
             height: 1,
-            indent: 50,
-            endIndent: 16,
+            indent: 42,
+            endIndent: 12,
             color: AppColors.divider,
           ),
-          _InfoLine(icon: Icons.calendar_today_outlined, value: joinedText),
+
+          _InfoLine(
+            icon: Icons.calendar_today_outlined,
+            label: 'Joined',
+            value: joinedText,
+          ),
         ],
       ),
     );
@@ -542,24 +591,51 @@ class _PersonalInfoCard extends StatelessWidget {
 }
 
 class _InfoLine extends StatelessWidget {
-  const _InfoLine({required this.icon, required this.value});
+  const _InfoLine({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
   final IconData icon;
+  final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: AppColors.textSecondary),
-          const SizedBox(width: 14),
-          Text(
-            value,
-            style: const TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 13,
-              color: AppColors.textPrimary,
+          Icon(icon, size: 22, color: AppColors.textSecondary),
+
+          const SizedBox(width: 10),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+
+                const SizedBox(height: 1),
+
+                Text(
+                  value,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 15,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -568,35 +644,31 @@ class _InfoLine extends StatelessWidget {
   }
 }
 
-// ── Progress row ──────────────────────────────────────────────────────────────
+// ── Progress ──────────────────────────────────────────────────────────────────
 
 class _ProgressRow extends StatelessWidget {
   const _ProgressRow({
     required this.dayStreak,
     required this.activeDays,
     required this.goalsInProgress,
+    required this.achievements,
   });
+
   final int dayStreak;
   final int activeDays;
   final int goalsInProgress;
+  final int achievements;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.divider),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A1C1C1E),
-            blurRadius: 12,
-            offset: Offset(0, 3),
-          ),
-        ],
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 18),
+        padding: const EdgeInsets.symmetric(vertical: 9),
         child: Row(
           children: [
             Expanded(
@@ -607,7 +679,9 @@ class _ProgressRow extends StatelessWidget {
                 label: 'Day Streak',
               ),
             ),
-            Container(width: 1, height: 40, color: AppColors.divider),
+
+            Container(width: 1, height: 31, color: AppColors.divider),
+
             Expanded(
               child: _ProgressStat(
                 icon: Icons.bar_chart_rounded,
@@ -616,13 +690,26 @@ class _ProgressRow extends StatelessWidget {
                 label: 'Days Active',
               ),
             ),
-            Container(width: 1, height: 40, color: AppColors.divider),
+
+            Container(width: 1, height: 31, color: AppColors.divider),
+
+            Expanded(
+              child: _ProgressStat(
+                icon: Icons.track_changes_rounded,
+                iconColor: AppColors.success,
+                value: '$goalsInProgress',
+                label: 'Goals in\nProgress',
+              ),
+            ),
+
+            Container(width: 1, height: 31, color: AppColors.divider),
+
             Expanded(
               child: _ProgressStat(
                 icon: Icons.star_rounded,
                 iconColor: AppColors.accent,
-                value: '$goalsInProgress',
-                label: 'Goals in\nProgress',
+                value: '$achievements',
+                label: 'Achievements',
               ),
             ),
           ],
@@ -639,6 +726,7 @@ class _ProgressStat extends StatelessWidget {
     required this.value,
     required this.label,
   });
+
   final IconData icon;
   final Color iconColor;
   final String value;
@@ -648,25 +736,32 @@ class _ProgressStat extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Icon(icon, size: 24, color: iconColor),
-        const SizedBox(height: 6),
+        Icon(icon, size: 19, color: iconColor),
+
+        const SizedBox(height: 2),
+
         Text(
           value,
           style: const TextStyle(
-            fontFamily: 'Poppins',
-            fontSize: 20,
+            fontFamily: 'Inter',
+            fontSize: 18,
             fontWeight: FontWeight.w700,
             color: AppColors.textPrimary,
+            height: 1,
           ),
         ),
-        const SizedBox(height: 2),
+
+        const SizedBox(height: 3),
+
         Text(
           label,
           textAlign: TextAlign.center,
+          maxLines: 2,
           style: const TextStyle(
-            fontFamily: 'Poppins',
-            fontSize: 11,
+            fontFamily: 'Inter',
+            fontSize: 8.5,
             color: AppColors.textSecondary,
+            height: 1.1,
           ),
         ),
       ],
@@ -674,156 +769,224 @@ class _ProgressStat extends StatelessWidget {
   }
 }
 
-// ── Go Premium card ───────────────────────────────────────────────────────────
+// ── Go Premium ────────────────────────────────────────────────────────────────
 
 class _GoPremiumCard extends StatelessWidget {
   const _GoPremiumCard();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-        border: Border.all(color: AppColors.divider),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A1C1C1E),
-            blurRadius: 12,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: const BoxDecoration(
-                color: Color(0xFFFFF0CC),
-                shape: BoxShape.circle,
-              ),
-              child: const Center(
-                child: Text('\u{1F451}', style: TextStyle(fontSize: 20)),
-              ),
-            ),
-            const SizedBox(width: 14),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Go Premium',
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Unlock advanced insights',
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              size: 20,
-              color: AppColors.textSecondary,
-            ),
-          ],
-        ),
+    return _CompactMenuCard(
+      icon: const Text('👑', style: TextStyle(fontSize: 17)),
+      iconBackground: const Color(0xFFFFF0CC),
+      title: 'Go Premium',
+      subtitle: 'Unlock advanced insights',
+      trailing: const Icon(
+        Icons.chevron_right_rounded,
+        size: 18,
+        color: AppColors.textSecondary,
       ),
     );
   }
 }
 
-// ── Sync status card ──────────────────────────────────────────────────────────
+// ── Sync ──────────────────────────────────────────────────────────────────────
 
 class _SyncStatusCard extends StatelessWidget {
   const _SyncStatusCard();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-        border: Border.all(color: AppColors.divider),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A1C1C1E),
-            blurRadius: 12,
-            offset: Offset(0, 3),
+    return _CompactMenuCard(
+      icon: const Icon(
+        Icons.cloud_outlined,
+        size: 18,
+        color: Color(0xFF4A90D9),
+      ),
+      iconBackground: const Color(0xFFE8F4FD),
+      title: 'Sync Status',
+      subtitle: 'Local-only mode — no sync',
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: const BoxDecoration(
+              color: AppColors.success,
+              shape: BoxShape.circle,
+            ),
+          ),
+
+          const SizedBox(width: 3),
+
+          const Icon(
+            Icons.chevron_right_rounded,
+            size: 18,
+            color: AppColors.textSecondary,
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Action card ───────────────────────────────────────────────────────────────
+
+class _ProfileActionCard extends StatelessWidget {
+  const _ProfileActionCard({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return DimiSurface(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(17),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: color.withAlpha(24),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 22),
+              ),
+
+              const SizedBox(width: 14),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
+                        height: 1.1,
+                      ),
+                    ),
+
+                    const SizedBox(height: 2),
+
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                    fontSize: 15,
+                        color: AppColors.textSecondary,
+                        height: 1.1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: AppColors.textSecondary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Compact menu card ─────────────────────────────────────────────────────────
+
+class _CompactMenuCard extends StatelessWidget {
+  const _CompactMenuCard({
+    required this.icon,
+    required this.iconBackground,
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+  });
+
+  final Widget icon;
+  final Color iconBackground;
+  final String title;
+  final String subtitle;
+  final Widget trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return DimiSurface(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
-              decoration: const BoxDecoration(
-                color: Color(0xFFE8F4FD),
+              width: 35,
+              height: 35,
+              decoration: BoxDecoration(
+                color: iconBackground,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.cloud_outlined,
-                size: 20,
-                color: Color(0xFF4A90D9),
-              ),
+              alignment: Alignment.center,
+              child: icon,
             ),
-            const SizedBox(width: 14),
-            const Expanded(
+
+            const SizedBox(width: 10),
+
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Sync Status',
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 15,
+                    title,
+                    style: const TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 12.5,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
+                      height: 1.1,
                     ),
                   ),
-                  SizedBox(height: 2),
+
+                  const SizedBox(height: 2),
+
                   Text(
-                    'Local-only mode — no sync',
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 12,
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 9.5,
                       color: AppColors.textSecondary,
+                      height: 1.1,
                     ),
                   ),
                 ],
               ),
             ),
-            Container(
-              width: 10,
-              height: 10,
-              margin: const EdgeInsets.only(right: 6),
-              decoration: const BoxDecoration(
-                color: AppColors.success,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              size: 20,
-              color: AppColors.textSecondary,
-            ),
+
+            trailing,
           ],
         ),
       ),
@@ -831,10 +994,56 @@ class _SyncStatusCard extends StatelessWidget {
   }
 }
 
-// ── Edit Profile bottom sheet ─────────────────────────────────────────────────
+// ── Logout button ─────────────────────────────────────────────────────────────
+
+class _CompactLogoutButton extends StatelessWidget {
+  const _CompactLogoutButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return DimiSurface(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: AppColors.danger.withAlpha(26),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.logout_rounded, size: 22, color: AppColors.danger),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Log Out', style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.danger)),
+                    SizedBox(height: 1),
+                    Text('Sign out from your account', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: AppColors.textSecondary)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Edit profile sheet ────────────────────────────────────────────────────────
 
 class _EditProfileSheet extends ConsumerStatefulWidget {
   const _EditProfileSheet({required this.profile});
+
   final ProfileTableData profile;
 
   @override
@@ -854,19 +1063,29 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
 
   bool _saving = false;
   String? _photoPath;
-  final _picker = ImagePicker();
+
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
+
     final p = widget.profile;
+
     _nameCtrl = TextEditingController(text: p.name);
+
     _roleCtrl = TextEditingController(text: p.role);
+
     _emailCtrl = TextEditingController(text: p.email);
+
     _phoneCtrl = TextEditingController(text: p.phone);
+
     _collegeCtrl = TextEditingController(text: p.college);
+
     _semesterCtrl = TextEditingController(text: p.semester);
+
     _quoteCtrl = TextEditingController(text: p.quote ?? '');
+
     _photoPath = p.photoPath;
   }
 
@@ -879,13 +1098,21 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
     _collegeCtrl.dispose();
     _semesterCtrl.dispose();
     _quoteCtrl.dispose();
+
     super.dispose();
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _saving = true);
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+    });
+
     final quoteText = _quoteCtrl.text.trim();
+
     await ref
         .read(profileDaoProvider)
         .upsertProfile(
@@ -902,7 +1129,10 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
             points: Value(widget.profile.points),
           ),
         );
-    if (mounted) Navigator.of(context).pop();
+
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _choosePhoto() async {
@@ -911,7 +1141,9 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
       maxWidth: 1200,
       imageQuality: 85,
     );
+
     if (image == null) return;
+
     final cropped = await ImageCropper().cropImage(
       sourcePath: image.path,
       compressQuality: 88,
@@ -927,7 +1159,12 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
         IOSUiSettings(title: 'Crop photo'),
       ],
     );
-    if (cropped != null && mounted) setState(() => _photoPath = cropped.path);
+
+    if (cropped != null && mounted) {
+      setState(() {
+        _photoPath = cropped.path;
+      });
+    }
   }
 
   @override
@@ -944,8 +1181,8 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Drag handle
           const SizedBox(height: 12),
+
           Container(
             width: 38,
             height: 4,
@@ -954,8 +1191,9 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
+
           const SizedBox(height: 18),
-          // Sheet header
+
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.screenHorizontal,
@@ -966,9 +1204,13 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                   'Edit Profile',
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
+
                 const Spacer(),
+
                 GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                  },
                   child: Container(
                     width: 32,
                     height: 32,
@@ -986,8 +1228,9 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
               ],
             ),
           ),
+
           const SizedBox(height: 20),
-          // Form
+
           Flexible(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(
@@ -998,7 +1241,6 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Avatar picker — centred
                     Center(
                       child: GestureDetector(
                         onTap: _choosePhoto,
@@ -1023,6 +1265,7 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                                     )
                                   : null,
                             ),
+
                             Positioned(
                               right: 0,
                               bottom: 0,
@@ -1040,18 +1283,22 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                         ),
                       ),
                     ),
+
                     const SizedBox(height: 6),
+
                     const Center(
                       child: Text(
                         'Tap to update photo',
                         style: TextStyle(
-                          fontFamily: 'Poppins',
+                          fontFamily: 'Inter',
                           fontSize: 11,
                           color: AppColors.textSecondary,
                         ),
                       ),
                     ),
+
                     const SizedBox(height: 20),
+
                     _Field(
                       'Name',
                       _nameCtrl,
@@ -1061,42 +1308,54 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                           ? 'Name is required'
                           : null,
                     ),
+
                     const SizedBox(height: 12),
+
                     _Field(
                       'Role / Course',
                       _roleCtrl,
                       hint: 'e.g. CS Engineering Student',
                       caps: TextCapitalization.words,
                     ),
+
                     const SizedBox(height: 12),
+
                     _Field(
                       'Email',
                       _emailCtrl,
                       hint: 'your@email.com',
                       keyboard: TextInputType.emailAddress,
                     ),
+
                     const SizedBox(height: 12),
+
                     _Field(
                       'Phone',
                       _phoneCtrl,
                       hint: '+91 XXXXX XXXXX',
                       keyboard: TextInputType.phone,
                     ),
+
                     const SizedBox(height: 12),
+
                     _Field(
                       'College',
                       _collegeCtrl,
                       hint: 'Your college / university',
                       caps: TextCapitalization.words,
                     ),
+
                     const SizedBox(height: 12),
+
                     _Field(
                       'Semester',
                       _semesterCtrl,
                       hint: 'e.g. Semester 5',
                       caps: TextCapitalization.words,
                     ),
+
                     const SizedBox(height: 12),
+
                     _Field(
                       'Personal Quote',
                       _quoteCtrl,
@@ -1104,7 +1363,9 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                       caps: TextCapitalization.sentences,
                       maxLines: 2,
                     ),
+
                     const SizedBox(height: 28),
+
                     SizedBox(
                       width: double.infinity,
                       height: 52,
@@ -1122,6 +1383,7 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                             : const Text('Save Changes'),
                       ),
                     ),
+
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -1163,13 +1425,15 @@ class _Field extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            fontFamily: 'Poppins',
+            fontFamily: 'Inter',
             fontSize: 12,
             fontWeight: FontWeight.w500,
             color: AppColors.textSecondary,
           ),
         ),
+
         const SizedBox(height: 6),
+
         TextFormField(
           controller: controller,
           keyboardType: keyboard,

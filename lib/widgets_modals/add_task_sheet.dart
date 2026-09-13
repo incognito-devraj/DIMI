@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 
 import '../data/database.dart';
 import '../providers/task_providers.dart';
+import '../providers/reminder_providers.dart';
+import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 
 /// Opens the Add/Edit Task modal bottom sheet.
@@ -130,7 +132,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
   ];
 
   static const _reminderOptions = [
-    (label: 'None', value: null),
+    (label: 'At time', value: null),
     (label: '10 min', value: 10),
     (label: '30 min', value: 30),
     (label: '1 hour', value: 60),
@@ -207,10 +209,17 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    if (widget.plannerEntry && _dueTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a time for the planner task.')),
+      );
+      return;
+    }
     setState(() => _saving = true);
 
     final dao = ref.read(taskDaoProvider);
 
+    int? savedTaskId;
     if (_isEditing) {
       await dao.updateTask(
         TasksCompanion(
@@ -232,7 +241,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
         ),
       );
     } else {
-      await dao.insertTask(
+      savedTaskId = await dao.insertTask(
         TasksCompanion(
           title: Value(_titleCtrl.text.trim()),
           description: Value(
@@ -247,6 +256,33 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
           createdAt: Value(DateTime.now()),
         ),
       );
+    }
+
+    // Planner reminders are real reminders as well as task metadata, so they
+    // appear in the Reminders tab and can be completed there.
+    if (!_isEditing && widget.plannerEntry && savedTaskId != null) {
+      final taskTime = _dueTime!;
+      final taskDueAt = DateTime(
+        _dueDate.year,
+        _dueDate.month,
+        _dueDate.day,
+        taskTime.hour,
+        taskTime.minute,
+      );
+      final reminderDueAt = taskDueAt.add(
+        Duration(minutes: _reminderMinutes ?? 0),
+      );
+      final reminderDao = ref.read(reminderDaoProvider);
+      final reminderId = await reminderDao.insertReminder(
+        RemindersCompanion.insert(
+          title: _titleCtrl.text.trim(),
+          dueAt: reminderDueAt,
+        ),
+      );
+      final reminder = await reminderDao.getById(reminderId);
+      if (reminder != null) {
+        await NotificationService.instance.scheduleReminder(reminder);
+      }
     }
 
     if (mounted) Navigator.of(context).pop(true);
@@ -411,7 +447,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _FieldLabel('Time (optional)'),
+                              _FieldLabel('Time *'),
                               const SizedBox(height: 6),
                               _PickerBtn(
                                 icon: Icons.schedule_outlined,

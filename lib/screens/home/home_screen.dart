@@ -1,4 +1,5 @@
 import 'package:fl_chart/fl_chart.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,6 +38,7 @@ class HomeScreen extends ConsumerWidget {
 
     final fullName = profileAsync.valueOrNull?.name ?? 'Student';
     final name = fullName.trim().split(RegExp(r'\s+')).first;
+    const homeCardInset = 12.0;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -54,30 +56,27 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            const SliverToBoxAdapter(child: SizedBox(height: 4)),
+            const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
             // ── YouTube playlist card (replaces dark stats card) ───────
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenHorizontal + 8,
+                  horizontal: homeCardInset,
                 ),
                 child: DimiFadeSlide(
                   delay: const Duration(milliseconds: 45),
-                  child: Transform.translate(
-                    offset: const Offset(0, -8),
-                    child: const YoutubePlaylistCard(),
-                  ),
+                  child: const YoutubePlaylistCard(),
                 ),
               ),
             ),
-            const SliverToBoxAdapter(child: SizedBox(height: 14)),
+            const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
             // ── Today's tasks ──────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenHorizontal,
+                  horizontal: homeCardInset,
                 ),
                 child: DimiFadeSlide(
                   delay: const Duration(milliseconds: 90),
@@ -108,13 +107,13 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            const SliverToBoxAdapter(child: SizedBox(height: 14)),
+            const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
             // ── Weekly spending ────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenHorizontal,
+                  horizontal: homeCardInset,
                 ),
                 child: allTxnAsync.when(
                   data: (all) => weeklyTxnAsync.when(
@@ -144,13 +143,13 @@ class HomeScreen extends ConsumerWidget {
             */,
               ),
             ),
-            const SliverToBoxAdapter(child: SizedBox(height: 14)),
+            const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
             // ── Upcoming reminders ─────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenHorizontal,
+                  horizontal: homeCardInset,
                 ),
                 child: upcomingRemindersAsync.when(
                   data: (r) => _RemindersCard(reminders: r),
@@ -159,13 +158,13 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            const SliverToBoxAdapter(child: SizedBox(height: 14)),
+            const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
             // Adaptive GitHub-style completion history.
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenHorizontal,
+                  horizontal: homeCardInset,
                 ),
                 child: plannerEntriesAsync.when(
                   data: (tasks) => _HomeHeatmapCard(tasks: tasks),
@@ -922,6 +921,191 @@ class _HomeCardHeader extends StatelessWidget {
   }
 }
 
+Future<void> _showHomeQuickTaskComposer(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  await showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'Add a new task',
+    barrierColor: Colors.transparent,
+    transitionDuration: const Duration(milliseconds: 70),
+    pageBuilder: (_, __, ___) => _HomeQuickTaskComposer(ref: ref),
+    transitionBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(opacity: curved, child: child);
+    },
+  );
+}
+
+class _HomeQuickTaskComposer extends StatefulWidget {
+  const _HomeQuickTaskComposer({required this.ref});
+
+  final WidgetRef ref;
+
+  @override
+  State<_HomeQuickTaskComposer> createState() =>
+      _HomeQuickTaskComposerState();
+}
+
+class _HomeQuickTaskComposerState extends State<_HomeQuickTaskComposer> {
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+  bool _saving = false;
+  bool _saved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final title = _controller.text.trim();
+    if (title.isEmpty || _saving) return;
+
+    setState(() => _saving = true);
+    final now = DateTime.now();
+    await widget.ref.read(taskDaoProvider).insertTask(
+      TasksCompanion(
+        title: Value(title),
+        description: const Value(null),
+        category: const Value('Personal'),
+        dueDate: Value(now),
+        dueTime: const Value(null),
+        reminderMinutesBefore: const Value(null),
+        isCompleted: const Value(false),
+        isPlannerEntry: const Value(false),
+        createdAt: Value(now),
+      ),
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      _saved = true;
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 160));
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
+    return Material(
+      color: Colors.transparent,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: ColoredBox(color: Color(0x661C1C1E)),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(18, 18, 18, bottomInset + 86),
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x261C1C1E),
+                        blurRadius: 18,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: AppColors.accentSoft,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.task_alt_rounded,
+                          color: AppColors.accent,
+                          size: 21,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          focusNode: _focusNode,
+                          maxLength: 60,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _save(),
+                          decoration: const InputDecoration(
+                            hintText: "What's your task?",
+                            counterText: '',
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 10,
+                            ),
+                          ),
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 13,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: _saving || _saved ? null : _save,
+                        style: IconButton.styleFrom(
+                          backgroundColor: AppColors.accent,
+                          foregroundColor: AppColors.surface,
+                          fixedSize: const Size(42, 42),
+                        ),
+                        icon: _saved
+                            ? const Icon(Icons.check_rounded, size: 21)
+                            : _saving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.surface,
+                                ),
+                              )
+                            : const Icon(Icons.send_rounded, size: 19),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _TodayTasksCard extends ConsumerWidget {
   const _TodayTasksCard({required this.tasks, this.compact = false});
   final List<Task> tasks;
@@ -970,7 +1154,7 @@ class _TodayTasksCard extends ConsumerWidget {
           ],
           const SizedBox(height: 3),
           GestureDetector(
-            onTap: () => showAddTaskSheet(context),
+            onTap: () => _showHomeQuickTaskComposer(context, ref),
             child: Container(
               width: double.infinity,
               padding: EdgeInsets.symmetric(
@@ -1061,6 +1245,7 @@ class _MiniTaskRow extends StatelessWidget {
           Expanded(
             child: Text(
               task.title,
+              maxLines: compact ? 2 : null,
               style: TextStyle(
                 fontFamily: 'Poppins',
                 fontSize: compact ? 10 : 13,
