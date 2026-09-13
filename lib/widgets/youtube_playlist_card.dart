@@ -794,11 +794,13 @@ class _PlaylistPageItemState
                   // Progress bar + percentage
                   // ───────────────────────────────────────────────────────────
 
-                  Row(
-                    children: [
-
-                      Expanded(
-                        child: ClipRRect(
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      return Row(
+                        children: [
+                          SizedBox(
+                            width: constraints.maxWidth * 0.5,
+                            child: ClipRRect(
                           borderRadius:
                               BorderRadius
                                   .circular(6),
@@ -820,14 +822,14 @@ class _PlaylistPageItemState
                               AppColors
                                   .accent,
                             ),
+                            ),
                           ),
-                        ),
-                      ),
+                          ),
 
-                      const SizedBox(width: 8),
+                          const SizedBox(width: 8),
 
-                      Text(
-                        '$pct%',
+                          Text(
+                            '$pct%',
 
                         style:
                             const TextStyle(
@@ -840,8 +842,10 @@ class _PlaylistPageItemState
                               AppColors
                                   .textSecondary,
                         ),
-                      ),
-                    ],
+                          ),
+                        ],
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 5),
@@ -916,43 +920,24 @@ class _PlaylistPageItemState
                     widget.onAddTap,
 
                 child: Container(
-                  width: 42,
-                  height: 42,
+                  width: 34,
+                  height: 34,
 
                   decoration:
                       BoxDecoration(
                     color:
-                        AppColors.accent,
+                        AppColors.textPrimary,
 
                     shape:
                         BoxShape.circle,
 
-                    border:
-                        Border.all(
-                      color:
-                          Colors.white,
-                      width: 2,
-                    ),
-
-                    boxShadow:
-                        const [
-                      BoxShadow(
-                        color:
-                            Color(
-                          0x261C1C1E,
-                        ),
-                        blurRadius: 8,
-                        offset:
-                            Offset(0, 2),
-                      ),
-                    ],
                   ),
 
                   child: const Icon(
                     Icons.add_rounded,
                     color:
                         Colors.white,
-                    size: 30,
+                    size: 22,
                   ),
                 ),
               ),

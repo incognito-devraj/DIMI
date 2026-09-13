@@ -60,11 +60,14 @@ class HomeScreen extends ConsumerWidget {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenHorizontal,
+                  horizontal: AppSpacing.screenHorizontal + 8,
                 ),
                 child: DimiFadeSlide(
                   delay: const Duration(milliseconds: 45),
-                  child: const YoutubePlaylistCard(),
+                  child: Transform.translate(
+                    offset: const Offset(0, -8),
+                    child: const YoutubePlaylistCard(),
+                  ),
                 ),
               ),
             ),
