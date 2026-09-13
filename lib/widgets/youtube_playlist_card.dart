@@ -233,7 +233,7 @@ class _CardShell extends StatelessWidget {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(10),
       child: child,
     );
   }
@@ -278,7 +278,7 @@ class _CardHeader extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontFamily: 'Poppins',
+              fontFamily: 'Inter',
               fontSize: 11,
               fontWeight: FontWeight.w600,
               color: AppColors.textSecondary,
@@ -287,21 +287,6 @@ class _CardHeader extends StatelessWidget {
           ),
         ),
 
-        IconButton(
-          onPressed: onAddTap,
-          padding: EdgeInsets.zero,
-          constraints:
-              const BoxConstraints(
-            minWidth: 30,
-            minHeight: 30,
-          ),
-          splashRadius: 18,
-          icon: const Icon(
-            Icons.add_rounded,
-            size: 22,
-            color: AppColors.accent,
-          ),
-        ),
       ],
     );
   }
@@ -330,7 +315,7 @@ class _EmptyState extends StatelessWidget {
           onAddTap: onAddTap,
         ),
 
-        const SizedBox(height: 14),
+        const SizedBox(height: 8),
 
         GestureDetector(
           onTap: onAddTap,
@@ -338,7 +323,8 @@ class _EmptyState extends StatelessWidget {
             width: double.infinity,
             padding:
                 const EdgeInsets.symmetric(
-              vertical: 20,
+              horizontal: 12,
+              vertical: 10,
             ),
             decoration: BoxDecoration(
               color:
@@ -349,27 +335,27 @@ class _EmptyState extends StatelessWidget {
                 color: AppColors.divider,
               ),
             ),
-            child: const Column(
-              mainAxisSize: MainAxisSize.min,
+            child: Row(
               children: [
-
-                Icon(
-                  Icons.add_circle_outline_rounded,
-                  color: AppColors.accent,
-                  size: 28,
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: const BoxDecoration(
+                    color: AppColors.textPrimary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.add_rounded, color: AppColors.surface, size: 18),
                 ),
-
-                SizedBox(height: 6),
-
-                Text(
-                  'Add a playlist to start learning',
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 12,
-                    color:
-                        AppColors.textSecondary,
-                    fontWeight:
-                        FontWeight.w500,
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Add a playlist to start learning',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
@@ -739,7 +725,7 @@ class _PlaylistPageItemState
                             style:
                                 const TextStyle(
                               fontFamily:
-                                  'Poppins',
+                                  'Inter',
                               fontSize: 14,
                               fontWeight:
                                   FontWeight.w700,
@@ -779,7 +765,7 @@ class _PlaylistPageItemState
                       style:
                           const TextStyle(
                         fontFamily:
-                            'Poppins',
+                            'Inter',
                         fontSize: 11,
                         color:
                             AppColors
@@ -834,7 +820,7 @@ class _PlaylistPageItemState
                         style:
                             const TextStyle(
                           fontFamily:
-                              'Poppins',
+                              'Inter',
                           fontSize: 10,
                           fontWeight:
                               FontWeight.w600,
@@ -865,8 +851,8 @@ class _PlaylistPageItemState
 
                     style:
                         const TextStyle(
-                      fontFamily:
-                          'Poppins',
+                    fontFamily:
+                        'Inter',
                       fontSize: 10,
                       color:
                           AppColors
@@ -892,8 +878,8 @@ class _PlaylistPageItemState
 
                     style:
                         const TextStyle(
-                      fontFamily:
-                          'Poppins',
+                    fontFamily:
+                        'Inter',
                       fontSize: 10,
                       color:
                           AppColors

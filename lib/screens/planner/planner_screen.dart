@@ -144,7 +144,12 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                   children: [
                     Text(
                       'Planner',
-                      style: Theme.of(context).textTheme.displayMedium,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 26,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                     const SizedBox(height: 3),
                     const Text(

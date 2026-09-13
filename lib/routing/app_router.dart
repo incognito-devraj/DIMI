@@ -196,7 +196,7 @@ CustomTransitionPage<void> _fade(GoRouterState state, Widget child) {
   return CustomTransitionPage<void>(
     key: state.pageKey,
     child: child,
-    transitionDuration: DimiMotion.smooth,
+    transitionDuration: DimiMotion.normal,
     transitionsBuilder: dimiPageTransition,
   );
 }
