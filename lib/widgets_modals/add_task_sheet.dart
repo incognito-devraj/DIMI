@@ -9,6 +9,8 @@ import '../providers/task_providers.dart';
 import '../providers/reminder_providers.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/todo_text.dart';
+import '../widgets/dimi_success_dialog.dart';
 
 /// Opens the Add/Edit Task modal bottom sheet.
 /// Pass [existingTask] to enter edit mode.
@@ -29,68 +31,11 @@ Future<void> showAddTaskSheet(
     ),
   );
   if (saved == true && context.mounted) {
-    await showDialog<void>(
-      context: context,
-      barrierColor: AppColors.textPrimary.withAlpha(150),
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: const BoxDecoration(
-                color: AppColors.accent,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.check_rounded,
-                color: AppColors.surface,
-                size: 36,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              existingTask == null ? 'Task Added!' : 'Task Updated!',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'One step closer to your goals.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                style: TextButton.styleFrom(
-                  backgroundColor: AppColors.background,
-                  foregroundColor: AppColors.textPrimary,
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                ),
-                child: const Text(
-                  'Done',
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    await showDimiSuccessDialog(
+      context,
+      title: existingTask == null
+          ? (plannerEntry ? 'Task Added!' : 'To-Do Added!')
+          : 'Task Updated!',
     );
   }
 }
@@ -218,13 +163,16 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     setState(() => _saving = true);
 
     final dao = ref.read(taskDaoProvider);
+    final savedTitle = widget.plannerEntry
+        ? _titleCtrl.text.trim()
+        : formatTodoTitle(_titleCtrl.text);
 
     int? savedTaskId;
     if (_isEditing) {
       await dao.updateTask(
         TasksCompanion(
           id: Value(widget.existingTask!.id),
-          title: Value(_titleCtrl.text.trim()),
+          title: Value(savedTitle),
           description: Value(
             _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
           ),
@@ -243,7 +191,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     } else {
       savedTaskId = await dao.insertTask(
         TasksCompanion(
-          title: Value(_titleCtrl.text.trim()),
+          title: Value(savedTitle),
           description: Value(
             _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
           ),
@@ -275,7 +223,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
       final reminderDao = ref.read(reminderDaoProvider);
       final reminderId = await reminderDao.insertReminder(
         RemindersCompanion.insert(
-          title: _titleCtrl.text.trim(),
+          title: savedTitle,
           dueAt: reminderDueAt,
         ),
       );
@@ -339,7 +287,9 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _isEditing ? 'Edit Task' : 'Add Task',
+                        _isEditing
+                            ? (widget.plannerEntry ? 'Edit Task' : 'Edit To-Do')
+                            : (widget.plannerEntry ? 'Add Task' : 'Add To-Do'),
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                       const SizedBox(height: 2),
@@ -516,7 +466,11 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    _isEditing ? 'Save Changes' : 'Create Task',
+                                    _isEditing
+                                        ? 'Save Changes'
+                                        : (widget.plannerEntry
+                                            ? 'Create Task'
+                                            : 'Create To-Do'),
                                     style: const TextStyle(
                                       fontFamily: 'Poppins',
                                       fontSize: 14,

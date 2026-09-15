@@ -675,7 +675,7 @@ class _FullCategoryPicker extends StatelessWidget {
   );
 }
 
-IconData _categoryIcon(String category) => switch (category) {
+IconData financeCategoryIcon(String category) => switch (category) {
   'Sundries' => Icons.receipt_long_rounded,
   'Grocery' => Icons.shopping_cart_rounded,
   'Food & Dining' => Icons.restaurant_rounded,
@@ -693,6 +693,8 @@ IconData _categoryIcon(String category) => switch (category) {
   'Borrowed' => Icons.arrow_downward_rounded,
   _ => Icons.more_horiz_rounded,
 };
+
+IconData _categoryIcon(String category) => financeCategoryIcon(category);
 
 String _shortCategoryName(String category) => category == 'Food & Dining'
     ? 'Food'

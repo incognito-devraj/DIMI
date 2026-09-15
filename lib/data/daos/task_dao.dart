@@ -18,6 +18,46 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
             ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
           .watch();
 
+  /// Long-term To-Do items. Completed items intentionally remain visible.
+  Stream<List<Task>> watchAllTodos() {
+    final cutoff = DateTime.now().subtract(const Duration(days: 7));
+    return (select(tasks)
+          ..where(
+            (t) =>
+                t.isPlannerEntry.equals(false) &
+                (t.isCompleted.equals(false) |
+                    t.completedAt.isBiggerOrEqualValue(cutoff)),
+          )
+          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
+        .watch();
+  }
+
+  Stream<List<Task>> watchHomeTodos() {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    return (select(tasks)
+          ..where(
+            (t) =>
+                t.isPlannerEntry.equals(false) &
+                (t.isCompleted.equals(false) |
+                    t.completedAt.isBiggerOrEqualValue(start)),
+          )
+          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
+        .watch();
+  }
+
+  Future<int> purgeExpiredCompletedTodos() {
+    final cutoff = DateTime.now().subtract(const Duration(days: 7));
+    return (delete(tasks)
+          ..where(
+            (t) =>
+                t.isPlannerEntry.equals(false) &
+                t.isCompleted.equals(true) &
+                t.completedAt.isSmallerThanValue(cutoff),
+          ))
+        .go();
+  }
+
   Stream<List<Task>> watchAllPlannerEntries() =>
       (select(tasks)
             ..where((t) => t.isPlannerEntry.equals(true))
