@@ -62,10 +62,10 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/screens/
     - assets/style-guide.md
     - assets/profile/devraj.png
     - assets/google_g_logo.svg
     - assets/Greeting/
+    - assets/illustrations/
     - DIMI logo/Logo_PNG.png
     - DIMI logo/Main Logo.png

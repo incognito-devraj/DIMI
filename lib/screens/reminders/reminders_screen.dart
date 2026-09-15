@@ -142,6 +142,7 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
                           icon: Icons.notifications_outlined,
                           title: 'No reminders',
                           subtitle: 'Tap + to set a reminder.',
+                          asset: 'assets/illustrations/Reminder.png',
                         );
                       }
                       return ListView.separated(

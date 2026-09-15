@@ -61,9 +61,7 @@ class HomeScreen extends ConsumerWidget {
             // ── YouTube playlist card (replaces dark stats card) ───────
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: homeCardInset,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: homeCardInset),
                 child: DimiFadeSlide(
                   delay: const Duration(milliseconds: 45),
                   child: const YoutubePlaylistCard(),
@@ -75,9 +73,7 @@ class HomeScreen extends ConsumerWidget {
             // ── Today's tasks ──────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: homeCardInset,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: homeCardInset),
                 child: DimiFadeSlide(
                   delay: const Duration(milliseconds: 90),
                   child: const _HomeContentGrid(),
@@ -148,9 +144,7 @@ class HomeScreen extends ConsumerWidget {
             // Adaptive GitHub-style completion history.
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: homeCardInset,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: homeCardInset),
                 child: plannerEntriesAsync.when(
                   data: (tasks) => _HomeHeatmapCard(tasks: tasks),
                   loading: () => const _Shimmer(height: 155),
@@ -374,36 +368,91 @@ class _HomeContentGrid extends ConsumerWidget {
         data: (plannerItems) => weekly.when(
           data: (weeklyItems) => all.when(
             data: (allItems) => reminders.when(
-              data: (reminderItems) => _AdaptiveMasonry(
-                children: [
-                  _HomeNavigationCard(
-                    onTap: () => context.go(AppRoutes.todos),
-                    child: _TodayTasksCard(tasks: taskItems, compact: true),
-                  ),
-                  _HomeNavigationCard(
-                    onTap: () => context.go(AppRoutes.planner),
-                    child: _PlannerPreviewCard(
-                      tasks: plannerItems,
-                      compact: true,
-                    ),
-                  ),
-                  _HomeNavigationCard(
-                    onTap: () => context.go(AppRoutes.money),
-                    child: _FinanceCard(
-                      weeklyTransactions: weeklyItems,
-                      allTransactions: allItems,
-                      compact: true,
-                    ),
-                  ),
-                  _HomeNavigationCard(
-                    onTap: () => context.go(AppRoutes.reminders),
-                    child: _RemindersCard(
-                      reminders: reminderItems,
-                      compact: true,
-                    ),
-                  ),
-                ],
-              ),
+              data: (reminderItems) {
+                final noReminders = reminderItems
+                    .where((r) => r.isEnabled)
+                    .isEmpty;
+                final allEmpty =
+                    taskItems.isEmpty &&
+                    plannerItems.isEmpty &&
+                    allItems.isEmpty &&
+                    noReminders;
+                Widget todoCard() => _HomeNavigationCard(
+                  onTap: () => context.go(AppRoutes.todos),
+                  child: taskItems.isEmpty
+                      ? _HomeEmptyCard(
+                          asset: 'assets/illustrations/Todo.png',
+                          icon: Icons.checklist_rounded,
+                          title: 'To-Do\'s',
+                          emptyTitle: 'No to-dos yet',
+                          subtitle: 'Add a task to get started',
+                          action: 'Add To-Do',
+                          onAction: () =>
+                              _showHomeQuickTaskComposer(context, ref),
+                        )
+                      : _TodayTasksCard(tasks: taskItems, compact: true),
+                );
+                Widget plannerCard() => _HomeNavigationCard(
+                  onTap: () => context.go(AppRoutes.planner),
+                  child: plannerItems.isEmpty
+                      ? _HomeEmptyCard(
+                          asset: 'assets/illustrations/Planner.png',
+                          icon: Icons.calendar_today_rounded,
+                          title: 'Planner',
+                          emptyTitle: 'No plans for today',
+                          subtitle: 'Add a task to plan your day',
+                          action: 'Add Task',
+                            onAction: () => showAddTaskSheet(
+                              context,
+                              initialDate: DateTime.now(),
+                              plannerEntry: true,
+                            ),
+                        )
+                      : _PlannerPreviewCard(tasks: plannerItems, compact: true),
+                );
+                Widget financeCard() => _HomeNavigationCard(
+                  onTap: () => context.go(AppRoutes.money),
+                  child: allItems.isEmpty
+                      ? _HomeEmptyCard(
+                          asset: 'assets/illustrations/Finance.png',
+                          icon: Icons.account_balance_wallet_rounded,
+                          title: 'Finance',
+                          emptyTitle: 'No transactions yet',
+                          subtitle: 'Add income or expenses to track finances',
+                          action: 'Add Transaction',
+                          onAction: () => showAddExpenseSheet(context),
+                        )
+                      : _FinanceCard(
+                          weeklyTransactions: weeklyItems,
+                          allTransactions: allItems,
+                          compact: true,
+                        ),
+                );
+                Widget reminderCard() => _HomeNavigationCard(
+                  onTap: () => context.go(AppRoutes.reminders),
+                  child: noReminders
+                      ? _HomeEmptyCard(
+                          asset: 'assets/illustrations/Reminder.png',
+                          icon: Icons.notifications_active_rounded,
+                          title: 'Reminders',
+                          emptyTitle: 'No reminders yet',
+                          subtitle:
+                              'Add a reminder so you do not miss anything',
+                          action: 'Add Reminder',
+                          onAction: () => showAddReminderSheet(context),
+                        )
+                      : _RemindersCard(reminders: reminderItems, compact: true),
+                );
+                final cards = [
+                  todoCard(),
+                  plannerCard(),
+                  financeCard(),
+                  reminderCard(),
+                ];
+                return allEmpty
+                    ? _FixedHomeGrid(children: cards)
+                    : _AdaptiveMasonry(children: cards);
+              },
               loading: () => const _Shimmer(height: 220),
               error: (_, _) => const SizedBox.shrink(),
             ),
@@ -441,6 +490,172 @@ class _HomeNavigationCard extends StatelessWidget {
   }
 }
 
+class _FixedHomeGrid extends StatelessWidget {
+  const _FixedHomeGrid({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 8.0;
+        final cardWidth = (constraints.maxWidth - gap) / 2;
+        final cardHeight = (cardWidth * 1.28).clamp(218.0, 290.0);
+        Widget card(Widget child) =>
+            SizedBox(width: cardWidth, height: cardHeight, child: child);
+        final source = [
+          ...children,
+          ...List<Widget>.filled(4 - children.length, const SizedBox.shrink()),
+        ];
+        // Keep the requested fixed matrix: To-Do's / Finance, then
+        // Planner / Reminders. The provider-backed card widgets themselves
+        // remain unchanged.
+        final items = [source[0], source[2], source[1], source[3]];
+        return Column(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                card(items[0]),
+                const SizedBox(width: gap),
+                card(items[1]),
+              ],
+            ),
+            const SizedBox(height: gap),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                card(items[2]),
+                const SizedBox(width: gap),
+                card(items[3]),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _HomeEmptyCard extends StatelessWidget {
+  const _HomeEmptyCard({
+    required this.asset,
+    required this.icon,
+    required this.title,
+    required this.emptyTitle,
+    required this.subtitle,
+    required this.action,
+    required this.onAction,
+  });
+  final String asset;
+  final IconData icon;
+  final String title;
+  final String emptyTitle;
+  final String subtitle;
+  final String action;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) => SectionCard(
+    padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+    child: Column(
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: AppColors.accentSoft,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 15, color: AppColors.accent),
+            ),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+        // This placeholder also lives in the original masonry when only
+        // some cards are empty, so its height must never be unbounded.
+        SizedBox(
+          height: 150,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset(asset, width: 76, height: 58, fit: BoxFit.contain),
+              const SizedBox(height: 8),
+              Text(
+                emptyTitle,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 9,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        GestureDetector(
+          onTap: onAction,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.accentSoft,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.add_rounded, size: 17),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(
+                    action,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class _AdaptiveMasonry extends MultiChildRenderObjectWidget {
   const _AdaptiveMasonry({required super.children});
 
@@ -471,77 +686,29 @@ class _RenderAdaptiveMasonry extends RenderBox
     final width = constraints.maxWidth;
     final columnCount = width < _singleColumnBreakpoint ? 1 : 2;
     final columnWidth = columnCount == 1 ? width : (width - _gap) / 2;
-    final children = <RenderBox>[];
     RenderBox? child = firstChild;
+    final heights = List<double>.filled(columnCount, 0);
     while (child != null) {
       child.layout(
         BoxConstraints.tightFor(width: columnWidth),
         parentUsesSize: true,
       );
-      children.add(child);
-      child = (child.parentData! as _MasonryParentData).nextSibling;
-    }
-
-    if (children.isEmpty) {
-      size = constraints.constrain(Size(width, 0));
-      return;
-    }
-
-    // There are only a few Home cards, so evaluate the possible placements
-    // instead of relying on a fixed row order. This keeps every card at its
-    // natural height while choosing the composition with the smallest total
-    // column footprint. On narrow screens the original order is preserved.
-    final order = <int>[];
-    if (columnCount == 1) {
-      order.addAll(List<int>.generate(children.length, (index) => index));
-    } else {
-      var bestOrder = List<int>.generate(children.length, (index) => index);
-      var bestHeight = double.infinity;
-      var bestBalance = double.infinity;
-
-      void evaluate(List<int> candidate) {
-        final candidateHeights = [0.0, 0.0];
-        for (final index in candidate) {
-          final target = candidateHeights[0] <= candidateHeights[1] ? 0 : 1;
-          candidateHeights[target] += children[index].size.height + _gap;
-        }
-        final footprint = candidateHeights.reduce((a, b) => a > b ? a : b);
-        final balance = (candidateHeights[0] - candidateHeights[1]).abs();
-        if (footprint < bestHeight ||
-            (footprint == bestHeight && balance < bestBalance)) {
-          bestHeight = footprint;
-          bestBalance = balance;
-          bestOrder = List<int>.of(candidate);
-        }
+      var targetColumn = 0;
+      for (var i = 1; i < heights.length; i++) {
+        if (heights[i] < heights[targetColumn]) targetColumn = i;
       }
-
-      void permute(List<int> remaining, List<int> current) {
-        if (remaining.isEmpty) {
-          evaluate(current);
-          return;
-        }
-        for (var i = 0; i < remaining.length; i++) {
-          final next = List<int>.of(remaining)..removeAt(i);
-          permute(next, [...current, remaining[i]]);
-        }
-      }
-
-      permute(List<int>.generate(children.length, (index) => index), const []);
-      order.addAll(bestOrder);
-    }
-
-    final heights = [0.0, 0.0];
-    for (final index in order) {
-      final target = columnCount == 1 || heights[0] <= heights[1] ? 0 : 1;
-      final parentData = children[index].parentData! as _MasonryParentData;
+      final parentData = child.parentData! as _MasonryParentData;
       parentData.offset = Offset(
-        target == 0 ? 0 : columnWidth + _gap,
-        heights[target],
+        targetColumn == 0 ? 0 : columnWidth + _gap,
+        heights[targetColumn],
       );
-      heights[target] += children[index].size.height + _gap;
+      heights[targetColumn] += child.size.height + _gap;
+      child = parentData.nextSibling;
     }
 
-    final contentHeight = heights.reduce((a, b) => a > b ? a : b) - _gap;
+    final contentHeight = heights.isEmpty
+        ? 0.0
+        : heights.reduce((a, b) => a > b ? a : b) - _gap;
     size = constraints.constrain(Size(width, contentHeight));
   }
 
@@ -998,8 +1165,7 @@ class _HomeQuickTaskComposer extends StatefulWidget {
   final WidgetRef ref;
 
   @override
-  State<_HomeQuickTaskComposer> createState() =>
-      _HomeQuickTaskComposerState();
+  State<_HomeQuickTaskComposer> createState() => _HomeQuickTaskComposerState();
 }
 
 class _HomeQuickTaskComposerState extends State<_HomeQuickTaskComposer> {
@@ -1029,19 +1195,21 @@ class _HomeQuickTaskComposerState extends State<_HomeQuickTaskComposer> {
 
     setState(() => _saving = true);
     final now = DateTime.now();
-    await widget.ref.read(taskDaoProvider).insertTask(
-      TasksCompanion(
-        title: Value(formatTodoTitle(title)),
-        description: const Value(null),
-        category: const Value('Personal'),
-        dueDate: Value(now),
-        dueTime: const Value(null),
-        reminderMinutesBefore: const Value(null),
-        isCompleted: const Value(false),
-        isPlannerEntry: const Value(false),
-        createdAt: Value(now),
-      ),
-    );
+    await widget.ref
+        .read(taskDaoProvider)
+        .insertTask(
+          TasksCompanion(
+            title: Value(formatTodoTitle(title)),
+            description: const Value(null),
+            category: const Value('Personal'),
+            dueDate: Value(now),
+            dueTime: const Value(null),
+            reminderMinutesBefore: const Value(null),
+            isCompleted: const Value(false),
+            isPlannerEntry: const Value(false),
+            createdAt: Value(now),
+          ),
+        );
 
     if (!mounted) return;
     setState(() {
@@ -1060,9 +1228,7 @@ class _HomeQuickTaskComposerState extends State<_HomeQuickTaskComposer> {
       color: Colors.transparent,
       child: Stack(
         children: [
-          Positioned.fill(
-            child: ColoredBox(color: Color(0x661C1C1E)),
-          ),
+          Positioned.fill(child: ColoredBox(color: Color(0x661C1C1E))),
           SafeArea(
             child: Padding(
               padding: EdgeInsets.fromLTRB(18, 18, 18, bottomInset + 86),
@@ -1268,69 +1434,71 @@ class _MiniTaskRow extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.only(bottom: compact ? 5 : 8),
         child: Row(
-        children: [
-          GestureDetector(
-            onTap: _toggle,
-            child: AnimatedContainer(
-              duration: DimiMotion.fast,
-              curve: DimiMotion.curve,
-              width: compact ? 16 : 20,
-              height: compact ? 16 : 20,
-              decoration: BoxDecoration(
-                color: task.isCompleted ? AppColors.accent : Colors.transparent,
-                border: Border.all(
+          children: [
+            GestureDetector(
+              onTap: _toggle,
+              child: AnimatedContainer(
+                duration: DimiMotion.fast,
+                curve: DimiMotion.curve,
+                width: compact ? 16 : 20,
+                height: compact ? 16 : 20,
+                decoration: BoxDecoration(
                   color: task.isCompleted
                       ? AppColors.accent
-                      : AppColors.textSecondary,
-                  width: 1.5,
+                      : Colors.transparent,
+                  border: Border.all(
+                    color: task.isCompleted
+                        ? AppColors.accent
+                        : AppColors.textSecondary,
+                    width: 1.5,
+                  ),
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: AnimatedSwitcher(
-                duration: DimiMotion.fast,
-                transitionBuilder: (child, animation) => ScaleTransition(
-                  scale: animation,
-                  child: FadeTransition(opacity: animation, child: child),
+                child: AnimatedSwitcher(
+                  duration: DimiMotion.fast,
+                  transitionBuilder: (child, animation) => ScaleTransition(
+                    scale: animation,
+                    child: FadeTransition(opacity: animation, child: child),
+                  ),
+                  child: task.isCompleted
+                      ? const Icon(
+                          Icons.check_rounded,
+                          key: ValueKey('home-mini-done'),
+                          size: 12,
+                          color: AppColors.surface,
+                        )
+                      : const SizedBox(key: ValueKey('home-mini-pending')),
                 ),
-                child: task.isCompleted
-                    ? const Icon(
-                        Icons.check_rounded,
-                        key: ValueKey('home-mini-done'),
-                        size: 12,
-                        color: AppColors.surface,
-                      )
-                    : const SizedBox(key: ValueKey('home-mini-pending')),
               ),
             ),
-          ),
-          SizedBox(width: compact ? 5 : 10),
-          Expanded(
-            child: Text(
-              task.title,
-              maxLines: compact ? 2 : null,
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: compact ? 12.5 : 13,
-                color: task.isCompleted
-                    ? AppColors.textSecondary
-                    : AppColors.textPrimary,
-                decoration: task.isCompleted
-                    ? TextDecoration.lineThrough
-                    : null,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (!compact && task.dueTime != null)
-            Text(
-              formatTime12Hour(task.dueTime),
-              style: const TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 11,
-                color: AppColors.textSecondary,
+            SizedBox(width: compact ? 5 : 10),
+            Expanded(
+              child: Text(
+                task.title,
+                maxLines: compact ? 2 : null,
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: compact ? 12.5 : 13,
+                  color: task.isCompleted
+                      ? AppColors.textSecondary
+                      : AppColors.textPrimary,
+                  decoration: task.isCompleted
+                      ? TextDecoration.lineThrough
+                      : null,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-        ],
+            if (!compact && task.dueTime != null)
+              Text(
+                formatTime12Hour(task.dueTime),
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -1510,7 +1678,7 @@ class _PlannerPreviewCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'Poppins',
-              fontSize: compact ? 14 : 15,
+                    fontSize: compact ? 14 : 15,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
@@ -2068,19 +2236,19 @@ class _RemindersCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _HomeCardHeader(
-                icon: Icons.notifications_none_rounded,
-                title: 'Reminders',
-                compact: compact,
-                onTap: () => context.go(AppRoutes.reminders),
-                trailing: Text(
-                  '${upcoming.length} upcoming',
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: compact ? 8 : 11,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
+            icon: Icons.notifications_none_rounded,
+            title: 'Reminders',
+            compact: compact,
+            onTap: () => context.go(AppRoutes.reminders),
+            trailing: Text(
+              '${upcoming.length} upcoming',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: compact ? 8 : 11,
+                color: AppColors.textSecondary,
               ),
+            ),
+          ),
           if (upcoming.isEmpty) ...[
             SizedBox(height: compact ? 8 : 10),
             const Text(
