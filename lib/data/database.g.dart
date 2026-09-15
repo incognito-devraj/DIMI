@@ -7594,12 +7594,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $YoutubeVideosTable youtubeVideos = $YoutubeVideosTable(this);
   late final TaskDao taskDao = TaskDao(this as AppDatabase);
-  late final ClassDao classDao = ClassDao(this as AppDatabase);
-  late final StudyDao studyDao = StudyDao(this as AppDatabase);
   late final MoneyDao moneyDao = MoneyDao(this as AppDatabase);
-  late final NoteDao noteDao = NoteDao(this as AppDatabase);
   late final ReminderDao reminderDao = ReminderDao(this as AppDatabase);
-  late final DocumentDao documentDao = DocumentDao(this as AppDatabase);
   late final ProfileDao profileDao = ProfileDao(this as AppDatabase);
   late final TransactionDetectionDao transactionDetectionDao =
       TransactionDetectionDao(this as AppDatabase);
