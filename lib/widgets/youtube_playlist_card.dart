@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -139,14 +141,14 @@ class _YoutubePlaylistCardState
 
               // ─────────────────────────────────────────────────────────────
               // IMPORTANT:
-              // The entire playlist page is 132px high.
+              // Keep the playlist content inside a compact but safe viewport.
               //
               // Thumbnail + text + plus button are all INSIDE this PageView.
               // Therefore they scroll together.
               // ─────────────────────────────────────────────────────────────
 
               SizedBox(
-                height: 132,
+                height: 154,
                 child: PageView.builder(
                   controller: _pageController,
                   itemCount: rows.length,
@@ -411,7 +413,7 @@ class _LoadingState extends StatelessWidget {
 //    └── floating +
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _PlaylistPageItem extends StatefulWidget {
+class _PlaylistPageItem extends ConsumerStatefulWidget {
   const _PlaylistPageItem({
     super.key,
     required this.row,
@@ -431,19 +433,32 @@ class _PlaylistPageItem extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_PlaylistPageItem> createState() =>
+  ConsumerState<_PlaylistPageItem> createState() =>
       _PlaylistPageItemState();
 }
 
 class _PlaylistPageItemState
-    extends State<_PlaylistPageItem> {
+    extends ConsumerState<_PlaylistPageItem> {
 
   List<YoutubeVideo>? _videos;
+  StreamSubscription<List<YoutubeVideo>>? _videoSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadVideos();
+    _videoSubscription = ref
+        .read(youtubePlaylistDaoProvider)
+        .watchVideos(widget.row.id)
+        .listen((videos) {
+          if (mounted) setState(() => _videos = videos);
+        });
+  }
+
+  @override
+  void dispose() {
+    _videoSubscription?.cancel();
+    super.dispose();
   }
 
   @override
@@ -456,6 +471,13 @@ class _PlaylistPageItemState
         oldWidget.row.updatedAt !=
             widget.row.updatedAt) {
       _loadVideos();
+      _videoSubscription?.cancel();
+      _videoSubscription = ref
+          .read(youtubePlaylistDaoProvider)
+          .watchVideos(widget.row.id)
+          .listen((videos) {
+            if (mounted) setState(() => _videos = videos);
+          });
     }
   }
 
@@ -785,7 +807,7 @@ class _PlaylistPageItemState
                       return Row(
                         children: [
                           SizedBox(
-                            width: constraints.maxWidth * 0.5,
+                            width: constraints.maxWidth * 0.48,
                             child: ClipRRect(
                           borderRadius:
                               BorderRadius
@@ -796,7 +818,7 @@ class _PlaylistPageItemState
                             value:
                                 progress,
 
-                            minHeight: 6,
+                            minHeight: 8,
 
                             backgroundColor:
                                 AppColors
@@ -821,12 +843,9 @@ class _PlaylistPageItemState
                             const TextStyle(
                           fontFamily:
                               'Inter',
-                          fontSize: 10,
-                          fontWeight:
-                              FontWeight.w600,
-                          color:
-                              AppColors
-                                  .textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
                         ),
                           ),
                         ],

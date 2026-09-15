@@ -20,12 +20,8 @@ import 'tables/youtube_videos.dart';
 
 // DAOs
 import 'daos/task_dao.dart';
-import 'daos/class_dao.dart';
-import 'daos/study_dao.dart';
 import 'daos/money_dao.dart';
-import 'daos/note_dao.dart';
 import 'daos/reminder_dao.dart';
-import 'daos/document_dao.dart';
 import 'daos/profile_dao.dart';
 import 'daos/transaction_detection_dao.dart';
 import 'daos/youtube_playlist_dao.dart';
@@ -51,12 +47,8 @@ part 'database.g.dart';
   ],
   daos: [
     TaskDao,
-    ClassDao,
-    StudyDao,
     MoneyDao,
-    NoteDao,
     ReminderDao,
-    DocumentDao,
     ProfileDao,
     TransactionDetectionDao,
     YoutubePlaylistDao,
@@ -80,13 +72,8 @@ class AppDatabase extends _$AppDatabase {
     }
     await transaction(() async {
       await delete(tasks).go();
-      await delete(classSessions).go();
-      await delete(studySessions).go();
-      await delete(courses).go();
       await delete(moneyTransactions).go();
-      await delete(notes).go();
       await delete(reminders).go();
-      await delete(documentMeta).go();
       await delete(transactionDetectionEvents).go();
       await delete(transactionCandidates).go();
       await delete(merchantCategoryRules).go();

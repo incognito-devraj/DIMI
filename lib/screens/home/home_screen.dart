@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -51,7 +52,6 @@ class HomeScreen extends ConsumerWidget {
                 child: _GreetingHero(
                   name: name,
                   profileAsync: profileAsync,
-                  onNotificationTap: () => context.go(AppRoutes.reminders),
                   onProfileTap: () => context.push(AppRoutes.profile),
                 ),
               ),
@@ -489,13 +489,11 @@ class _GreetingHero extends StatelessWidget {
   const _GreetingHero({
     required this.name,
     required this.profileAsync,
-    required this.onNotificationTap,
     required this.onProfileTap,
   });
 
   final String name;
   final AsyncValue<dynamic> profileAsync;
-  final VoidCallback onNotificationTap;
   final VoidCallback onProfileTap;
 
   static String _greeting() {
@@ -638,28 +636,6 @@ class _GreetingHero extends StatelessWidget {
                     ],
                   ),
                 ),
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    _HomeHeaderButton(
-                      icon: Icons.notifications_none_rounded,
-                      onTap: onNotificationTap,
-                    ),
-                    Positioned(
-                      right: 7,
-                      top: 6,
-                      child: Container(
-                        width: 7,
-                        height: 7,
-                        decoration: const BoxDecoration(
-                          color: AppColors.danger,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 8),
                 GestureDetector(
                   onTap: onProfileTap,
                   child: CircleAvatar(
@@ -901,7 +877,7 @@ class _HomeCardHeader extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: 'Poppins',
-              fontSize: compact ? 11 : 14,
+              fontSize: compact ? 14 : 15,
               fontWeight: FontWeight.w700,
               color: AppColors.textPrimary,
             ),
@@ -1123,7 +1099,7 @@ class _TodayTasksCard extends ConsumerWidget {
         children: [
           _HomeCardHeader(
             icon: Icons.check_circle_outline_rounded,
-            title: "Today's Tasks",
+            title: "To-Do's",
             compact: compact,
             onTap: () => context.go(AppRoutes.planner),
             trailing: Text(
@@ -1201,14 +1177,24 @@ class _MiniTaskRow extends StatelessWidget {
   final dynamic dao;
   final bool compact;
 
+  Future<void> _toggle() async {
+    final completing = !task.isCompleted;
+    await dao.toggleCompleted(task.id, !task.isCompleted);
+    if (completing) {
+      await SystemSound.play(SystemSoundType.click);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: compact ? 5 : 8),
-      child: Row(
+    return GestureDetector(
+      onTap: _toggle,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: compact ? 5 : 8),
+        child: Row(
         children: [
           GestureDetector(
-            onTap: () => dao.toggleCompleted(task.id, !task.isCompleted),
+            onTap: _toggle,
             child: AnimatedContainer(
               duration: DimiMotion.fast,
               curve: DimiMotion.curve,
@@ -1248,7 +1234,7 @@ class _MiniTaskRow extends StatelessWidget {
               maxLines: compact ? 2 : null,
               style: TextStyle(
                 fontFamily: 'Poppins',
-                fontSize: compact ? 10 : 13,
+                fontSize: compact ? 12.5 : 13,
                 color: task.isCompleted
                     ? AppColors.textSecondary
                     : AppColors.textPrimary,
@@ -1269,6 +1255,7 @@ class _MiniTaskRow extends StatelessWidget {
               ),
             ),
         ],
+        ),
       ),
     );
   }
@@ -1318,7 +1305,7 @@ class _PlannerPreviewCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'Poppins',
-                    fontSize: compact ? 11 : 14,
+              fontSize: compact ? 14 : 15,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
@@ -1351,7 +1338,7 @@ class _PlannerPreviewCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontFamily: 'Poppins',
-                          fontSize: compact ? 8 : 10,
+                          fontSize: compact ? 9 : 10,
                           color: AppColors.textSecondary,
                         ),
                       ),
@@ -1382,7 +1369,7 @@ class _PlannerPreviewCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontFamily: 'Poppins',
-                            fontSize: compact ? 9 : 11,
+                            fontSize: compact ? 10.5 : 11,
                             fontWeight: FontWeight.w500,
                             color: task.isCompleted
                                 ? AppColors.textSecondary

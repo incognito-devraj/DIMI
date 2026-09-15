@@ -236,9 +236,11 @@ class _VideoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
+    return GestureDetector(
+      onTap: onToggle,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // Position number
@@ -311,15 +313,13 @@ class _VideoRow extends StatelessWidget {
           const SizedBox(width: 10),
 
           // Checkbox
-          GestureDetector(
-            onTap: onToggle,
-            child: AnimatedContainer(
+          AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               width: 26,
               height: 26,
               decoration: BoxDecoration(
                 color: completed ? AppColors.accent : Colors.transparent,
-                borderRadius: BorderRadius.circular(6),
+                shape: BoxShape.circle,
                 border: Border.all(
                   color: completed ? AppColors.accent : AppColors.textSecondary,
                   width: 1.5,
@@ -332,9 +332,9 @@ class _VideoRow extends StatelessWidget {
                       color: AppColors.surface,
                     )
                   : null,
-            ),
-          ),
+              ),
         ],
+        ),
       ),
     );
   }
