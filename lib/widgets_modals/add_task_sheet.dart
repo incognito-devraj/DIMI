@@ -238,16 +238,21 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final media = MediaQuery.of(context);
+    final bottomInset = media.viewInsets.bottom;
 
     return Container(
-      margin: const EdgeInsets.only(top: 60),
+      margin: const EdgeInsets.only(top: 28),
       padding: EdgeInsets.only(bottom: bottomInset),
       decoration: const BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      child: Column(
+      child: SafeArea(
+        top: false,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: media.size.height - 28),
+          child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Handle
@@ -260,28 +265,24 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
           // Header
           Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.screenHorizontal,
-            ),
-            child: Row(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Form(
+              key: _formKey,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: AppColors.accentSoft,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(
-                    Icons.edit_rounded,
-                    color: AppColors.accent,
-                    size: 24,
+                SizedBox(
+                  width: 108,
+                  height: 94,
+                  child: Image.asset(
+                    'assets/illustrations/Planner.png',
+                    fit: BoxFit.contain,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -292,14 +293,29 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                             : (widget.plannerEntry ? 'Add Task' : 'Add To-Do'),
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'Turn your plans into progress.',
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 11,
-                          color: AppColors.textSecondary,
+                      const SizedBox(height: 7),
+                      TextFormField(
+                        controller: _titleCtrl,
+                        autofocus: !_isEditing,
+                        textCapitalization: TextCapitalization.sentences,
+                        maxLength: 60,
+                        inputFormatters: [LengthLimitingTextInputFormatter(60)],
+                        decoration: const InputDecoration(
+                          hintText: 'New task...',
+                          counterText: '',
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                         ),
+                        validator: (v) {
+                          final value = v?.trim() ?? '';
+                          if (value.isEmpty) return 'Title is required';
+                          if (value.split(RegExp(r'\s+')).length > 10) {
+                            return 'Keep it to 10 words or fewer';
+                          }
+                          return null;
+                        },
                       ),
                     ],
                   ),
@@ -319,40 +335,16 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           // Form
           Flexible(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.screenHorizontal,
               ),
-              child: Form(
-                key: _formKey,
-                child: Column(
+              child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _FieldLabel('Title'),
-                    const SizedBox(height: 6),
-                    TextFormField(
-                      controller: _titleCtrl,
-                      autofocus: !_isEditing,
-                      textCapitalization: TextCapitalization.sentences,
-                      maxLength: 60,
-                      inputFormatters: [LengthLimitingTextInputFormatter(60)],
-                      decoration: const InputDecoration(
-                        hintText: 'e.g. DBMS Assignment',
-                      ),
-                      validator: (v) {
-                        final value = v?.trim() ?? '';
-                        if (value.isEmpty) return 'Title is required';
-                        if (value.split(RegExp(r'\s+')).length > 10) {
-                          return 'Keep it to 10 words or fewer';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 14),
-                    if (mounted && !mounted) ...[
                     _FieldLabel('Description (optional)'),
                     const SizedBox(height: 6),
                     TextFormField(
@@ -373,8 +365,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 14),
-                    ],
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(

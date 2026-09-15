@@ -334,6 +334,7 @@ class _DayViewState extends ConsumerState<_DayView> {
                 icon: Icons.calendar_today_outlined,
                 title: 'Nothing scheduled',
                 subtitle: 'Tap Add task to schedule your first task.',
+                asset: 'assets/illustrations/Planner.png',
               )
             : _ReferenceDaySchedule(
                 tasks: sorted,

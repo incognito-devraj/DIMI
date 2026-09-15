@@ -13,6 +13,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/todo_text.dart';
 import '../../widgets/dimi_add_action_button.dart';
 import '../../widgets/section_card.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/dimi_success_dialog.dart';
 import '../../widgets/dimi_delete_dialog.dart';
 
@@ -195,11 +196,11 @@ class _TodosTaskList extends ConsumerWidget {
           ),
           const SizedBox(height: 10),
           if (items.isEmpty)
-            const SectionCard(
-              child: Text(
-                'No To-Do\'s yet. Add one to keep it for later.',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
+            const EmptyState(
+              icon: Icons.checklist_outlined,
+              asset: 'assets/illustrations/Todo.png',
+              title: 'No To-Do\'s yet',
+              subtitle: 'Add a task to keep it for later.',
             )
           else
             ...items.map((task) => _TodoRow(task: task)),
@@ -296,11 +297,11 @@ class _TodosNotesList extends ConsumerWidget {
           ),
           const SizedBox(height: 10),
           if (items.isEmpty)
-            const SectionCard(
-              child: Text(
-                'No notes yet.',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
+            const EmptyState(
+              icon: Icons.note_alt_outlined,
+              asset: 'assets/illustrations/Todo.png',
+              title: 'No notes yet',
+              subtitle: 'Add a note for future reference.',
             )
           else
             ...items.map((note) => _NoteCard(note: note)),

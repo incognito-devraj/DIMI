@@ -345,6 +345,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                           icon: Icons.account_balance_wallet_outlined,
                           title: 'No transactions yet',
                           subtitle: 'Tap + to add one.',
+                          asset: 'assets/illustrations/Finance.png',
                         );
                       }
                       return Column(
