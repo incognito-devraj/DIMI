@@ -15,6 +15,7 @@ import '../../widgets/empty_state.dart';
 import '../../widgets/dimi_add_action_button.dart';
 import '../../core/motion/dimi_motion.dart';
 import '../../widgets/pill_segmented_control.dart';
+import '../../widgets/section_card.dart';
 import '../../widgets_modals/add_expense_sheet.dart';
 
 const _kTabs = ['Overview', 'Transactions', 'Categories'];
@@ -194,7 +195,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
               child: Row(
                 children: [
                   const Text(
-                    'Expense',
+                    'Finance',
                     style: TextStyle(
                       fontFamily: 'Poppins',
                       fontSize: 26,
@@ -204,7 +205,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                   ),
                   const Spacer(),
                   IconButton(
-                    tooltip: 'Filter expenses',
+                    tooltip: 'Filter finance',
                     onPressed: () {
                       final categories = {
                         ..._allMoneyCategories,
@@ -223,7 +224,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Search expenses',
+                    tooltip: 'Search finance',
                     onPressed: _openSearch,
                     icon: const Icon(
                       Icons.search_rounded,
@@ -291,6 +292,15 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                   ),
                   const SizedBox(height: 12),
 
+                  if (_tabIndex == 2)
+                    allAsync.when(
+                      data: (transactions) => _CategorySpendGridV2(
+                        transactions: transactions,
+                      ),
+                      loading: () => const _SkeletonCard(height: 180),
+                      error: (_, _) => const SizedBox.shrink(),
+                    )
+                  else ...[
                   // Transaction list header
                   Padding(
                     padding: const EdgeInsets.symmetric(
@@ -362,6 +372,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                     error: (e, _) => Center(child: Text('Error: $e')),
                   ),
                   SizedBox(height: _showAddButton ? 80 : 0), // FAB clearance
+                  ],
                 ],
               ),
             ),
@@ -379,7 +390,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
             opacity: _showAddButton ? 1 : 0,
             duration: DimiMotion.fast,
             child: DimiAddActionButton(
-              label: 'Add expense',
+              label: 'Add transaction',
               icon: Icons.currency_rupee_rounded,
               onPressed: () => showAddExpenseSheet(context),
             ),
@@ -406,7 +417,7 @@ class _DetectedTransactionsPanel extends ConsumerWidget {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('New expenses detected', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            const Text('New transactions detected', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
             ...pending.take(3).map((candidate) => ListTile(contentPadding: EdgeInsets.zero, title: Text(candidate.merchantName), subtitle: Text('₹${(candidate.amountMinor / 100).toStringAsFixed(2)} · ${candidate.category} · ${candidate.paymentMethod ?? candidate.source}'), trailing: Wrap(spacing: 4, children: [IconButton(tooltip: 'Ignore', icon: const Icon(Icons.close_rounded), onPressed: () => db.transactionDetectionDao.updateStatus(candidate.candidateId, 'IGNORED')), IconButton(tooltip: 'Add', icon: const Icon(Icons.check_rounded), onPressed: () async { final isIncome = candidate.transactionType == 'INCOME'; await db.moneyDao.insertTransaction(MoneyTransactionsCompanion.insert(type: isIncome ? 'income' : 'expense', amount: candidate.amountMinor / 100, category: candidate.category, note: Value('${candidate.merchantName} · Detected automatically'), date: candidate.occurredAt)); await db.transactionDetectionDao.updateStatus(candidate.candidateId, 'CONFIRMED'); })]))),
           ]),
         ),
@@ -451,6 +462,173 @@ class _FilterChip extends StatelessWidget {
             color: selected ? AppColors.surface : AppColors.textPrimary,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _CategorySpendGridV2 extends StatelessWidget {
+  const _CategorySpendGridV2({required this.transactions});
+  final List<MoneyTransaction> transactions;
+
+  @override
+  Widget build(BuildContext context) {
+    final totals = <String, double>{};
+    for (final transaction in transactions) {
+      if (transaction.type == 'expense') {
+        totals.update(transaction.category, (value) => value + transaction.amount,
+            ifAbsent: () => transaction.amount);
+      }
+    }
+    final entries = totals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenHorizontal),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = (constraints.maxWidth - 16) / 3;
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: entries.map((entry) => SizedBox(
+              width: width,
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: AppColors.accentSoft,
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Icon(_categoryIcon(entry.key), size: 17, color: AppColors.accent),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(entry.key, maxLines: 2, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontFamily: 'Poppins', fontSize: 10, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 3),
+                    Text(_formatMoney(entry.value), maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.danger)),
+                  ],
+                ),
+              ),
+            )).toList(),
+          );
+        },
+      ),
+    );
+  }
+
+  static IconData _categoryIcon(String category) => financeCategoryIcon(category);
+
+  static String _formatMoney(double amount) {
+    final value = amount == amount.roundToDouble()
+        ? NumberFormat('#,##0', 'en_IN').format(amount)
+        : _fmt.format(amount);
+    return '₹$value';
+  }
+}
+
+class _CategorySpendGrid extends StatelessWidget {
+  const _CategorySpendGrid({required this.transactions});
+  final List<MoneyTransaction> transactions;
+
+  @override
+  Widget build(BuildContext context) {
+    final totals = <String, double>{};
+    for (final transaction in transactions) {
+      if (transaction.type == 'expense') {
+        totals.update(
+          transaction.category,
+          (value) => value + transaction.amount,
+          ifAbsent: () => transaction.amount,
+        );
+      }
+    }
+    final entries = totals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenHorizontal),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Spending by category',
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (entries.isEmpty)
+            const SectionCard(
+              child: Text(
+                'No expense categories yet',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            )
+          else
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: entries.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 1.7,
+              ),
+              itemBuilder: (context, index) {
+                final entry = entries[index];
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        entry.key,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        '₹${_fmt.format(entry.value)}',
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.danger,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          const SizedBox(height: 12),
+        ],
       ),
     );
   }
@@ -511,13 +689,20 @@ class _ExpenseSummaryCards extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 4),
-              Text(
-                '₹${_fmt.format(balance)}',
-                style: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 30,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
+              SizedBox(
+                width: double.infinity,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '₹${_fmt.format(balance)}',
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 30,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 15),
@@ -587,9 +772,10 @@ class _BalanceStat extends StatelessWidget {
     children: [
       Icon(icon, color: color, size: 26),
       const SizedBox(width: 8),
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           Text(
             label,
             style: const TextStyle(
@@ -598,16 +784,24 @@ class _BalanceStat extends StatelessWidget {
               color: Colors.white70,
             ),
           ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
+          SizedBox(
+            width: double.infinity,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value,
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     ],
   );
@@ -644,9 +838,10 @@ class _LoanCard extends StatelessWidget {
           child: Icon(icon, size: 19, color: color),
         ),
         const SizedBox(width: 9),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Text(
               label,
               style: const TextStyle(
@@ -655,16 +850,24 @@ class _LoanCard extends StatelessWidget {
                 color: AppColors.textSecondary,
               ),
             ),
-            Text(
-              '₹${_fmt.format(value)}',
-              style: const TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+            SizedBox(
+              width: double.infinity,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '₹${_fmt.format(value)}',
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ],
     ),
@@ -993,16 +1196,22 @@ class _TransactionTile extends ConsumerWidget {
               ),
             ),
             // Amount + date
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '$sign₹${_fmt.format(txn.amount)}',
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: color,
+            SizedBox(
+              width: 145,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '$sign₹${_fmt.format(txn.amount)}',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                    ),
                   ),
                 ),
                 Text(
@@ -1013,7 +1222,8 @@ class _TransactionTile extends ConsumerWidget {
                     color: AppColors.textSecondary,
                   ),
                 ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -1130,7 +1340,7 @@ class _TransactionTile extends ConsumerWidget {
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
-          'Delete transaction?',
+          'Are you sure?',
           style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
         ),
         content: Text('Remove this ${txn.type} of ₹${txn.amount}?'),

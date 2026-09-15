@@ -29,13 +29,19 @@ class AppScaffold extends StatelessWidget {
       route: '/home',
     ),
     _NavItem(
+      label: "To-Do's",
+      icon: Icons.checklist_outlined,
+      activeIcon: Icons.checklist_rounded,
+      route: '/todos',
+    ),
+    _NavItem(
       label: 'Planner',
       icon: Icons.calendar_today_outlined,
       activeIcon: Icons.calendar_today_rounded,
       route: '/planner',
     ),
     _NavItem(
-      label: 'Expense',
+      label: 'Finance',
       icon: Icons.account_balance_wallet_outlined,
       activeIcon: Icons.account_balance_wallet_rounded,
       route: '/money',

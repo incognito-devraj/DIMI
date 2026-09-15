@@ -27,7 +27,13 @@ class _DimiAddActionButtonState extends State<DimiAddActionButton> {
     return Semantics(
       button: true,
       label: widget.label,
-      child: AnimatedScale(
+      child: IntrinsicWidth(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minWidth: 158,
+            maxWidth: MediaQuery.sizeOf(context).width - 32,
+          ),
+          child: AnimatedScale(
         scale: _pressed ? .96 : 1,
         duration: DimiMotion.fast,
         curve: DimiMotion.curve,
@@ -42,8 +48,8 @@ class _DimiAddActionButtonState extends State<DimiAddActionButton> {
             onTapCancel: () => setState(() => _pressed = false),
             borderRadius: BorderRadius.circular(22),
             child: Ink(
-              width: 158,
               height: 56,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [AppColors.accent, Color(0xFFFFC44D)],
@@ -81,18 +87,26 @@ class _DimiAddActionButtonState extends State<DimiAddActionButton> {
                     ),
                   ),
                   const SizedBox(width: 9),
-                  Text(
-                    widget.label,
-                    style: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        widget.label,
+                        maxLines: 1,
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
+          ),
+        ),
           ),
         ),
       ),

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/splash/splash_screen.dart';
 import '../screens/planner/planner_screen.dart';
+import '../screens/todos/todos_screen.dart';
 import '../screens/money/money_screen.dart';
 import '../screens/reminders/reminders_screen.dart';
 import '../screens/settings/settings_screen.dart';
@@ -28,6 +29,7 @@ abstract class AppRoutes {
   static const onboarding = '/onboarding';
   static const home = '/home';
   static const planner = '/planner';
+  static const todos = '/todos';
   static const expense = '/expense';
   static const money = expense;
   static const legacyMoney = '/money';
@@ -42,11 +44,12 @@ abstract class AppRoutes {
 
 int _tabIndex(String location) {
   if (location.startsWith('/home')) return 0;
-  if (location.startsWith('/planner')) return 1;
+  if (location.startsWith('/todos')) return 1;
+  if (location.startsWith('/planner')) return 2;
   if (location.startsWith('/expense') || location.startsWith('/money')) {
-    return 2;
+    return 3;
   }
-  if (location.startsWith('/reminders')) return 3;
+  if (location.startsWith('/reminders')) return 4;
   return 0;
 }
 
@@ -116,6 +119,10 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: AppRoutes.home,
           pageBuilder: (ctx, state) => _fade(state, const HomeScreen()),
+        ),
+        GoRoute(
+          path: AppRoutes.todos,
+          pageBuilder: (ctx, state) => _fade(state, const TodosScreen()),
         ),
         GoRoute(
           path: AppRoutes.planner,

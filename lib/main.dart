@@ -23,6 +23,8 @@ Future<void> main() async {
   // Create DB eagerly so local records are ready before the first frame.
   final db = AppDatabase();
   await db.clearLegacyDemoContent();
+  // Apply the persisted seven-day completion retention rule on every launch.
+  await db.taskDao.purgeExpiredCompletedTodos();
   // Drain events captured while the Flutter UI was closed. Parsing remains
   // local and happens after the first database connection is available.
   await TransactionDetectionService(db).syncPendingEvents();

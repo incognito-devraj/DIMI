@@ -13,6 +13,14 @@ final allTasksProvider = StreamProvider<List<Task>>((ref) {
   return ref.watch(taskDaoProvider).watchAllTasks();
 });
 
+final allTodosProvider = StreamProvider<List<Task>>((ref) {
+  return ref.watch(taskDaoProvider).watchAllTodos();
+});
+
+final homeTodosProvider = StreamProvider<List<Task>>((ref) {
+  return ref.watch(taskDaoProvider).watchHomeTodos();
+});
+
 final allPlannerEntriesProvider = StreamProvider<List<Task>>((ref) {
   return ref.watch(taskDaoProvider).watchAllPlannerEntries();
 });

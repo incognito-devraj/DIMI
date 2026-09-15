@@ -21,6 +21,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/section_card.dart';
 import '../../widgets_modals/add_expense_sheet.dart';
 import '../../utils/time_format.dart';
+import '../../utils/todo_text.dart';
 import '../../widgets_modals/add_reminder_sheet.dart';
 import '../../widgets_modals/add_task_sheet.dart';
 import '../../widgets/dimi_activity_heatmap.dart';
@@ -35,7 +36,6 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(profileProvider);
     final plannerEntriesAsync = ref.watch(allPlannerEntriesProvider);
-    final upcomingRemindersAsync = ref.watch(upcomingRemindersProvider);
 
     final fullName = profileAsync.valueOrNull?.name ?? 'Student';
     final name = fullName.trim().split(RegExp(r'\s+')).first;
@@ -141,21 +141,6 @@ class HomeScreen extends ConsumerWidget {
               ),
             ),
             */,
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 8)),
-
-            // ── Upcoming reminders ─────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: homeCardInset,
-                ),
-                child: upcomingRemindersAsync.when(
-                  data: (r) => _RemindersCard(reminders: r),
-                  loading: () => const _Shimmer(height: 90),
-                  error: (_, _) => const SizedBox.shrink(),
-                ),
               ),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 8)),
@@ -364,9 +349,9 @@ DateTime _homeDateOnly(DateTime date) =>
 // ignore: unused_element
 Color _homeHeatColor(double ratio, int total, bool future) {
   if (future || total == 0 || ratio == 0) return AppColors.accentSoft;
-  if (ratio < .25) return AppColors.accent.withAlpha(70);
-  if (ratio < .5) return AppColors.accent.withAlpha(120);
-  if (ratio < .75) return AppColors.accent.withAlpha(180);
+  if (ratio < .25) return AppColors.accent.withAlpha(100);
+  if (ratio < .5) return AppColors.accent.withAlpha(160);
+  if (ratio < .75) return AppColors.accent.withAlpha(220);
   return AppColors.accent;
 }
 
@@ -376,24 +361,51 @@ class _HomeContentGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = DateTime.now();
-    final tasks = ref.watch(todaysTasksProvider);
+    final tasks = ref.watch(homeTodosProvider);
     final planner = ref.watch(
       tasksForDateProvider(DateTime(now.year, now.month, now.day)),
     );
     final weekly = ref.watch(thisWeeksTransactionsProvider);
     final all = ref.watch(allTransactionsProvider);
+    final reminders = ref.watch(upcomingRemindersProvider);
 
     return tasks.when(
       data: (taskItems) => planner.when(
         data: (plannerItems) => weekly.when(
           data: (weeklyItems) => all.when(
-            data: (allItems) => _AdaptiveMasonry(
-              children: [
-                _TodayTasksCard(tasks: taskItems, compact: true),
-                _PlannerPreviewCard(tasks: plannerItems, compact: true),
-                _SpendingCard(transactions: weeklyItems, compact: true),
-                _BalanceCard(transactions: allItems, compact: true),
-              ],
+            data: (allItems) => reminders.when(
+              data: (reminderItems) => _AdaptiveMasonry(
+                children: [
+                  _HomeNavigationCard(
+                    onTap: () => context.go(AppRoutes.todos),
+                    child: _TodayTasksCard(tasks: taskItems, compact: true),
+                  ),
+                  _HomeNavigationCard(
+                    onTap: () => context.go(AppRoutes.planner),
+                    child: _PlannerPreviewCard(
+                      tasks: plannerItems,
+                      compact: true,
+                    ),
+                  ),
+                  _HomeNavigationCard(
+                    onTap: () => context.go(AppRoutes.money),
+                    child: _FinanceCard(
+                      weeklyTransactions: weeklyItems,
+                      allTransactions: allItems,
+                      compact: true,
+                    ),
+                  ),
+                  _HomeNavigationCard(
+                    onTap: () => context.go(AppRoutes.reminders),
+                    child: _RemindersCard(
+                      reminders: reminderItems,
+                      compact: true,
+                    ),
+                  ),
+                ],
+              ),
+              loading: () => const _Shimmer(height: 220),
+              error: (_, _) => const SizedBox.shrink(),
             ),
             loading: () => const _Shimmer(height: 220),
             error: (_, _) => const SizedBox.shrink(),
@@ -413,6 +425,22 @@ class _HomeContentGrid extends ConsumerWidget {
 /// Places cards in stable priority order, always assigning the next card to
 /// the column with the least accumulated height. Children are laid out first,
 /// so their real content height drives placement without fixed-height guesses.
+class _HomeNavigationCard extends StatelessWidget {
+  const _HomeNavigationCard({required this.child, required this.onTap});
+
+  final Widget child;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: child,
+    );
+  }
+}
+
 class _AdaptiveMasonry extends MultiChildRenderObjectWidget {
   const _AdaptiveMasonry({required super.children});
 
@@ -443,32 +471,77 @@ class _RenderAdaptiveMasonry extends RenderBox
     final width = constraints.maxWidth;
     final columnCount = width < _singleColumnBreakpoint ? 1 : 2;
     final columnWidth = columnCount == 1 ? width : (width - _gap) / 2;
-    final heights = List<double>.filled(columnCount, 0);
-
+    final children = <RenderBox>[];
     RenderBox? child = firstChild;
     while (child != null) {
       child.layout(
         BoxConstraints.tightFor(width: columnWidth),
         parentUsesSize: true,
       );
-
-      var targetColumn = 0;
-      for (var i = 1; i < heights.length; i++) {
-        if (heights[i] < heights[targetColumn]) targetColumn = i;
-      }
-
-      final parentData = child.parentData! as _MasonryParentData;
-      parentData.offset = Offset(
-        targetColumn == 0 ? 0 : columnWidth + _gap,
-        heights[targetColumn],
-      );
-      heights[targetColumn] += child.size.height + _gap;
-      child = parentData.nextSibling;
+      children.add(child);
+      child = (child.parentData! as _MasonryParentData).nextSibling;
     }
 
-    final contentHeight = heights.isEmpty
-        ? 0.0
-        : heights.reduce((a, b) => a > b ? a : b) - _gap;
+    if (children.isEmpty) {
+      size = constraints.constrain(Size(width, 0));
+      return;
+    }
+
+    // There are only a few Home cards, so evaluate the possible placements
+    // instead of relying on a fixed row order. This keeps every card at its
+    // natural height while choosing the composition with the smallest total
+    // column footprint. On narrow screens the original order is preserved.
+    final order = <int>[];
+    if (columnCount == 1) {
+      order.addAll(List<int>.generate(children.length, (index) => index));
+    } else {
+      var bestOrder = List<int>.generate(children.length, (index) => index);
+      var bestHeight = double.infinity;
+      var bestBalance = double.infinity;
+
+      void evaluate(List<int> candidate) {
+        final candidateHeights = [0.0, 0.0];
+        for (final index in candidate) {
+          final target = candidateHeights[0] <= candidateHeights[1] ? 0 : 1;
+          candidateHeights[target] += children[index].size.height + _gap;
+        }
+        final footprint = candidateHeights.reduce((a, b) => a > b ? a : b);
+        final balance = (candidateHeights[0] - candidateHeights[1]).abs();
+        if (footprint < bestHeight ||
+            (footprint == bestHeight && balance < bestBalance)) {
+          bestHeight = footprint;
+          bestBalance = balance;
+          bestOrder = List<int>.of(candidate);
+        }
+      }
+
+      void permute(List<int> remaining, List<int> current) {
+        if (remaining.isEmpty) {
+          evaluate(current);
+          return;
+        }
+        for (var i = 0; i < remaining.length; i++) {
+          final next = List<int>.of(remaining)..removeAt(i);
+          permute(next, [...current, remaining[i]]);
+        }
+      }
+
+      permute(List<int>.generate(children.length, (index) => index), const []);
+      order.addAll(bestOrder);
+    }
+
+    final heights = [0.0, 0.0];
+    for (final index in order) {
+      final target = columnCount == 1 || heights[0] <= heights[1] ? 0 : 1;
+      final parentData = children[index].parentData! as _MasonryParentData;
+      parentData.offset = Offset(
+        target == 0 ? 0 : columnWidth + _gap,
+        heights[target],
+      );
+      heights[target] += children[index].size.height + _gap;
+    }
+
+    final contentHeight = heights.reduce((a, b) => a > b ? a : b) - _gap;
     size = constraints.constrain(Size(width, contentHeight));
   }
 
@@ -740,7 +813,7 @@ class _QuickActions extends StatelessWidget {
         Expanded(
           child: _QATile(
             icon: Icons.account_balance_wallet_outlined,
-            label: 'Expense',
+            label: 'Finance',
             subtitle: 'Track spending',
             color: AppColors.danger,
             onTap: () => showAddExpenseSheet(context),
@@ -958,7 +1031,7 @@ class _HomeQuickTaskComposerState extends State<_HomeQuickTaskComposer> {
     final now = DateTime.now();
     await widget.ref.read(taskDaoProvider).insertTask(
       TasksCompanion(
-        title: Value(title),
+        title: Value(formatTodoTitle(title)),
         description: const Value(null),
         category: const Value('Personal'),
         dueDate: Value(now),
@@ -1091,6 +1164,9 @@ class _TodayTasksCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final dao = ref.read(taskDaoProvider);
     final done = tasks.where((t) => t.isCompleted).length;
+    // Completed items remain visible through the current day; the DAO removes
+    // them from this stream after the day changes.
+    final visibleTasks = tasks;
 
     return SectionCard(
       padding: EdgeInsets.all(compact ? 8 : AppSpacing.cardPadding),
@@ -1101,7 +1177,7 @@ class _TodayTasksCard extends ConsumerWidget {
             icon: Icons.check_circle_outline_rounded,
             title: "To-Do's",
             compact: compact,
-            onTap: () => context.go(AppRoutes.planner),
+            onTap: () => context.go(AppRoutes.todos),
             trailing: Text(
               '$done/${tasks.length} done',
               style: TextStyle(
@@ -1112,7 +1188,7 @@ class _TodayTasksCard extends ConsumerWidget {
               ),
             ),
           ),
-          if (tasks.isEmpty) ...[
+          if (visibleTasks.isEmpty) ...[
             const SizedBox(height: 12),
             const Text(
               'All clear today 🎉',
@@ -1124,7 +1200,7 @@ class _TodayTasksCard extends ConsumerWidget {
             ),
           ] else ...[
             const SizedBox(height: 10),
-            ...tasks.map(
+            ...visibleTasks.map(
               (t) => _MiniTaskRow(task: t, dao: dao, compact: compact),
             ),
           ],
@@ -1150,7 +1226,7 @@ class _TodayTasksCard extends ConsumerWidget {
                   ),
                   SizedBox(width: compact ? 6 : 10),
                   Text(
-                    'Add a new task',
+                    'Add To-Do',
                     style: TextStyle(
                       fontFamily: 'Poppins',
                       fontSize: compact ? 9 : 13,
@@ -1263,6 +1339,135 @@ class _MiniTaskRow extends StatelessWidget {
 
 // ── Weekly spending card ──────────────────────────────────────────────────────
 
+class _FinanceCard extends StatelessWidget {
+  const _FinanceCard({
+    required this.weeklyTransactions,
+    required this.allTransactions,
+    this.compact = false,
+  });
+
+  final List<MoneyTransaction> weeklyTransactions;
+  final List<MoneyTransaction> allTransactions;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final expenses = allTransactions
+        .where((t) => t.type == 'expense')
+        .fold(0.0, (sum, t) => sum + t.amount);
+    final income = allTransactions
+        .where((t) => t.type == 'income')
+        .fold(0.0, (sum, t) => sum + t.amount);
+    final loans = allTransactions
+        .where((t) => t.type == 'loan')
+        .fold(0.0, (sum, t) => sum + t.amount);
+    final weeklySpent = weeklyTransactions
+        .where((t) => t.type == 'expense')
+        .fold(0.0, (sum, t) => sum + t.amount);
+    final today = DateTime.now();
+    final todaySpent = allTransactions
+        .where(
+          (t) =>
+              t.type == 'expense' &&
+              t.date.year == today.year &&
+              t.date.month == today.month &&
+              t.date.day == today.day,
+        )
+        .fold(0.0, (sum, t) => sum + t.amount);
+    final dayAmounts = List.filled(7, 0.0);
+    for (final transaction in weeklyTransactions) {
+      if (transaction.type == 'expense') {
+        dayAmounts[transaction.date.weekday - 1] += transaction.amount;
+      }
+    }
+    final maxAmount = dayAmounts.reduce((a, b) => a > b ? a : b);
+
+    return SectionCard(
+      padding: EdgeInsets.all(compact ? 8 : AppSpacing.cardPadding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _HomeCardHeader(
+            icon: Icons.account_balance_wallet_outlined,
+            title: 'Finance',
+            compact: compact,
+            onTap: () => context.go(AppRoutes.money),
+          ),
+          SizedBox(height: compact ? 8 : 12),
+          Text(
+            'Total Balance',
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: compact ? 10 : 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          SizedBox(
+            width: double.infinity,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '₹${_currencyFmt.format(income - expenses)}',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: compact ? 20 : 26,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ),
+          Text(
+            'This week · Spending ₹${_currencyFmt.format(weeklySpent)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: compact ? 9 : 11,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          if (maxAmount > 0) ...[
+            SizedBox(height: compact ? 3 : 8),
+            SizedBox(
+              height: compact ? 48 : 76,
+              child: _HomeBarChart(
+                dayAmounts: dayAmounts,
+                maxAmt: maxAmount,
+                todayIdx: DateTime.now().weekday - 1,
+                compact: compact,
+              ),
+            ),
+          ],
+          SizedBox(height: compact ? 6 : 10),
+          Row(
+            children: [
+              Expanded(
+                child: _BalanceMetric(
+                  value: '₹${_currencyFmt.format(expenses)}',
+                  label: 'Total Expenses',
+                  color: AppColors.success,
+                  compact: compact,
+                ),
+              ),
+              SizedBox(width: compact ? 5 : 8),
+              Expanded(
+                child: _BalanceMetric(
+                  value: '₹${_currencyFmt.format(todaySpent)}',
+                  label: "Today's Expenses",
+                  color: AppColors.danger,
+                  compact: compact,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PlannerPreviewCard extends StatelessWidget {
   const _PlannerPreviewCard({required this.tasks, this.compact = false});
   final List<Task> tasks;
@@ -1300,7 +1505,7 @@ class _PlannerPreviewCard extends StatelessWidget {
               SizedBox(width: compact ? 6 : 8),
               Expanded(
                 child: Text(
-                  'Today · ${DateFormat('d MMM').format(DateTime.now())}',
+                  'Planner · ${DateFormat('d MMM').format(DateTime.now())}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -1387,24 +1592,31 @@ class _PlannerPreviewCard extends StatelessWidget {
             ),
           const SizedBox(height: 4),
           GestureDetector(
-            onTap: () => context.go(AppRoutes.planner),
+            onTap: () => showAddTaskSheet(
+              context,
+              initialDate: DateTime.now(),
+              plannerEntry: true,
+            ),
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               decoration: BoxDecoration(
-                color: AppColors.accentSoft,
-                borderRadius: BorderRadius.circular(14),
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(24),
               ),
-              child: const Center(
-                child: Text(
-                  'Open Planner  ›',
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+              child: Row(
+                children: [
+                  const Icon(Icons.add_rounded, size: 16),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Add Task',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 9,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ),
@@ -1479,19 +1691,25 @@ class _BalanceCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Icon(Icons.chevron_right_rounded, size: compact ? 15 : 18),
                 ],
               ),
             ),
           ),
           SizedBox(height: compact ? 5 : 8),
-          Text(
-            '₹${_currencyFmt.format(balance)}',
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: compact ? 17 : 22,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+          SizedBox(
+            width: double.infinity,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '₹${_currencyFmt.format(balance)}',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: compact ? 17 : 22,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
             ),
           ),
           SizedBox(height: compact ? 10 : 14),
@@ -1544,15 +1762,20 @@ class _BalanceMetric extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontFamily: 'Poppins',
-            fontSize: compact ? 10 : 12,
-            fontWeight: FontWeight.w700,
-            color: color,
+        SizedBox(
+          width: double.infinity,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: compact ? 10 : 12,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
           ),
         ),
         Text(
@@ -1831,42 +2054,35 @@ class _HomeBarChart extends StatelessWidget {
 // ── Upcoming reminders card ───────────────────────────────────────────────────
 
 class _RemindersCard extends StatelessWidget {
-  const _RemindersCard({required this.reminders});
+  const _RemindersCard({required this.reminders, this.compact = false});
   final List<Reminder> reminders;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final upcoming = reminders
-        .where((r) => r.isEnabled && r.dueAt.isAfter(DateTime.now()))
-        .take(3)
-        .toList();
+    final upcoming = reminders.where((r) => r.isEnabled).toList();
 
     return SectionCard(
+      padding: EdgeInsets.all(compact ? 8 : AppSpacing.cardPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Upcoming Reminders',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              GestureDetector(
+          _HomeCardHeader(
+                icon: Icons.notifications_none_rounded,
+                title: 'Reminders',
+                compact: compact,
                 onTap: () => context.go(AppRoutes.reminders),
-                child: const Text(
-                  'View All',
+                trailing: Text(
+                  '${upcoming.length} upcoming',
                   style: TextStyle(
                     fontFamily: 'Poppins',
-                    fontSize: 12,
-                    color: AppColors.accent,
+                    fontSize: compact ? 8 : 11,
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ),
-            ],
-          ),
           if (upcoming.isEmpty) ...[
-            const SizedBox(height: 10),
+            SizedBox(height: compact ? 8 : 10),
             const Text(
               'No upcoming reminders',
               style: TextStyle(
@@ -1876,32 +2092,32 @@ class _RemindersCard extends StatelessWidget {
               ),
             ),
           ] else ...[
-            const SizedBox(height: 10),
+            SizedBox(height: compact ? 8 : 10),
             ...upcoming.map(
               (r) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: EdgeInsets.only(bottom: compact ? 5 : 8),
                 child: Row(
                   children: [
                     Container(
-                      width: 32,
-                      height: 32,
+                      width: compact ? 24 : 32,
+                      height: compact ? 24 : 32,
                       decoration: BoxDecoration(
                         color: AppColors.accentSoft,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.notifications_active_outlined,
-                        size: 16,
+                        size: compact ? 13 : 16,
                         color: AppColors.accent,
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: compact ? 6 : 10),
                     Expanded(
                       child: Text(
                         r.title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'Poppins',
-                          fontSize: 13,
+                          fontSize: compact ? 10 : 13,
                           fontWeight: FontWeight.w500,
                           color: AppColors.textPrimary,
                         ),
@@ -1910,9 +2126,9 @@ class _RemindersCard extends StatelessWidget {
                     ),
                     Text(
                       DateFormat('d MMM · h:mm a').format(r.dueAt),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'Poppins',
-                        fontSize: 10,
+                        fontSize: compact ? 8 : 10,
                         color: AppColors.textSecondary,
                       ),
                     ),
@@ -1921,6 +2137,35 @@ class _RemindersCard extends StatelessWidget {
               ),
             ),
           ],
+          const SizedBox(height: 2),
+          GestureDetector(
+            onTap: () => showAddReminderSheet(context),
+            child: Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(
+                horizontal: compact ? 8 : 14,
+                vertical: compact ? 8 : 11,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.add_rounded, size: compact ? 16 : 19),
+                  SizedBox(width: compact ? 5 : 8),
+                  Text(
+                    'Add reminder',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: compact ? 9 : 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
