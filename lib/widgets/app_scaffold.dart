@@ -73,6 +73,7 @@ class AppScaffold extends StatelessWidget {
       },
       child: Scaffold(
         backgroundColor: AppColors.background,
+        resizeToAvoidBottomInset: false,
         body: child,
         bottomNavigationBar: _DimiBottomNav(
           currentIndex: currentIndex,
@@ -86,10 +87,7 @@ class AppScaffold extends StatelessWidget {
 // ── Custom bottom nav ─────────────────────────────────────────────────────────
 
 class _DimiBottomNav extends StatelessWidget {
-  const _DimiBottomNav({
-    required this.currentIndex,
-    required this.onTap,
-  });
+  const _DimiBottomNav({required this.currentIndex, required this.onTap});
 
   final int currentIndex;
   final ValueChanged<int> onTap;

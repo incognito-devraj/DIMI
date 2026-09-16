@@ -16,6 +16,7 @@ import '../../widgets/section_card.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/dimi_success_dialog.dart';
 import '../../widgets/dimi_delete_dialog.dart';
+import '../../widgets_modals/fixed_dialog.dart';
 
 class TodosScreen extends ConsumerStatefulWidget {
   const TodosScreen({super.key});
@@ -380,7 +381,10 @@ class _NoteCard extends ConsumerWidget {
                     dao: ref.read(noteDaoProvider),
                   );
                 if (value == 'delete' &&
-                    await showDimiDeleteConfirmation(context, itemLabel: 'note')) {
+                    await showDimiDeleteConfirmation(
+                      context,
+                      itemLabel: 'note',
+                    )) {
                   await ref.read(noteDaoProvider).deleteNote(note.id);
                 }
               },
@@ -409,10 +413,30 @@ Future<void> _showNoteAddDialog(BuildContext context, WidgetRef ref) async {
 }
 
 Future<void> _showMinimalTodoDialog(BuildContext context, WidgetRef ref) async {
-  final saved = await showDialog<bool>(
+  final saved = await showGeneralDialog<bool>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => _TodoAddDialog(dao: ref.read(taskDaoProvider)),
+    barrierLabel: 'Add To-Do',
+    barrierColor: const Color(0x99000000),
+    transitionDuration: const Duration(milliseconds: 220),
+    pageBuilder: (_, _, _) => DimiFixedDialog(
+      height: 330,
+      maxWidth: 420,
+      child: _TodoAddDialog(dao: ref.read(taskDaoProvider)),
+    ),
+    transitionBuilder: (_, animation, _, child) => FadeTransition(
+      opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+      child: SlideTransition(
+        position:
+            Tween<Offset>(
+              begin: const Offset(0, -0.025),
+              end: Offset.zero,
+            ).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+            ),
+        child: child,
+      ),
+    ),
   );
   if (saved == true && context.mounted) {
     await showDimiSuccessDialog(context, title: 'To-Do Added!');
@@ -428,6 +452,7 @@ class _TodoAddDialog extends StatefulWidget {
 }
 
 class _TodoAddDialogState extends State<_TodoAddDialog> {
+  static const _maxTodoCharacters = 60;
   final _controller = TextEditingController();
   bool _saving = false;
   bool _saved = false;
@@ -467,32 +492,152 @@ class _TodoAddDialogState extends State<_TodoAddDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    backgroundColor: AppColors.surface,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-    title: const Text('Add To-Do'),
-    content: TextField(
-      controller: _controller,
-      autofocus: true,
-      maxLength: 60,
-      textCapitalization: TextCapitalization.words,
-      decoration: const InputDecoration(
-        hintText: 'Type a To-Do',
-        counterText: 'Maximum 60 characters',
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(30),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x22000000),
+          blurRadius: 18,
+          offset: Offset(0, -4),
+        ),
+      ],
+    ),
+    child: SafeArea(
+      top: false,
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 108,
+                  height: 94,
+                  child: Image.asset(
+                    'assets/illustrations/Todo.png',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Add To-Do',
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Capture it now, get it done later.',
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: const BoxDecoration(
+                      color: AppColors.background,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close_rounded, size: 18),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              maxLength: _maxTodoCharacters,
+              textCapitalization: TextCapitalization.words,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                hintText: 'Type a To-Do',
+                counterStyle: TextStyle(fontFamily: 'Poppins', fontSize: 11),
+              ),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _saving ? null : _save,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: AppColors.surface,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: _saved
+                          ? const Icon(
+                              Icons.check_rounded,
+                              key: ValueKey('saved'),
+                            )
+                          : const SizedBox.shrink(key: ValueKey('add')),
+                    ),
+                    if (_saved) const SizedBox(width: 8),
+                    Text(
+                      _saved ? 'Saved' : 'Save To-Do',
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (!_saved) ...[
+                      const SizedBox(width: 8),
+                      const Icon(Icons.arrow_forward_rounded, size: 19),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     ),
-    actions: [
-      FilledButton.icon(
-        onPressed: _saving ? null : _save,
-        icon: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 180),
-          child: _saved
-              ? const Icon(Icons.check_rounded, key: ValueKey('saved'))
-              : const Icon(Icons.add_rounded, key: ValueKey('add')),
-        ),
-        label: Text(_saved ? 'Saved' : 'Save To-Do'),
-      ),
-    ],
   );
 }
 

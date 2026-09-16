@@ -184,6 +184,23 @@ class AppTheme {
         ),
         margin: EdgeInsets.zero,
       ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(30),
+        ),
+        titleTextStyle: GoogleFonts.inter(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textPrimary,
+        ),
+        contentTextStyle: GoogleFonts.inter(
+          fontSize: 13,
+          color: AppColors.textSecondary,
+        ),
+      ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.surface,
         selectedItemColor: AppColors.accent,

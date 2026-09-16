@@ -394,11 +394,12 @@ class _ReferenceTaskRow extends ConsumerWidget {
       _ => AppColors.textSecondary,
     };
     final icon = switch (category) {
-      'study' => Icons.menu_book_outlined,
-      'health' => Icons.fitness_center_outlined,
-      'college' => Icons.school_outlined,
-      'finance' => Icons.account_balance_wallet_outlined,
-      _ => Icons.wb_sunny_outlined,
+      'study' => Icons.menu_book_rounded,
+      'personal' => Icons.person_rounded,
+      'college' => Icons.school_rounded,
+      'health' => Icons.favorite_rounded,
+      'finance' => Icons.account_balance_wallet_rounded,
+      _ => Icons.more_horiz_rounded,
     };
 
     return InkWell(
