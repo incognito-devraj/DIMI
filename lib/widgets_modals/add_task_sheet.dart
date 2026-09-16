@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -20,14 +23,31 @@ Future<void> showAddTaskSheet(
   Task? existingTask,
   bool plannerEntry = false,
 }) async {
-  final saved = await showModalBottomSheet<bool>(
+  final saved = await showGeneralDialog<bool>(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => _AddTaskSheet(
-      initialDate: initialDate,
-      existingTask: existingTask,
-      plannerEntry: plannerEntry,
+    barrierDismissible: true,
+    barrierLabel: 'Add Task',
+    barrierColor: const Color(0x99000000),
+    transitionDuration: const Duration(milliseconds: 220),
+    pageBuilder: (_, _, _) => _KeyboardPositionedDialog(
+      child: _AddTaskSheet(
+        initialDate: initialDate,
+        existingTask: existingTask,
+        plannerEntry: plannerEntry,
+      ),
+    ),
+    transitionBuilder: (_, animation, _, child) => FadeTransition(
+      opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+      child: SlideTransition(
+        position:
+            Tween<Offset>(
+              begin: const Offset(0, -0.025),
+              end: Offset.zero,
+            ).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+            ),
+        child: child,
+      ),
     ),
   );
   if (saved == true && context.mounted) {
@@ -36,6 +56,54 @@ Future<void> showAddTaskSheet(
       title: existingTask == null
           ? (plannerEntry ? 'Task Added!' : 'To-Do Added!')
           : 'Task Updated!',
+    );
+  }
+}
+
+class _KeyboardPositionedDialog extends StatefulWidget {
+  const _KeyboardPositionedDialog({required this.child});
+  final Widget child;
+
+  @override
+  State<_KeyboardPositionedDialog> createState() =>
+      _KeyboardPositionedDialogState();
+}
+
+class _KeyboardPositionedDialogState extends State<_KeyboardPositionedDialog> {
+  double? _restingHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final restingHeight =
+        _restingHeight ??= MediaQuery.sizeOf(context).height;
+    const dialogExtent = 434.0;
+    final defaultTop = restingHeight * 0.19;
+    final keyboardTop = restingHeight - media.viewInsets.bottom;
+    final dialogBottom = defaultTop + dialogExtent;
+    final keyboardShift = math.max(0.0, dialogBottom - keyboardTop);
+    final top = math.max(
+      media.padding.top + 8,
+      defaultTop - keyboardShift,
+    );
+
+    return Align(
+      alignment: Alignment.topCenter,
+      child: AnimatedPadding(
+        padding: EdgeInsets.only(top: top),
+        duration: const Duration(milliseconds: 80),
+        curve: Curves.easeOut,
+        child: Material(
+          type: MaterialType.transparency,
+          child: MediaQuery(
+            data: media.copyWith(
+              size: Size(media.size.width, restingHeight),
+              viewInsets: EdgeInsets.zero,
+            ),
+            child: widget.child,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -103,6 +171,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
         );
       }
     }
+
   }
 
   @override
@@ -113,6 +182,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
   }
 
   Future<void> _pickDate() async {
+    await _dismissKeyboardForPicker();
     final picked = await showDatePicker(
       context: context,
       initialDate: _dueDate,
@@ -124,14 +194,32 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
             primary: AppColors.accent,
             onPrimary: AppColors.surface,
           ),
+          dialogTheme: Theme.of(ctx).dialogTheme.copyWith(
+            constraints: const BoxConstraints(
+              maxWidth: 500,
+              maxHeight: 500,
+            ),
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 22,
+              vertical: 24,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30),
+            ),
+          ),
         ),
-        child: child!,
+        child: MediaQuery.removeViewInsets(
+          context: ctx,
+          removeBottom: true,
+          child: child!,
+        ),
       ),
     );
-    if (picked != null) setState(() => _dueDate = picked);
+    if (picked != null && mounted) setState(() => _dueDate = picked);
   }
 
   Future<void> _pickTime() async {
+    await _dismissKeyboardForPicker();
     final picked = await showTimePicker(
       context: context,
       initialTime: _dueTime ?? TimeOfDay.now(),
@@ -139,11 +227,28 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
         data: Theme.of(ctx).copyWith(
           colorScheme: Theme.of(ctx).colorScheme
               .copyWith(primary: AppColors.accent),
+          dialogTheme: Theme.of(ctx).dialogTheme.copyWith(
+            constraints: const BoxConstraints(
+              maxWidth: 500,
+              maxHeight: 560,
+            ),
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 22,
+              vertical: 24,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30),
+            ),
+          ),
         ),
-        child: child!,
+        child: MediaQuery.removeViewInsets(
+          context: ctx,
+          removeBottom: true,
+          child: child!,
+        ),
       ),
     );
-    if (picked != null) setState(() => _dueTime = picked);
+    if (picked != null && mounted) setState(() => _dueTime = picked);
   }
 
   String? _timeStr() {
@@ -152,11 +257,18 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
         '${_dueTime!.minute.toString().padLeft(2, '0')}';
   }
 
+  Future<void> _dismissKeyboardForPicker() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (widget.plannerEntry && _dueTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a time for the planner task.')),
+        const SnackBar(
+          content: Text('Please select a time for the planner task.'),
+        ),
       );
       return;
     }
@@ -222,10 +334,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
       );
       final reminderDao = ref.read(reminderDaoProvider);
       final reminderId = await reminderDao.insertReminder(
-        RemindersCompanion.insert(
-          title: savedTitle,
-          dueAt: reminderDueAt,
-        ),
+        RemindersCompanion.insert(title: savedTitle, dueAt: reminderDueAt),
       );
       final reminder = await reminderDao.getById(reminderId);
       if (reminder != null) {
@@ -239,246 +348,295 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
-    final bottomInset = media.viewInsets.bottom;
 
     return Container(
-      margin: const EdgeInsets.only(top: 28),
-      padding: EdgeInsets.only(bottom: bottomInset),
-      decoration: const BoxDecoration(
+      width: math.min(media.size.width - 44, 500),
+      height: widget.plannerEntry ? 410 : null,
+      margin: const EdgeInsets.only(top: 12, bottom: 12),
+      decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x22000000),
+            blurRadius: 18,
+            offset: Offset(0, -4),
+          ),
+        ],
       ),
       child: SafeArea(
         top: false,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: media.size.height - 28),
-          child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: AppColors.divider,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 14),
-          // Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: Form(
-              key: _formKey,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(
-                  width: 108,
-                  height: 94,
-                  child: Image.asset(
-                    'assets/illustrations/Planner.png',
-                    fit: BoxFit.contain,
+                // Handle
+                const SizedBox(height: 12),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
+                const SizedBox(height: 14),
+                // Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        _isEditing
-                            ? (widget.plannerEntry ? 'Edit Task' : 'Edit To-Do')
-                            : (widget.plannerEntry ? 'Add Task' : 'Add To-Do'),
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 7),
-                      TextFormField(
-                        controller: _titleCtrl,
-                        autofocus: !_isEditing,
-                        textCapitalization: TextCapitalization.sentences,
-                        maxLength: 60,
-                        inputFormatters: [LengthLimitingTextInputFormatter(60)],
-                        decoration: const InputDecoration(
-                          hintText: 'New task...',
-                          counterText: '',
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
+                      SizedBox(
+                        width: 108,
+                        height: 94,
+                        child: Image.asset(
+                          'assets/illustrations/Planner.png',
+                          fit: BoxFit.contain,
                         ),
-                        validator: (v) {
-                          final value = v?.trim() ?? '';
-                          if (value.isEmpty) return 'Title is required';
-                          if (value.split(RegExp(r'\s+')).length > 10) {
-                            return 'Keep it to 10 words or fewer';
-                          }
-                          return null;
-                        },
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _isEditing
+                                  ? (widget.plannerEntry
+                                        ? 'Edit Task'
+                                        : 'Edit To-Do')
+                                  : (widget.plannerEntry
+                                        ? 'Add Task'
+                                        : 'Add To-Do'),
+                              style: Theme.of(context).textTheme.headlineMedium,
+                            ),
+                            const SizedBox(height: 7),
+                            TextFormField(
+                              controller: _titleCtrl,
+                              autofocus: !_isEditing,
+                              textCapitalization: TextCapitalization.sentences,
+                              maxLength: 60,
+                              inputFormatters: [
+                                LengthLimitingTextInputFormatter(60),
+                              ],
+                              decoration: const InputDecoration(
+                                hintText: 'New task...',
+                                counterText: '',
+                                errorStyle: TextStyle(
+                                  fontSize: 0,
+                                  height: 0,
+                                ),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                              ),
+                              validator: (v) {
+                                final value = v?.trim() ?? '';
+                                if (value.isEmpty) return 'Title is required';
+                                if (value.split(RegExp(r'\s+')).length > 10) {
+                                  return 'Keep it to 10 words or fewer';
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.of(context).pop(),
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: const BoxDecoration(
+                            color: AppColors.background,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close_rounded, size: 18),
+                        ),
                       ),
                     ],
                   ),
                 ),
-                GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: Container(
-                    width: 34,
-                    height: 34,
-                    decoration: const BoxDecoration(
-                      color: AppColors.background,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.close_rounded, size: 18),
+                const SizedBox(height: 12),
+                // Form
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screenHorizontal,
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Form
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.screenHorizontal,
-              ),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _FieldLabel('Description (optional)'),
-                    const SizedBox(height: 6),
-                    TextFormField(
-                      controller: _descCtrl,
-                      maxLines: 2,
-                      maxLength: 120,
-                      inputFormatters: [LengthLimitingTextInputFormatter(120)],
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                        hintText: 'Add details…',
-                      ),
-                      validator: (v) {
-                        final value = v?.trim() ?? '';
-                        if (value.isNotEmpty &&
-                            value.split(RegExp(r'\s+')).length > 20) {
-                          return 'Keep the note to 20 words or fewer';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _FieldLabel('Date'),
-                              const SizedBox(height: 6),
-                              _PickerBtn(
+                        if (!widget.plannerEntry) ...[
+                          _FieldLabel('Description (optional)'),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: _descCtrl,
+                            maxLines: 2,
+                            maxLength: 120,
+                            inputFormatters: [
+                              LengthLimitingTextInputFormatter(120),
+                            ],
+                            textCapitalization: TextCapitalization.sentences,
+                            decoration: const InputDecoration(
+                              hintText: 'Add details…',
+                            ),
+                            validator: (v) {
+                              final value = v?.trim() ?? '';
+                              if (value.isNotEmpty &&
+                                  value.split(RegExp(r'\s+')).length > 20) {
+                                return 'Keep the note to 20 words or fewer';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          _FieldLabel('Date · Time · Reminder'),
+                          const SizedBox(height: 6),
+                        ],
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _PickerBtn(
                                 icon: Icons.calendar_today_outlined,
-                                label: DateFormat('d MMM yyyy')
-                                    .format(_dueDate),
+                                label: DateFormat(
+                                  widget.plannerEntry ? 'd MMM' : 'd MMM yyyy',
+                                ).format(_dueDate),
                                 onTap: _pickDate,
                               ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _FieldLabel('Time *'),
-                              const SizedBox(height: 6),
-                              _PickerBtn(
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _PickerBtn(
                                 icon: Icons.schedule_outlined,
                                 label: _dueTime != null
                                     ? _dueTime!.format(context)
                                     : 'No time',
                                 onTap: _pickTime,
                               ),
-                            ],
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _ReminderPicker(
+                                selected: _reminderMinutes,
+                                options: _reminderOptions,
+                                onSelected: (value) =>
+                                    setState(() => _reminderMinutes = value),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        _FieldLabel('Category'),
+                        const SizedBox(height: 8),
+                        _TaskCategoryPicker(
+                          categories: _categories,
+                          selected: _category,
+                          onSelected: (category) =>
+                              setState(() => _category = category),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.accent,
+                              foregroundColor: AppColors.surface,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppSpacing.buttonRadius,
+                                ),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: _saving ? null : _save,
+                            child: _saving
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.surface,
+                                    ),
+                                  )
+                                : Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        _isEditing
+                                            ? 'Save Changes'
+                                            : (widget.plannerEntry
+                                                  ? 'Create Task'
+                                                  : 'Create To-Do'),
+                                        style: const TextStyle(
+                                          fontFamily: 'Poppins',
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Icon(
+                                        Icons.arrow_forward_rounded,
+                                        size: 19,
+                                      ),
+                                    ],
+                                  ),
                           ),
                         ),
+                        const SizedBox(height: 8),
                       ],
                     ),
-                    const SizedBox(height: 14),
-                    _FieldLabel('Category'),
-                    const SizedBox(height: 8),
-                    _TaskCategoryPicker(
-                      categories: _categories,
-                      selected: _category,
-                      onSelected: (category) =>
-                          setState(() => _category = category),
-                    ),
-                    const SizedBox(height: 14),
-                    _FieldLabel('Reminder'),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _reminderOptions
-                          .map(
-                            (r) => _Chip(
-                              label: r.label,
-                              selected: _reminderMinutes == r.value,
-                              onTap: () =>
-                                  setState(() => _reminderMinutes = r.value),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                    const SizedBox(height: 28),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.accent,
-                          foregroundColor: AppColors.surface,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppSpacing.buttonRadius,
-                            ),
-                          ),
-                          elevation: 0,
-                        ),
-                        onPressed: _saving ? null : _save,
-                        child: _saving
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.surface,
-                                ),
-                              )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    _isEditing
-                                        ? 'Save Changes'
-                                        : (widget.plannerEntry
-                                            ? 'Create Task'
-                                            : 'Create To-Do'),
-                                    style: const TextStyle(
-                                      fontFamily: 'Poppins',
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Icon(Icons.arrow_forward_rounded, size: 19),
-                                ],
-                              ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
                 ),
+              ],
+            ),
+          ),
+      ),
+    );
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+class _DatePickerSheet extends StatefulWidget {
+  const _DatePickerSheet({required this.initialDate});
+  final DateTime initialDate;
+
+  @override
+  State<_DatePickerSheet> createState() => _DatePickerSheetState();
+}
+
+class _DatePickerSheetState extends State<_DatePickerSheet> {
+  late DateTime _selectedDate = widget.initialDate;
+
+  @override
+  Widget build(BuildContext context) {
+    return _PickerSheetFrame(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _PickerSheetHeader(
+            title: 'Select date',
+            onClose: () => Navigator.of(context).pop(),
+          ),
+          Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: Theme.of(context).colorScheme.copyWith(
+                primary: AppColors.accent,
+                onPrimary: AppColors.surface,
               ),
             ),
+            child: CalendarDatePicker(
+              initialDate: _selectedDate,
+              firstDate: DateTime.now().subtract(const Duration(days: 365)),
+              lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
+              onDateChanged: (date) => setState(() => _selectedDate = date),
+            ),
+          ),
+          _PickerConfirmButton(
+            label: 'Select date',
+            onPressed: () => Navigator.of(context).pop(_selectedDate),
           ),
         ],
       ),
@@ -486,7 +644,149 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+class _TimePickerSheet extends StatefulWidget {
+  const _TimePickerSheet({required this.initialTime});
+  final TimeOfDay? initialTime;
+
+  @override
+  State<_TimePickerSheet> createState() => _TimePickerSheetState();
+}
+
+class _TimePickerSheetState extends State<_TimePickerSheet> {
+  late TimeOfDay _selectedTime = widget.initialTime ?? TimeOfDay.now();
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = DateTime(
+      2020,
+      1,
+      1,
+      _selectedTime.hour,
+      _selectedTime.minute,
+    );
+    return _PickerSheetFrame(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _PickerSheetHeader(
+            title: 'Select time',
+            onClose: () => Navigator.of(context).pop(),
+          ),
+          SizedBox(
+            height: 150,
+            child: CupertinoTheme(
+              data: const CupertinoThemeData(
+                brightness: Brightness.light,
+                primaryColor: AppColors.accent,
+              ),
+              child: CupertinoDatePicker(
+                mode: CupertinoDatePickerMode.time,
+                initialDateTime: initial,
+                use24hFormat: false,
+                onDateTimeChanged: (value) => setState(
+                  () => _selectedTime = TimeOfDay.fromDateTime(value),
+                ),
+              ),
+            ),
+          ),
+          _PickerConfirmButton(
+            label: 'Select time',
+            onPressed: () => Navigator.of(context).pop(_selectedTime),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PickerSheetFrame extends StatelessWidget {
+  const _PickerSheetFrame({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 110, bottom: 12),
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x22000000),
+            blurRadius: 18,
+            offset: Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(top: false, child: child),
+    );
+  }
+}
+
+class _PickerSheetHeader extends StatelessWidget {
+  const _PickerSheetHeader({required this.title, required this.onClose});
+  final String title;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          width: 42,
+          height: 4,
+          decoration: BoxDecoration(
+            color: AppColors.divider,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+            ),
+            IconButton(
+              onPressed: onClose,
+              icon: const Icon(Icons.close_rounded),
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _PickerConfirmButton extends StatelessWidget {
+  const _PickerConfirmButton({required this.label, required this.onPressed});
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.accent,
+          foregroundColor: AppColors.surface,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
+          ),
+        ),
+        child: Text(label),
+      ),
+    );
+  }
+}
 
 class _FieldLabel extends StatelessWidget {
   const _FieldLabel(this.text);
@@ -517,22 +817,33 @@ class _PickerBtn extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
         decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.divider),
+          color: AppColors.surfaceDark,
+          borderRadius: BorderRadius.circular(26),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 15, color: AppColors.textSecondary),
-            const SizedBox(width: 6),
+            Icon(icon, size: 14, color: AppColors.surface),
+            const SizedBox(width: 4),
             Expanded(
-              child: Text(
-                label,
-                style: Theme.of(context).textTheme.bodyMedium,
-                overflow: TextOverflow.ellipsis,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.surface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
+            ),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 16,
+              color: AppColors.surface,
             ),
           ],
         ),
@@ -541,35 +852,70 @@ class _PickerBtn extends StatelessWidget {
   }
 }
 
-class _Chip extends StatelessWidget {
-  const _Chip({
-    required this.label,
+class _ReminderPicker extends StatelessWidget {
+  const _ReminderPicker({
     required this.selected,
-    required this.onTap,
+    required this.options,
+    required this.onSelected,
   });
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+
+  final int? selected;
+  final List<({String label, int? value})> options;
+  final ValueChanged<int?> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+    final selectedLabel = options
+        .firstWhere(
+          (option) => option.value == selected,
+          orElse: () => options.first,
+        )
+        .label;
+    return PopupMenuButton<int>(
+      tooltip: 'Reminder',
+      onSelected: (value) => onSelected(value < 0 ? null : value),
+      itemBuilder: (_) => options
+          .map(
+            (option) => PopupMenuItem<int>(
+              value: option.value ?? -1,
+              child: Text(option.label),
+            ),
+          )
+          .toList(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
         decoration: BoxDecoration(
-          color: selected ? AppColors.surfaceDark : AppColors.accentSoft,
-          borderRadius: BorderRadius.circular(20),
+          color: AppColors.surfaceDark,
+          borderRadius: BorderRadius.circular(26),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'Poppins',
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: selected ? AppColors.surface : AppColors.textSecondary,
-          ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.notifications_none_rounded,
+              size: 14,
+              color: AppColors.textSecondary,
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  selectedLabel,
+                  maxLines: 1,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.surface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 16,
+              color: AppColors.surface,
+            ),
+          ],
         ),
       ),
     );
@@ -589,64 +935,58 @@ class _TaskCategoryPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        height: 86,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: categories.length,
-          separatorBuilder: (_, _) => const SizedBox(width: 12),
-          itemBuilder: (context, index) {
-            final category = categories[index];
-            final isSelected = category == selected;
-            final color = isSelected
-                ? AppColors.accent
-                : AppColors.textSecondary;
-            return GestureDetector(
-              onTap: () => onSelected(category),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.accentSoft
-                          : AppColors.background,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.accent
-                            : AppColors.divider,
-                        width: isSelected ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Icon(_taskCategoryIcon(category), color: color),
+    height: 86,
+    child: ListView.separated(
+      scrollDirection: Axis.horizontal,
+      itemCount: categories.length,
+      separatorBuilder: (_, _) => const SizedBox(width: 12),
+      itemBuilder: (context, index) {
+        final category = categories[index];
+        final isSelected = category == selected;
+        final color = isSelected ? AppColors.accent : AppColors.textSecondary;
+        return GestureDetector(
+          onTap: () => onSelected(category),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.accentSoft
+                      : AppColors.background,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected ? AppColors.accent : AppColors.divider,
+                    width: isSelected ? 1.5 : 1,
                   ),
-                  const SizedBox(height: 4),
-                  SizedBox(
-                    width: 66,
-                    child: Text(
-                      category,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 9.5,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.w400,
-                        color: color,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
+                child: Icon(_taskCategoryIcon(category), color: color),
               ),
-            );
-          },
-        ),
-      );
+              const SizedBox(height: 4),
+              SizedBox(
+                width: 66,
+                child: Text(
+                  category,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 9.5,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    color: color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
 }
 
 IconData _taskCategoryIcon(String category) => switch (category) {
