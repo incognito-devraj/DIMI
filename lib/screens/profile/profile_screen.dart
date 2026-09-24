@@ -2,18 +2,12 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:image_cropper/image_cropper.dart';
 import 'package:intl/intl.dart';
 
-import 'dart:io';
-
 import '../../data/database.dart';
-import '../../config/supabase_config.dart';
 import '../../providers/profile_providers.dart';
 import '../../providers/task_providers.dart';
 import '../../routing/app_router.dart';
-import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/dimi_hero.dart';
 
@@ -42,44 +36,6 @@ class ProfileScreen extends ConsumerWidget {
 }
 
 // ── Logout ────────────────────────────────────────────────────────────────────
-
-Future<void> _confirmProfileLogout(BuildContext context) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: const Text('Log Out?'),
-      content: const Text(
-        'This will sign you out. Your local data is NOT deleted.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(dialogContext, false),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(dialogContext, true),
-          child: const Text('Log Out'),
-        ),
-      ],
-    ),
-  );
-
-  if (confirmed != true || !context.mounted) return;
-
-  SupabaseBootstrap.offlineMode = false;
-
-  if (SupabaseBootstrap.client?.auth.currentSession != null) {
-    try {
-      await AuthService.instance.signOut();
-    } catch (_) {
-      // Continue to login if the remote session is already unavailable.
-    }
-  }
-
-  if (context.mounted) {
-    context.go(AppRoutes.login);
-  }
-}
 
 // ── No profile state ──────────────────────────────────────────────────────────
 
@@ -181,7 +137,7 @@ class _ProfileBody extends ConsumerWidget {
                   child: DimiHero(
                     title: 'Profile',
                     subtitle: 'Good to see you back!',
-                    height: 200,
+                    height: 180,
                     trailing: DimiHeroCircleButton(
                       icon: Icons.settings_outlined,
                       onTap: () => context.push(AppRoutes.settings),
@@ -217,35 +173,13 @@ class _ProfileBody extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.screenHorizontal,
             ),
-            child: _PersonalInfoCard(profile: profile),
-          ),
-        ),
-
-        const SliverToBoxAdapter(child: SizedBox(height: 4)),
-
-        // ── Go Premium ──────────────────────────────────────────────────────
-        // ── Sync Status ─────────────────────────────────────────────────────
-        // ── Remaining actions ───────────────────────────────────────────────
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.screenHorizontal,
-            ),
-            child: Column(
-              children: [
-                _CompactLogoutButton(
-                  onTap: () {
-                    _confirmProfileLogout(context);
-                  },
-                ),
-              ],
-            ),
+            child: _EditProfileButton(profile: profile),
           ),
         ),
 
         const SliverToBoxAdapter(
           child: Padding(
-            padding: EdgeInsets.fromLTRB(16, 14, 16, 24),
+            padding: EdgeInsets.only(top: 12, left: 20, right: 20),
             child: Text(
               'Keep going. You’re doing great. ♥',
               textAlign: TextAlign.center,
@@ -257,12 +191,87 @@ class _ProfileBody extends ConsumerWidget {
             ),
           ),
         ),
+
+        const SliverToBoxAdapter(child: SizedBox(height: 4)),
+
+        // ── Go Premium ──────────────────────────────────────────────────────
+        // ── Sync Status ─────────────────────────────────────────────────────
+        // ── Remaining actions ───────────────────────────────────────────────
+
+        // DIMI footer — pinned to the bottom of the visible screen
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Text(
+                    'DIMI',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textSecondary,
+                      letterSpacing: 3,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Digital Interface For Monitoring and Improvement',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 10,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Created by incognito-devraj',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 10,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
 }
 
 // ── Profile card ──────────────────────────────────────────────────────────────
+
+class _EditProfileButton extends StatelessWidget {
+  const _EditProfileButton({required this.profile});
+
+  final ProfileTableData profile;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton.icon(
+        onPressed: () => showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => _EditProfileSheet(profile: profile),
+        ),
+        icon: const Icon(Icons.edit_outlined, size: 19),
+        label: const Text('Edit profile'),
+      ),
+    );
+  }
+}
 
 class _HeroCard extends ConsumerStatefulWidget {
   const _HeroCard({
@@ -282,53 +291,6 @@ class _HeroCard extends ConsumerStatefulWidget {
 }
 
 class _HeroCardState extends ConsumerState<_HeroCard> {
-  final ImagePicker _picker = ImagePicker();
-
-  Future<void> _pickPhoto() async {
-    final image = await _picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1200,
-      imageQuality: 85,
-    );
-
-    if (image == null) return;
-
-    final cropped = await ImageCropper().cropImage(
-      sourcePath: image.path,
-      compressQuality: 88,
-      uiSettings: [
-        AndroidUiSettings(
-          toolbarTitle: 'Crop profile photo',
-          toolbarColor: AppColors.surfaceDark,
-          toolbarWidgetColor: AppColors.surface,
-          activeControlsWidgetColor: AppColors.accent,
-          initAspectRatio: CropAspectRatioPreset.square,
-          lockAspectRatio: true,
-        ),
-        IOSUiSettings(title: 'Crop profile photo'),
-      ],
-    );
-
-    if (cropped == null || !mounted) return;
-
-    await ref
-        .read(profileDaoProvider)
-        .upsertProfile(
-          ProfileTableCompanion(
-            id: const Value(1),
-            name: Value(widget.profile.name),
-            role: Value(widget.profile.role),
-            email: Value(widget.profile.email),
-            phone: Value(widget.profile.phone),
-            college: Value(widget.profile.college),
-            semester: Value(widget.profile.semester),
-            quote: Value(widget.profile.quote),
-            photoPath: Value(cropped.path),
-            points: Value(widget.profile.points),
-          ),
-        );
-  }
-
   @override
   Widget build(BuildContext context) {
     final p = widget.profile;
@@ -357,7 +319,7 @@ class _HeroCardState extends ConsumerState<_HeroCard> {
                 // Avatar intentionally overlaps the profile card edge.
                 Transform.translate(
                   offset: const Offset(0, -30),
-                  child: _AvatarWithCamera(profile: p, onPickPhoto: _pickPhoto),
+                  child: _ProfileAvatar(profile: p),
                 ),
 
                 const SizedBox(width: 10),
@@ -416,77 +378,46 @@ class _HeroCardState extends ConsumerState<_HeroCard> {
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 
-class _AvatarWithCamera extends StatelessWidget {
-  const _AvatarWithCamera({required this.profile, required this.onPickPhoto});
+class _ProfileAvatar extends StatelessWidget {
+  const _ProfileAvatar({required this.profile});
 
   final ProfileTableData profile;
-  final VoidCallback onPickPhoto;
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: 84,
-          height: 84,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.surface, width: 3),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x181C1C1E),
-                blurRadius: 9,
-                offset: Offset(0, 3),
-              ),
-            ],
+    final avatarUrl = profile.photoPath;
+    final hasAvatar = avatarUrl != null && avatarUrl.startsWith('http');
+    return Container(
+      width: 84,
+      height: 84,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: AppColors.surface, width: 3),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x181C1C1E),
+            blurRadius: 9,
+            offset: Offset(0, 3),
           ),
-          child: ClipOval(
-            child: profile.photoPath != null
-                ? Image.file(File(profile.photoPath!), fit: BoxFit.cover)
-                : Container(
-                    color: AppColors.accent,
-                    alignment: Alignment.center,
-                    child: Text(
-                      profile.name.isNotEmpty
-                          ? profile.name[0].toUpperCase()
-                          : 'S',
-                      style: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 32,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.surface,
-                      ),
-                    ),
+        ],
+      ),
+      child: ClipOval(
+        child: hasAvatar
+            ? Image.network(avatarUrl!, fit: BoxFit.cover)
+            : Container(
+                color: AppColors.accent,
+                alignment: Alignment.center,
+                child: Text(
+                  profile.name.isNotEmpty ? profile.name[0].toUpperCase() : 'S',
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 32,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.surface,
                   ),
-          ),
-        ),
-
-        Positioned(
-          right: -3,
-          bottom: -3,
-          child: GestureDetector(
-            onTap: onPickPhoto,
-            child: Container(
-              width: 29,
-              height: 29,
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.divider),
-                boxShadow: const [
-                  BoxShadow(color: Color(0x16000000), blurRadius: 4),
-                ],
+                ),
               ),
-              child: const Icon(
-                Icons.camera_alt_outlined,
-                size: 15,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -894,7 +825,7 @@ class _ProfileActionCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontFamily: 'Inter',
-                    fontSize: 15,
+                        fontSize: 15,
                         color: AppColors.textSecondary,
                         height: 1.1,
                       ),
@@ -1018,16 +949,35 @@ class _CompactLogoutButton extends StatelessWidget {
                   color: AppColors.danger.withAlpha(26),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.logout_rounded, size: 22, color: AppColors.danger),
+                child: const Icon(
+                  Icons.logout_rounded,
+                  size: 22,
+                  color: AppColors.danger,
+                ),
               ),
               const SizedBox(width: 14),
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Log Out', style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.danger)),
+                    Text(
+                      'Log Out',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.danger,
+                      ),
+                    ),
                     SizedBox(height: 1),
-                    Text('Sign out from your account', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: AppColors.textSecondary)),
+                    Text(
+                      'Sign out from your account',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1059,12 +1009,9 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
   late final TextEditingController _phoneCtrl;
   late final TextEditingController _collegeCtrl;
   late final TextEditingController _semesterCtrl;
-  late final TextEditingController _quoteCtrl;
+  String _educationType = 'College';
 
   bool _saving = false;
-  String? _photoPath;
-
-  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -1081,12 +1028,10 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
     _phoneCtrl = TextEditingController(text: p.phone);
 
     _collegeCtrl = TextEditingController(text: p.college);
-
     _semesterCtrl = TextEditingController(text: p.semester);
-
-    _quoteCtrl = TextEditingController(text: p.quote ?? '');
-
-    _photoPath = p.photoPath;
+    _educationType = p.semester.trim().toLowerCase().startsWith('class')
+        ? 'School'
+        : 'College';
   }
 
   @override
@@ -1097,7 +1042,6 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
     _phoneCtrl.dispose();
     _collegeCtrl.dispose();
     _semesterCtrl.dispose();
-    _quoteCtrl.dispose();
 
     super.dispose();
   }
@@ -1111,8 +1055,6 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
       _saving = true;
     });
 
-    final quoteText = _quoteCtrl.text.trim();
-
     await ref
         .read(profileDaoProvider)
         .upsertProfile(
@@ -1124,46 +1066,18 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
             phone: Value(_phoneCtrl.text.trim()),
             college: Value(_collegeCtrl.text.trim()),
             semester: Value(_semesterCtrl.text.trim()),
-            quote: Value(quoteText.isEmpty ? null : quoteText),
-            photoPath: Value(_photoPath),
+            quote: const Value(null),
+            photoPath: Value(
+              widget.profile.photoPath?.startsWith('http') == true
+                  ? widget.profile.photoPath
+                  : null,
+            ),
             points: Value(widget.profile.points),
           ),
         );
 
     if (mounted) {
       Navigator.of(context).pop();
-    }
-  }
-
-  Future<void> _choosePhoto() async {
-    final image = await _picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1200,
-      imageQuality: 85,
-    );
-
-    if (image == null) return;
-
-    final cropped = await ImageCropper().cropImage(
-      sourcePath: image.path,
-      compressQuality: 88,
-      uiSettings: [
-        AndroidUiSettings(
-          toolbarTitle: 'Crop photo',
-          toolbarColor: AppColors.surfaceDark,
-          toolbarWidgetColor: AppColors.surface,
-          activeControlsWidgetColor: AppColors.accent,
-          initAspectRatio: CropAspectRatioPreset.square,
-          lockAspectRatio: false,
-        ),
-        IOSUiSettings(title: 'Crop photo'),
-      ],
-    );
-
-    if (cropped != null && mounted) {
-      setState(() {
-        _photoPath = cropped.path;
-      });
     }
   }
 
@@ -1241,64 +1155,6 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Center(
-                      child: GestureDetector(
-                        onTap: _choosePhoto,
-                        child: Stack(
-                          children: [
-                            CircleAvatar(
-                              radius: 42,
-                              backgroundColor: AppColors.accentSoft,
-                              backgroundImage: _photoPath == null
-                                  ? null
-                                  : FileImage(File(_photoPath!)),
-                              child: _photoPath == null
-                                  ? Text(
-                                      _nameCtrl.text.isEmpty
-                                          ? 'S'
-                                          : _nameCtrl.text[0].toUpperCase(),
-                                      style: const TextStyle(
-                                        fontSize: 30,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.accent,
-                                      ),
-                                    )
-                                  : null,
-                            ),
-
-                            Positioned(
-                              right: 0,
-                              bottom: 0,
-                              child: CircleAvatar(
-                                radius: 13,
-                                backgroundColor: AppColors.textPrimary,
-                                child: const Icon(
-                                  Icons.camera_alt_outlined,
-                                  size: 13,
-                                  color: AppColors.surface,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 6),
-
-                    const Center(
-                      child: Text(
-                        'Tap to update photo',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 11,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
                     _Field(
                       'Name',
                       _nameCtrl,
@@ -1312,19 +1168,12 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                     const SizedBox(height: 12),
 
                     _Field(
-                      'Role / Course',
-                      _roleCtrl,
-                      hint: 'e.g. CS Engineering Student',
-                      caps: TextCapitalization.words,
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    _Field(
-                      'Email',
+                      'Google account',
                       _emailCtrl,
                       hint: 'your@email.com',
                       keyboard: TextInputType.emailAddress,
+                      readOnly: true,
+                      suffixIcon: const Icon(Icons.lock_outline, size: 17),
                     ),
 
                     const SizedBox(height: 12),
@@ -1339,30 +1188,80 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                     const SizedBox(height: 12),
 
                     _Field(
-                      'College',
+                      'Occupation / role',
+                      _roleCtrl,
+                      hint: 'e.g. Student, Engineer, Nurse',
+                      caps: TextCapitalization.words,
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    DropdownButtonFormField<String>(
+                      value: _educationType,
+                      decoration: InputDecoration(
+                        labelText: 'Education',
+                        prefixIcon: const Icon(Icons.school_outlined, size: 20),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(
+                            color: AppColors.divider,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(
+                            color: AppColors.accent,
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'College',
+                          child: Text('College'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'School',
+                          child: Text('School'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null)
+                          setState(() => _educationType = value);
+                      },
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    _Field(
+                      _educationType == 'School'
+                          ? 'School name'
+                          : 'College name',
                       _collegeCtrl,
-                      hint: 'Your college / university',
+                      hint: _educationType == 'School'
+                          ? 'Your school name'
+                          : 'Your college name',
                       caps: TextCapitalization.words,
                     ),
 
                     const SizedBox(height: 12),
 
                     _Field(
-                      'Semester',
+                      _educationType == 'School' ? 'Class' : 'Semester',
                       _semesterCtrl,
-                      hint: 'e.g. Semester 5',
+                      hint: _educationType == 'School'
+                          ? 'e.g. Class 12'
+                          : 'e.g. Semester 5',
                       caps: TextCapitalization.words,
                     ),
 
                     const SizedBox(height: 12),
-
-                    _Field(
-                      'Personal Quote',
-                      _quoteCtrl,
-                      hint: 'Something that inspires you…',
-                      caps: TextCapitalization.sentences,
-                      maxLines: 2,
-                    ),
 
                     const SizedBox(height: 28),
 
@@ -1406,6 +1305,8 @@ class _Field extends StatelessWidget {
     this.keyboard = TextInputType.text,
     this.caps = TextCapitalization.none,
     this.maxLines = 1,
+    this.readOnly = false,
+    this.suffixIcon,
     this.validator,
   });
 
@@ -1415,6 +1316,8 @@ class _Field extends StatelessWidget {
   final TextInputType keyboard;
   final TextCapitalization caps;
   final int maxLines;
+  final bool readOnly;
+  final Widget? suffixIcon;
   final String? Function(String?)? validator;
 
   @override
@@ -1439,8 +1342,9 @@ class _Field extends StatelessWidget {
           keyboardType: keyboard,
           textCapitalization: caps,
           maxLines: maxLines,
+          readOnly: readOnly,
           validator: validator,
-          decoration: InputDecoration(hintText: hint),
+          decoration: InputDecoration(hintText: hint, suffixIcon: suffixIcon),
         ),
       ],
     );

@@ -4,6 +4,7 @@ part of 'transaction_detection_dao.dart';
 
 // ignore_for_file: type=lint
 mixin _$TransactionDetectionDaoMixin on DatabaseAccessor<AppDatabase> {
+  $LocalAccountsTable get localAccounts => attachedDatabase.localAccounts;
   $TransactionDetectionEventsTable get transactionDetectionEvents =>
       attachedDatabase.transactionDetectionEvents;
   $TransactionCandidatesTable get transactionCandidates =>
@@ -17,6 +18,8 @@ mixin _$TransactionDetectionDaoMixin on DatabaseAccessor<AppDatabase> {
 class TransactionDetectionDaoManager {
   final _$TransactionDetectionDaoMixin _db;
   TransactionDetectionDaoManager(this._db);
+  $$LocalAccountsTableTableManager get localAccounts =>
+      $$LocalAccountsTableTableManager(_db.attachedDatabase, _db.localAccounts);
   $$TransactionDetectionEventsTableTableManager
   get transactionDetectionEvents =>
       $$TransactionDetectionEventsTableTableManager(

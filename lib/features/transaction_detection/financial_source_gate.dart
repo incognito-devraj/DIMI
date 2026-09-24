@@ -2,6 +2,7 @@ import 'transaction_models.dart';
 
 class BankNotificationValidator {
   static bool isValid(String text) {
+    text = text.replaceAll('\u20B9', 'INR ');
     final value = text.toLowerCase();
     final hasAccount = RegExp(r'a/c|account|bank|\bx+\d{2,}', caseSensitive: false).hasMatch(value);
     final hasDirection = RegExp(r'debited|credited|withdrawn|deposited|received').hasMatch(value);
@@ -39,6 +40,7 @@ class FinancialSourceGate {
   }
 
   static bool _validPaymentText(String text) {
+    text = text.replaceAll('\u20B9', 'INR ');
     final value = text.toLowerCase();
     final amount = RegExp(r'₹|rs\.?|inr|\b\d+[,.]\d{1,2}\b').hasMatch(value);
     final completed = RegExp(r'paid\s+you|you\s+paid|paid\s+(?:₹|rs\.?|inr)?\s*[0-9][0-9,.]*\s+(?:to|at)|payment successful|debited|credited|refund|refunded|reversal|transaction id|upi').hasMatch(value);

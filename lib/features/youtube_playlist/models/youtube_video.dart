@@ -8,10 +8,12 @@ class YouTubeVideo {
     required this.durationSeconds,
     this.isCompleted = false,
     this.localId,
+    this.watchedAt,
   });
-  const YouTubeVideo.empty() : videoId = '', position = 0, title = '', thumbnailUrl = '', durationISO = '', durationSeconds = 0, isCompleted = false, localId = null;
+  const YouTubeVideo.empty() : videoId = '', position = 0, title = '', thumbnailUrl = '', durationISO = '', durationSeconds = 0, isCompleted = false, localId = null, watchedAt = null;
 
   final int? localId;
+  final DateTime? watchedAt;
   final String videoId;
   final int position;
   final String title;

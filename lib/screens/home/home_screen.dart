@@ -7,8 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import 'dart:io';
-
 import '../../data/database.dart';
 import '../../core/widgets/dimi_fade_slide.dart';
 import '../../core/motion/dimi_motion.dart';
@@ -35,7 +33,7 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(profileProvider);
-    final plannerEntriesAsync = ref.watch(allPlannerEntriesProvider);
+    final plannerEntriesAsync = ref.watch(plannerHeatmapProvider);
 
     final fullName = profileAsync.valueOrNull?.name ?? 'Student';
     final name = fullName.trim().split(RegExp(r'\s+')).first;
@@ -340,6 +338,8 @@ const _homeHeatmapLabelStyle = TextStyle(
 DateTime _homeDateOnly(DateTime date) =>
     DateTime(date.year, date.month, date.day);
 
+double _homeMajorAmount(int amountMinor) => amountMinor / 100.0;
+
 // ignore: unused_element
 Color _homeHeatColor(double ratio, int total, bool future) {
   if (future || total == 0 || ratio == 0) return AppColors.accentSoft;
@@ -400,8 +400,8 @@ class _HomeContentGrid extends ConsumerWidget {
                           icon: Icons.calendar_today_rounded,
                           title: 'Planner',
                           emptyTitle: 'No plans for today',
-                          subtitle: 'Add a task to plan your day',
-                          action: 'Add Task',
+                          subtitle: 'Add an event to plan your day',
+                          action: 'Add Event',
                             onAction: () => showAddTaskSheet(
                               context,
                               initialDate: DateTime.now(),
@@ -500,7 +500,7 @@ class _FixedHomeGrid extends StatelessWidget {
       builder: (context, constraints) {
         const gap = 8.0;
         final cardWidth = (constraints.maxWidth - gap) / 2;
-        final cardHeight = (cardWidth * 1.28).clamp(218.0, 290.0);
+        final cardHeight = (cardWidth * 1.28).clamp(228.0, 290.0);
         Widget card(Widget child) =>
             SizedBox(width: cardWidth, height: cardHeight, child: child);
         final source = [
@@ -559,6 +559,7 @@ class _HomeEmptyCard extends StatelessWidget {
   Widget build(BuildContext context) => SectionCard(
     padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
     child: Column(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Row(
           children: [
@@ -593,7 +594,7 @@ class _HomeEmptyCard extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Image.asset(asset, width: 76, height: 58, fit: BoxFit.contain),
+              Image.asset(asset, width: 104, height: 80, fit: BoxFit.contain),
               const SizedBox(height: 8),
               Text(
                 emptyTitle,
@@ -753,6 +754,9 @@ class _GreetingHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final photoPath = profileAsync.valueOrNull?.photoPath as String?;
+    final avatarUrl = photoPath != null && photoPath.startsWith('http')
+        ? photoPath
+        : null;
     final initials = name.isEmpty ? 'DM' : name[0].toUpperCase();
 
     // The image zone starts below the DIMI title (~72px from top)
@@ -876,21 +880,24 @@ class _GreetingHero extends StatelessWidget {
                     ],
                   ),
                 ),
-                GestureDetector(
-                  onTap: onProfileTap,
-                  child: CircleAvatar(
-                    radius: 22,
-                    backgroundColor: AppColors.surfaceDark,
-                    backgroundImage: photoPath == null
-                        ? null
-                        : FileImage(File(photoPath)),
-                    child: Text(
-                      photoPath == null ? initials : '',
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.surface,
+                Transform.translate(
+                  offset: const Offset(0, -8),
+                  child: GestureDetector(
+                    onTap: onProfileTap,
+                    child: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: AppColors.surfaceDark,
+                      backgroundImage: avatarUrl == null
+                          ? null
+                          : NetworkImage(avatarUrl!),
+                      child: Text(
+                        avatarUrl == null ? initials : '',
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.surface,
+                        ),
                       ),
                     ),
                   ),
@@ -1204,7 +1211,6 @@ class _HomeQuickTaskComposerState extends State<_HomeQuickTaskComposer> {
             category: const Value('Personal'),
             dueDate: Value(now),
             dueTime: const Value(null),
-            reminderMinutesBefore: const Value(null),
             isCompleted: const Value(false),
             isPlannerEntry: const Value(false),
             createdAt: Value(now),
@@ -1431,13 +1437,24 @@ class _MiniTaskRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: _toggle,
-      child: Padding(
-        padding: EdgeInsets.only(bottom: compact ? 5 : 8),
-        child: Row(
-          children: [
-            GestureDetector(
-              onTap: _toggle,
-              child: AnimatedContainer(
+      child: Container(
+        padding: EdgeInsets.only(bottom: compact ? 6 : 8),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: AppColors.divider.withAlpha(150),
+              width: 0.7,
+            ),
+          ),
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: GestureDetector(
+                  onTap: _toggle,
+                  child: AnimatedContainer(
                 duration: DimiMotion.fast,
                 curve: DimiMotion.curve,
                 width: compact ? 16 : 20,
@@ -1469,11 +1486,20 @@ class _MiniTaskRow extends StatelessWidget {
                         )
                       : const SizedBox(key: ValueKey('home-mini-pending')),
                 ),
+                  ),
+                ),
               ),
-            ),
-            SizedBox(width: compact ? 5 : 10),
-            Expanded(
-              child: Text(
+              SizedBox(width: compact ? 5 : 10),
+              Container(
+                width: compact ? 3 : 4,
+                decoration: BoxDecoration(
+                  color: AppColors.accent,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              SizedBox(width: compact ? 7 : 10),
+              Expanded(
+                child: Text(
                 task.title,
                 maxLines: compact ? 2 : null,
                 style: TextStyle(
@@ -1488,17 +1514,18 @@ class _MiniTaskRow extends StatelessWidget {
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
-            ),
-            if (!compact && task.dueTime != null)
-              Text(
-                formatTime12Hour(task.dueTime),
-                style: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
                 ),
-              ),
-          ],
+              if (!compact && task.dueTime != null)
+                Text(
+                  formatTime12Hour(task.dueTime),
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -1522,16 +1549,13 @@ class _FinanceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final expenses = allTransactions
         .where((t) => t.type == 'expense')
-        .fold(0.0, (sum, t) => sum + t.amount);
+        .fold(0.0, (sum, t) => sum + _homeMajorAmount(t.amount));
     final income = allTransactions
         .where((t) => t.type == 'income')
-        .fold(0.0, (sum, t) => sum + t.amount);
-    final loans = allTransactions
-        .where((t) => t.type == 'loan')
-        .fold(0.0, (sum, t) => sum + t.amount);
+        .fold(0.0, (sum, t) => sum + _homeMajorAmount(t.amount));
     final weeklySpent = weeklyTransactions
         .where((t) => t.type == 'expense')
-        .fold(0.0, (sum, t) => sum + t.amount);
+        .fold(0.0, (sum, t) => sum + _homeMajorAmount(t.amount));
     final today = DateTime.now();
     final todaySpent = allTransactions
         .where(
@@ -1541,11 +1565,11 @@ class _FinanceCard extends StatelessWidget {
               t.date.month == today.month &&
               t.date.day == today.day,
         )
-        .fold(0.0, (sum, t) => sum + t.amount);
+        .fold(0.0, (sum, t) => sum + _homeMajorAmount(t.amount));
     final dayAmounts = List.filled(7, 0.0);
     for (final transaction in weeklyTransactions) {
       if (transaction.type == 'expense') {
-        dayAmounts[transaction.date.weekday - 1] += transaction.amount;
+        dayAmounts[transaction.date.weekday - 1] += _homeMajorAmount(transaction.amount);
       }
     }
     final maxAmount = dayAmounts.reduce((a, b) => a > b ? a : b);
@@ -1636,6 +1660,22 @@ class _FinanceCard extends StatelessWidget {
   }
 }
 
+({String time, String period}) _homePlannerTime(String? value) {
+  if (value == null || value.isEmpty) return (time: '—', period: '');
+  final parts = value.split(':');
+  final hour = parts.length == 2 ? int.tryParse(parts[0]) : null;
+  final minute = parts.length == 2 ? int.tryParse(parts[1]) : null;
+  if (hour == null || minute == null || hour < 0 || hour > 23) {
+    return (time: value, period: '');
+  }
+  final period = hour >= 12 ? 'PM' : 'AM';
+  final displayHour = hour % 12 == 0 ? 12 : hour % 12;
+  return (
+    time: '$displayHour:${minute.toString().padLeft(2, '0')}',
+    period: period,
+  );
+}
+
 class _PlannerPreviewCard extends StatelessWidget {
   const _PlannerPreviewCard({required this.tasks, this.compact = false});
   final List<Task> tasks;
@@ -1698,65 +1738,90 @@ class _PlannerPreviewCard extends StatelessWidget {
             )
           else
             ...sorted.map(
-              (task) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: compact ? 31 : 52,
-                      child: Text(
-                        formatTime12Hour(task.dueTime),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: compact ? 9 : 10,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: compact ? 3 : 8),
-                    Container(
-                      width: 3,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: _plannerColor(task.category),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                    SizedBox(width: compact ? 3 : 8),
-                    Expanded(
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: compact ? 6 : 9,
-                          vertical: compact ? 5 : 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _plannerColor(task.category).withAlpha(22),
-                          borderRadius: BorderRadius.circular(9),
-                        ),
-                        child: Text(
-                          task.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: compact ? 10.5 : 11,
-                            fontWeight: FontWeight.w500,
-                            color: task.isCompleted
-                                ? AppColors.textSecondary
-                                : AppColors.textPrimary,
-                            decoration: task.isCompleted
-                                ? TextDecoration.lineThrough
-                                : null,
+              (task) {
+                final time = _homePlannerTime(task.dueTime);
+                final color = _plannerColor(task.category);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: compact ? 38 : 52,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                time.time,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: compact ? 9 : 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              if (time.period.isNotEmpty)
+                                Text(
+                                  time.period,
+                                  style: TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: compact ? 7 : 8,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
+                      SizedBox(width: compact ? 5 : 8),
+                      Container(
+                        width: compact ? 3 : 4,
+                        height: compact ? 30 : 38,
+                        decoration: BoxDecoration(
+                          color: color,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      SizedBox(width: compact ? 5 : 8),
+                      Expanded(
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: compact ? 6 : 9,
+                            vertical: compact ? 7 : 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: color.withAlpha(22),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: Text(
+                            task.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: compact ? 10.5 : 11,
+                              fontWeight: FontWeight.w500,
+                              color: task.isCompleted
+                                  ? AppColors.textSecondary
+                                  : AppColors.textPrimary,
+                              decoration: task.isCompleted
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           const SizedBox(height: 4),
           GestureDetector(
@@ -1777,7 +1842,7 @@ class _PlannerPreviewCard extends StatelessWidget {
                   const Icon(Icons.add_rounded, size: 16),
                   const SizedBox(width: 6),
                   const Text(
-                    'Add Task',
+                    'Add Event',
                     style: TextStyle(
                       fontFamily: 'Poppins',
                       fontSize: 9,
@@ -1811,13 +1876,13 @@ class _BalanceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final expenses = transactions
         .where((t) => t.type == 'expense')
-        .fold(0.0, (sum, t) => sum + t.amount);
+        .fold(0.0, (sum, t) => sum + _homeMajorAmount(t.amount));
     final income = transactions
         .where((t) => t.type == 'income')
-        .fold(0.0, (sum, t) => sum + t.amount);
+        .fold(0.0, (sum, t) => sum + _homeMajorAmount(t.amount));
     final loans = transactions
-        .where((t) => t.type == 'loan')
-        .fold(0.0, (sum, t) => sum + t.amount);
+        .where((t) => t.type == 'lent' || t.type == 'borrowed')
+        .fold(0.0, (sum, t) => sum + _homeMajorAmount(t.amount));
     final balance = income - expenses;
 
     return SectionCard(
@@ -1973,7 +2038,7 @@ class _SpendingCard extends StatelessWidget {
     for (final t in transactions) {
       if (t.type == 'expense') {
         // weekday: 1=Mon … 7=Sun → index 0–6
-        dayAmounts[t.date.weekday - 1] += t.amount;
+        dayAmounts[t.date.weekday - 1] += _homeMajorAmount(t.amount);
       }
     }
     final maxAmt = dayAmounts.reduce((a, b) => a > b ? a : b);
@@ -1987,10 +2052,10 @@ class _SpendingCard extends StatelessWidget {
               t.date.month == DateTime.now().month &&
               t.date.day == DateTime.now().day,
         )
-        .fold(0.0, (sum, t) => sum + t.amount);
+        .fold(0.0, (sum, t) => sum + _homeMajorAmount(t.amount));
     final weeklyIncome = transactions
         .where((t) => t.type == 'income')
-        .fold(0.0, (s, t) => s + t.amount);
+        .fold(0.0, (s, t) => s + _homeMajorAmount(t.amount));
 
     return SectionCard(
       padding: EdgeInsets.all(compact ? 8 : AppSpacing.cardPadding),
@@ -2323,7 +2388,7 @@ class _RemindersCard extends StatelessWidget {
                   Icon(Icons.add_rounded, size: compact ? 16 : 19),
                   SizedBox(width: compact ? 5 : 8),
                   Text(
-                    'Add reminder',
+                    'Add Reminder',
                     style: TextStyle(
                       fontFamily: 'Poppins',
                       fontSize: compact ? 9 : 12,

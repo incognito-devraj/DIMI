@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../features/transaction_detection/transaction_detection_service.dart';
 import '../data/database.dart';
 import 'database_provider.dart';
+import 'local_account_provider.dart';
 
-final transactionDetectionServiceProvider = Provider<TransactionDetectionService>((ref) => TransactionDetectionService(ref.watch(databaseProvider)));
-final pendingTransactionCandidatesProvider = StreamProvider<List<TransactionCandidate>>((ref) => ref.watch(databaseProvider).transactionDetectionDao.watchPending());
+final pendingTransactionCandidatesProvider = StreamProvider<List<TransactionCandidate>>((ref) {
+  ref.watch(activeAccountIdProvider);
+  return ref.watch(databaseProvider).transactionDetectionDao.watchPending();
+});

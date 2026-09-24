@@ -21,27 +21,6 @@ class TransactionDetectionService {
   Future<void> setDetectionMode(String mode) =>
       _channel.invokeMethod<void>('setDetectionMode', {'mode': mode});
 
-  Future<void> autoAddPendingHighConfidence() async {
-    for (final candidate
-        in await db.transactionDetectionDao.getPendingCandidates()) {
-      if (candidate.confidenceScore < 0.8) continue;
-      final isIncome = candidate.transactionType == 'INCOME';
-      await db.moneyDao.insertTransaction(
-        MoneyTransactionsCompanion.insert(
-          type: isIncome ? 'income' : 'expense',
-          amount: candidate.amountMinor / 100,
-          category: candidate.category,
-          note: Value('${candidate.merchantName} · Detected automatically'),
-          date: candidate.occurredAt,
-        ),
-      );
-      await db.transactionDetectionDao.updateStatus(
-        candidate.candidateId,
-        'AUTO_ADDED',
-      );
-    }
-  }
-
   Future<int> syncPendingEvents() async {
     final mode = await detectionMode();
     final items =
@@ -78,6 +57,7 @@ class TransactionDetectionService {
           bigText: Value(event.bigText),
           occurredAt: event.timestamp,
           receivedAt: event.receivedAt,
+          expiresAt: Value(event.receivedAt.add(const Duration(days: 30))),
         ),
       );
       final candidate = TransactionParser.parse(event);
@@ -122,11 +102,11 @@ class TransactionDetectionService {
         if (primary.status == 'PENDING_CONFIRMATION' &&
             mode == 'Auto-add high confidence' &&
             candidate.confidence >= 0.95) {
-          final isIncome = primary.transactionType == 'INCOME';
+          final isIncome = primary.transactionType == 'INCOME' || primary.direction == 'CREDIT';
           await db.moneyDao.insertTransaction(
             MoneyTransactionsCompanion.insert(
               type: isIncome ? 'income' : 'expense',
-              amount: primary.amountMinor / 100,
+              amount: primary.amountMinor,
               category: primary.category,
               note: Value('${primary.merchantName} · Detected automatically'),
               date: primary.occurredAt,
@@ -166,16 +146,18 @@ class TransactionDetectionService {
           status: auto ? 'AUTO_ADDED' : 'PENDING_CONFIRMATION',
           duplicateStatus: 'UNIQUE',
           category: Value(candidate.category),
-          createdAt: DateTime.now(),
+          createdAt: Value(DateTime.now()),
+          updatedAt: Value(DateTime.now()),
+          expiresAt: Value(candidate.timestamp.add(const Duration(days: 90))),
         ),
       );
       if (auto) {
         await db.moneyDao.insertTransaction(
           MoneyTransactionsCompanion.insert(
-            type: candidate.type == TransactionType.income
+            type: candidate.type == TransactionType.income || candidate.direction == TransactionDirection.credit
                 ? 'income'
                 : 'expense',
-            amount: candidate.amountMinor / 100,
+            amount: candidate.amountMinor,
             category: candidate.category,
             note: Value('${candidate.merchantName} · Detected automatically'),
             date: candidate.timestamp,

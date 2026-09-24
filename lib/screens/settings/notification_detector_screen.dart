@@ -14,7 +14,7 @@ class _NotificationDetectorScreenState extends State<NotificationDetectorScreen>
   List<Map<String, dynamic>> _events = const [];
   bool _connected = false;
 
-  @override void initState() { super.initState(); _refresh(); _timer = Timer.periodic(const Duration(seconds: 1), (_) => _refresh()); }
+  @override void initState() { super.initState(); _refresh(); _timer = Timer.periodic(const Duration(seconds: 5), (_) => _refresh()); }
   @override void dispose() { _timer?.cancel(); super.dispose(); }
   Future<void> _refresh() async {
     final connected = await channel.invokeMethod<bool>('isNotificationAccessEnabled') ?? false;

@@ -80,7 +80,7 @@ Future<void> seedDatabase(AppDatabase db) async {
   await db.moneyDao.insertTransaction(
     MoneyTransactionsCompanion(
       type: const Value('expense'),
-      amount: const Value(120.0),
+      amount: const Value(12000),
       category: const Value('Food & Dining'),
       note: const Value('Lunch at canteen'),
       date: Value(today),
@@ -89,7 +89,7 @@ Future<void> seedDatabase(AppDatabase db) async {
   await db.moneyDao.insertTransaction(
     MoneyTransactionsCompanion(
       type: const Value('expense'),
-      amount: const Value(350.0),
+      amount: const Value(35000),
       category: const Value('Shopping'),
       note: const Value('Stationery'),
       date: Value(today.subtract(const Duration(days: 1))),
@@ -98,7 +98,7 @@ Future<void> seedDatabase(AppDatabase db) async {
   await db.moneyDao.insertTransaction(
     MoneyTransactionsCompanion(
       type: const Value('expense'),
-      amount: const Value(80.0),
+      amount: const Value(8000),
       category: const Value('Transport'),
       note: const Value('Auto to college'),
       date: Value(today.subtract(const Duration(days: 2))),
@@ -107,7 +107,7 @@ Future<void> seedDatabase(AppDatabase db) async {
   await db.moneyDao.insertTransaction(
     MoneyTransactionsCompanion(
       type: const Value('income'),
-      amount: const Value(5000.0),
+      amount: const Value(500000),
       category: const Value('Allowance'),
       note: const Value('Monthly pocket money'),
       date: Value(today.subtract(const Duration(days: 3))),
@@ -115,8 +115,8 @@ Future<void> seedDatabase(AppDatabase db) async {
   );
   await db.moneyDao.insertTransaction(
     MoneyTransactionsCompanion(
-      type: const Value('loan'),
-      amount: const Value(200.0),
+      type: const Value('lent'),
+      amount: const Value(20000),
       category: const Value('Lent'),
       note: const Value('Lent to Rahul'),
       date: Value(today.subtract(const Duration(days: 2))),

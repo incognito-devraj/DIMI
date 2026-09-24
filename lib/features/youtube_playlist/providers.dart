@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/database_provider.dart';
+import '../../providers/local_account_provider.dart';
 import '../../services/auth_service.dart';
 import '../../config/supabase_config.dart';
 import 'data/youtube_playlist_repository.dart';
@@ -29,6 +30,7 @@ final _currentUserIdProvider = StreamProvider<String>((ref) async* {
 /// state changes, so the correct list is always visible regardless of how
 /// the user launched the app.
 final youtubePlaylistsProvider = StreamProvider((ref) {
+  ref.watch(activeAccountIdProvider);
   final userIdAsync = ref.watch(_currentUserIdProvider);
   final userId = userIdAsync.valueOrNull ?? 'local';
   return ref.watch(databaseProvider).youtubePlaylistDao.watchForUser(userId);

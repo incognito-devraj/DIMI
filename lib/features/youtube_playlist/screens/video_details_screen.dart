@@ -109,6 +109,11 @@ class VideoDetailsScreen extends ConsumerWidget {
                 label: video.isCompleted ? 'Completed' : 'Mark as Completed',
                 icon: Icons.check_circle_rounded,
                 onPressed: video.localId == null ? () {} : () async {
+                  debugPrint(
+                    '[DIMI youtube completion] UI details tap '
+                    'localId=${video.localId} videoId=${video.videoId} '
+                    'current=${video.isCompleted} desired=${!video.isCompleted}',
+                  );
                   await ref.read(databaseProvider).youtubePlaylistDao.setCompleted(video.localId!, !video.isCompleted);
                 },
               ),

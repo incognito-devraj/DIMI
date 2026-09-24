@@ -27,8 +27,10 @@ class _DimiFixedDialogState extends State<DimiFixedDialog> {
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final restingHeight = _restingHeight ??= MediaQuery.sizeOf(context).height;
-    const defaultTopFraction = 0.19;
-    final defaultTop = restingHeight * defaultTopFraction;
+    final defaultTop = math.max(
+      media.padding.top + 8,
+      (restingHeight - widget.height) / 2,
+    );
     final keyboardTop = restingHeight - media.viewInsets.bottom;
     final dialogBottom = defaultTop + widget.height + 24;
     final overlap = math.max(0.0, dialogBottom - keyboardTop);
