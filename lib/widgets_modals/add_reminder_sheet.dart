@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -16,22 +17,28 @@ Future<void> showAddReminderSheet(BuildContext context) async {
     barrierDismissible: true,
     barrierLabel: 'Add Reminder',
     barrierColor: const Color(0x99000000),
-    transitionDuration: const Duration(milliseconds: 220),
+    transitionDuration: const Duration(milliseconds: 250),
     pageBuilder: (_, _, _) =>
         _FixedReminderDialog(child: const _AddReminderSheet()),
-    transitionBuilder: (_, animation, _, child) => FadeTransition(
-      opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
-      child: SlideTransition(
-        position:
-            Tween<Offset>(
-              begin: const Offset(0, -0.025),
-              end: Offset.zero,
-            ).animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-            ),
-        child: child,
-      ),
-    ),
+    transitionBuilder: (_, animation, __, child) {
+      final curvedAnimation = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      final slideAnimation = Tween<Offset>(
+        begin: const Offset(0, 0.08),
+        end: Offset.zero,
+      ).animate(curvedAnimation);
+      final fadeAnimation = Tween<double>(
+        begin: 0.0,
+        end: 1.0,
+      ).animate(curvedAnimation);
+      return FadeTransition(
+        opacity: fadeAnimation,
+        child: SlideTransition(position: slideAnimation, child: child),
+      );
+    },
   );
 }
 
@@ -241,9 +248,19 @@ class _AddReminderSheetState extends ConsumerState<_AddReminderSheet> {
                     TextFormField(
                       controller: _titleCtrl,
                       autofocus: true,
+                      onChanged: (_) => setState(() {}),
+                      maxLength: 40,
+                      inputFormatters: [LengthLimitingTextInputFormatter(40)],
                       textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         hintText: 'e.g. Submit assignment',
+                        counterText: '',
+                        suffixText: '${_titleCtrl.text.length}/40',
+                        suffixStyle: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 9,
+                          color: AppColors.textSecondary,
+                        ),
                         errorStyle: TextStyle(fontSize: 0, height: 0),
                       ),
                       validator: (v) => (v == null || v.trim().isEmpty)
@@ -381,19 +398,20 @@ class _PickerButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(26),
         ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(icon, size: 16, color: AppColors.surface),
-            const SizedBox(width: 6),
+            Icon(icon, size: 21, color: AppColors.surface),
             Expanded(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.surface,
-                    fontWeight: FontWeight.w600,
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.surface,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),

@@ -15,22 +15,28 @@ Future<void> showAddExpenseSheet(BuildContext context) async {
     barrierDismissible: true,
     barrierLabel: 'Add Expense',
     barrierColor: const Color(0x99000000),
-    transitionDuration: const Duration(milliseconds: 220),
+    transitionDuration: const Duration(milliseconds: 250),
     pageBuilder: (_, _, _) =>
         const DimiFixedDialog(height: 410, child: _AddExpenseSheet()),
-    transitionBuilder: (_, animation, _, child) => FadeTransition(
-      opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
-      child: SlideTransition(
-        position:
-            Tween<Offset>(
-              begin: const Offset(0, -0.025),
-              end: Offset.zero,
-            ).animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-            ),
-        child: child,
-      ),
-    ),
+    transitionBuilder: (_, animation, __, child) {
+      final curvedAnimation = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      final slideAnimation = Tween<Offset>(
+        begin: const Offset(0, 0.08),
+        end: Offset.zero,
+      ).animate(curvedAnimation);
+      final fadeAnimation = Tween<double>(
+        begin: 0.0,
+        end: 1.0,
+      ).animate(curvedAnimation);
+      return FadeTransition(
+        opacity: fadeAnimation,
+        child: SlideTransition(position: slideAnimation, child: child),
+      );
+    },
   );
   if (saved == true && context.mounted) {
     await showDialog<void>(
@@ -112,7 +118,7 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
   final _noteCtrl = TextEditingController();
   final _amountFocusNode = FocusNode();
 
-  String _type = 'expense'; // "expense" | "income" | "loan"
+  String _type = 'expense'; // "expense" | "income" | "lent" | "borrowed"
   String _category = 'Sundries';
   DateTime _date = DateTime.now();
   bool _saving = false;
@@ -120,7 +126,8 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
   static const _types = [
     _TypeOption(value: 'expense', label: 'Expense', color: AppColors.danger),
     _TypeOption(value: 'income', label: 'Income', color: AppColors.success),
-    _TypeOption(value: 'loan', label: 'Loan', color: AppColors.info),
+    _TypeOption(value: 'lent', label: 'Lent', color: AppColors.info),
+    _TypeOption(value: 'borrowed', label: 'Borrowed', color: AppColors.info),
   ];
 
   static const _expenseCategories = [
@@ -144,11 +151,13 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
     'Other',
   ];
 
-  static const _loanCategories = ['Lent', 'Borrowed', 'Other'];
+  bool get _isLoanType => _type == 'lent' || _type == 'borrowed';
+
+  String get _loanCategory => _type == 'borrowed' ? 'Borrowed' : 'Lent';
 
   List<String> get _categories => switch (_type) {
     'income' => _incomeCategories,
-    'loan' => _loanCategories,
+    'lent' || 'borrowed' => [_loanCategory],
     _ => _expenseCategories,
   };
 
@@ -201,7 +210,7 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
         .insertTransaction(
           MoneyTransactionsCompanion(
             type: Value(_type),
-            amount: Value(amount),
+            amount: Value((amount * 100).round()),
             category: Value(_category),
             note: Value(
               _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
@@ -276,15 +285,26 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                         TextFormField(
                           controller: _noteCtrl,
                           autofocus: true,
+                          onChanged: (_) => setState(() {}),
+                          maxLength: 40,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(40),
+                          ],
                           textInputAction: TextInputAction.next,
                           textCapitalization: TextCapitalization.sentences,
                           style: const TextStyle(
                             fontFamily: 'Poppins',
                             fontSize: 13,
                           ),
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             hintText: 'What was this for?',
                             counterText: '',
+                            suffixText: '${_noteCtrl.text.length}/40',
+                            suffixStyle: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 9,
+                              color: AppColors.textSecondary,
+                            ),
                             contentPadding: EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 10,
@@ -336,7 +356,9 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                                   selected: _type == t.value,
                                   onTap: () => setState(() {
                                     _type = t.value;
-                                    _category = _categories.first;
+                                    _category = _isLoanType
+                                        ? _loanCategory
+                                        : _categories.first;
                                   }),
                                 ),
                               ),
@@ -351,7 +373,6 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          flex: 13,
                           child: TextFormField(
                             controller: _amountCtrl,
                             autofocus: false,
@@ -393,8 +414,8 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                           ),
                         ),
                         const SizedBox(width: 10),
-                        Expanded(
-                          flex: 8,
+                        SizedBox(
+                          width: 132,
                           child: _ExpenseDateButton(
                             date: _date,
                             onTap: _pickDate,
@@ -405,12 +426,18 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
                     const SizedBox(height: 14),
 
                     // Categories
-                    _CategoryPicker(
-                      categories: _categories,
-                      selected: _category,
-                      onSelected: (category) =>
-                          setState(() => _category = category),
-                    ),
+                    if (_isLoanType)
+                      _LockedCategory(
+                        label: _loanCategory,
+                        icon: _categoryIcon(_loanCategory),
+                      )
+                    else
+                      _CategoryPicker(
+                        categories: _categories,
+                        selected: _category,
+                        onSelected: (category) =>
+                            setState(() => _category = category),
+                      ),
                     const SizedBox(height: 4),
 
                     // Submit
@@ -485,7 +512,7 @@ class _ExpenseDateButton extends StatelessWidget {
         children: [
           const Icon(
             Icons.calendar_today_outlined,
-            size: 15,
+            size: 18,
             color: AppColors.surface,
           ),
           const SizedBox(width: 4),
@@ -498,7 +525,7 @@ class _ExpenseDateButton extends StatelessWidget {
                 maxLines: 1,
                 style: const TextStyle(
                   fontFamily: 'Poppins',
-                  fontSize: 13,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: AppColors.surface,
                 ),
@@ -507,7 +534,7 @@ class _ExpenseDateButton extends StatelessWidget {
           ),
           const Icon(
             Icons.keyboard_arrow_down_rounded,
-            size: 16,
+            size: 18,
             color: AppColors.surface,
           ),
         ],
@@ -635,6 +662,45 @@ class _CategoryPicker extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _LockedCategory extends StatelessWidget {
+  const _LockedCategory({required this.label, required this.icon});
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 86,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppColors.accentSoft,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.accent, width: 1.5),
+            ),
+            child: Icon(icon, size: 22, color: AppColors.accent),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 9.5,
+              fontWeight: FontWeight.w600,
+              color: AppColors.accent,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import android.provider.Telephony
 import android.util.Log
 import org.json.JSONObject
 
@@ -17,13 +18,17 @@ class DimiNotificationListenerService : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         val detectionMode = getSharedPreferences("dimi_settings", Context.MODE_PRIVATE).getString("detection_mode", "Detect & Ask")
         if (detectionMode == "Off") return
+        // Avoid even extracting text from unrelated notifications. The
+        // listener callback is system-driven, but processing is allowlisted.
+        val defaultSmsPackage = Telephony.Sms.getDefaultSmsPackage(this)
+        if (!FinancialNotificationFilter.isPotentialSource(sbn.packageName, defaultSmsPackage)) return
         val extras = sbn.notification.extras
         val title = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.take(160)
         val body = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.take(500)
         val bigText = extras?.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.take(1000)
         val text = listOfNotNull(title, body, bigText).joinToString(" ").lowercase()
         val id = "${sbn.key}:${sbn.postTime}"
-        if (!FinancialNotificationFilter.isRelevant(sbn.packageName, text)) return
+        if (!FinancialNotificationFilter.isRelevant(sbn.packageName, text, defaultSmsPackage)) return
         if ((applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) Log.d(TAG, "DIMI_TRANSACTION_DETECTED packageName=${sbn.packageName} timestamp=${sbn.postTime}")
         val event = JSONObject().apply {
             put("id", id); put("sourcePackage", sbn.packageName); put("sourceType", "NOTIFICATION")

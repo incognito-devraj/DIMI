@@ -13,6 +13,7 @@ import '../../widgets/pill_segmented_control.dart';
 import '../../widgets_modals/add_task_sheet.dart';
 import '../../utils/time_format.dart';
 import '../../widgets/dimi_activity_heatmap.dart';
+import '../../services/notification_service.dart';
 
 const _kViews = ['Day', 'Week', 'Month'];
 
@@ -33,9 +34,24 @@ class PlannerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlannerScreenState extends ConsumerState<PlannerScreen> {
-  DateTime _selected = DateTime.now();
-  int _view = 0; // 0=Day, 1=Week, 2=Month
+  static DateTime? _lastSelected;
+  static int _lastView = 0;
+
+  late DateTime _selected;
+  late int _view; // 0=Day, 1=Week, 2=Month
   bool _showAddButton = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = _lastSelected ?? DateTime.now();
+    _view = _lastView;
+  }
+
+  void _rememberPlannerPosition() {
+    _lastSelected = _selected;
+    _lastView = _view;
+  }
 
   // ── Nav helpers ─────────────────────────────────────────────────────────
 
@@ -46,6 +62,7 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
         2 => DateTime(_selected.year, _selected.month - 1, 1),
         _ => _selected.subtract(const Duration(days: 1)),
       };
+      _rememberPlannerPosition();
     });
   }
 
@@ -56,6 +73,7 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
         2 => DateTime(_selected.year, _selected.month + 1, 1),
         _ => _selected.add(const Duration(days: 1)),
       };
+      _rememberPlannerPosition();
     });
   }
 
@@ -106,13 +124,19 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
         child: child!,
       ),
     );
-    if (picked != null) setState(() => _selected = picked);
+    if (picked != null) {
+      setState(() {
+        _selected = picked;
+        _rememberPlannerPosition();
+      });
+    }
   }
 
   // ── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    final showDayFab = _showAddButton && _view == 0;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: NotificationListener<UserScrollNotification>(
@@ -152,14 +176,6 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                       ),
                     ),
                     const SizedBox(height: 3),
-                    const Text(
-                      'Plan today. A better you tomorrow.',
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -176,7 +192,12 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                     options: _kViews,
                     selected: _view,
                     onSelected: (i) {
-                      if (i != _view) setState(() => _view = i);
+                      if (i != _view) {
+                        setState(() {
+                          _view = i;
+                          _rememberPlannerPosition();
+                        });
+                      }
                     },
                   ),
                 ),
@@ -210,16 +231,28 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                                   child: child,
                                 ),
                               ),
-                          child: Text(
-                            _headerLabel(),
+                          child: Row(
                             key: ValueKey(_headerLabel()),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontFamily: 'Poppins',
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _headerLabel(),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                size: 20,
+                                color: AppColors.textSecondary,
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -247,22 +280,24 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                     child: switch (_view) {
                       1 => _WeekView(
                         anchorDate: _selected,
-                        fabVisible: _showAddButton,
+                        fabVisible: showDayFab,
                         onDayTap: (d) => setState(() {
                           _selected = d;
                           _view = 0;
+                          _rememberPlannerPosition();
                         }),
                       ),
                       2 => _PremiumMonthView(
                         anchorDate: _selected,
-                        fabVisible: _showAddButton,
+                        fabVisible: showDayFab,
                         onDayTap: (d) => setState(() {
                           _selected = d;
+                          _rememberPlannerPosition();
                         }),
                       ),
                       _ => _DayView(
                         date: _selected,
-                        fabVisible: _showAddButton,
+                        fabVisible: showDayFab,
                       ),
                     },
                   ),
@@ -273,16 +308,16 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
         ),
       ),
       floatingActionButton: IgnorePointer(
-        ignoring: !_showAddButton,
+        ignoring: !showDayFab,
         child: AnimatedSlide(
-          offset: _showAddButton ? Offset.zero : const Offset(0, 1.4),
+          offset: showDayFab ? Offset.zero : const Offset(0, 1.4),
           duration: DimiMotion.normal,
           curve: DimiMotion.curve,
           child: AnimatedOpacity(
-            opacity: _showAddButton ? 1 : 0,
+            opacity: showDayFab ? 1 : 0,
             duration: DimiMotion.fast,
             child: DimiAddActionButton(
-              label: 'Add task',
+              label: 'Add Event',
               onPressed: () => showAddTaskSheet(
                 context,
                 initialDate: _selected,
@@ -333,7 +368,7 @@ class _DayViewState extends ConsumerState<_DayView> {
             ? const EmptyState(
                 icon: Icons.calendar_today_outlined,
                 title: 'Nothing scheduled',
-                subtitle: 'Tap Add task to schedule your first task.',
+                subtitle: 'Tap Add event to schedule your first event.',
                 asset: 'assets/illustrations/Planner.png',
               )
             : _ReferenceDaySchedule(
@@ -385,6 +420,8 @@ class _ReferenceTaskRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final done = task.isCompleted;
+    final isFuture = _isFuturePlannerTask(task);
+    final isPast = _isPastPlannerTask(task);
     final category = task.category.toLowerCase();
     final color = switch (category) {
       'study' => AppColors.info,
@@ -403,10 +440,14 @@ class _ReferenceTaskRow extends ConsumerWidget {
     };
 
     return InkWell(
-      onLongPress: () => _TaskTile(task: task)._showOptions(context, ref),
-      onTap: () => ref.read(taskDaoProvider).toggleCompleted(task.id, !done),
+      onLongPress: isPast
+          ? null
+          : () => _TaskTile(task: task)._showOptions(context, ref),
+      onTap: isFuture || isPast
+          ? null
+          : () => ref.read(taskDaoProvider).toggleCompleted(task.id, !done),
       child: Container(
-        height: 82,
+      height: 112,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: const BoxDecoration(
           border: Border(bottom: BorderSide(color: AppColors.divider)),
@@ -428,14 +469,33 @@ class _ReferenceTaskRow extends ConsumerWidget {
             ),
             Container(width: 2, height: 48, color: color),
             const SizedBox(width: 12),
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: color.withAlpha(28),
-                shape: BoxShape.circle,
+            SizedBox(
+              width: 50,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: color.withAlpha(28),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, size: 22, color: color),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    task.category,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 8,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ),
-              child: Icon(icon, size: 22, color: color),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -445,8 +505,8 @@ class _ReferenceTaskRow extends ConsumerWidget {
                 children: [
                   Text(
                     task.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    maxLines: 3,
+                    softWrap: true,
                     style: TextStyle(
                       fontFamily: 'Poppins',
                       fontSize: 14,
@@ -457,22 +517,16 @@ class _ReferenceTaskRow extends ConsumerWidget {
                       decoration: done ? TextDecoration.lineThrough : null,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    task.category,
-                    style: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
                 ],
               ),
             ),
             const SizedBox(width: 8),
             GestureDetector(
-              onTap: () =>
-                  ref.read(taskDaoProvider).toggleCompleted(task.id, !done),
+              onTap: isFuture || isPast
+                  ? null
+                  : () => ref
+                      .read(taskDaoProvider)
+                      .toggleCompleted(task.id, !done),
               child: Container(
                 width: 28,
                 height: 28,
@@ -518,15 +572,8 @@ class _WeekView extends ConsumerWidget {
     final mon = anchorDate.subtract(Duration(days: anchorDate.weekday - 1));
     final days = List.generate(7, (i) => _dateOnly(mon.add(Duration(days: i))));
 
-    final upcomingAsync = ref.watch(upcomingTasksProvider);
-    final allAsync = ref.watch(allTasksProvider);
-
-    // Merge both streams, deduplicate by id, get full week picture
-    final seenIds = <int>{};
-    final allTasks = <Task>[
-      ...?upcomingAsync.valueOrNull,
-      ...?allAsync.valueOrNull,
-    ].where((t) => seenIds.add(t.id)).toList();
+    final plannerAsync = ref.watch(tasksForWeekProvider(_dateOnly(mon)));
+    final allTasks = plannerAsync.valueOrNull ?? const <Task>[];
     // Group tasks by date
     Map<DateTime, List<Task>> byDay = {};
     for (final d in days) {
@@ -651,21 +698,11 @@ class _DayPlan {
   final DateTime date;
   final List<Task> tasks;
 
-  int get plannedMinutes =>
-      tasks.fold(0, (sum, task) => sum + task.plannedMinutes);
-  int get completedMinutes => tasks.fold(
-    0,
-    (sum, task) =>
-        sum +
-        (task.completedMinutes > 0
-            ? task.completedMinutes
-            : task.isCompleted
-            ? task.plannedMinutes
-            : 0),
-  );
+  int get plannedMinutes => tasks.length * 60;
+  int get completedMinutes => completedTasks * 60;
   int get completedTasks => tasks.where((task) => task.isCompleted).length;
-  bool get hasPlan => plannedMinutes > 0;
-  double get score => hasPlan ? completedMinutes / plannedMinutes : 0;
+  bool get hasPlan => tasks.isNotEmpty;
+  double get score => hasPlan ? completedTasks / tasks.length : 0;
 }
 
 class _PremiumMonthView extends ConsumerStatefulWidget {
@@ -686,7 +723,11 @@ class _PremiumMonthViewState extends ConsumerState<_PremiumMonthView> {
   @override
   Widget build(BuildContext context) {
     final ref = this.ref;
-    final async = ref.watch(allPlannerEntriesProvider);
+    final async = ref.watch(
+      plannerTasksForMonthProvider(
+        DateTime(widget.anchorDate.year, widget.anchorDate.month, 1),
+      ),
+    );
     return async.when(
       loading: () =>
           const Center(child: CircularProgressIndicator(strokeWidth: 2)),
@@ -733,11 +774,13 @@ class _PremiumMonthViewState extends ConsumerState<_PremiumMonthView> {
         final average = plannedTaskCount == 0
             ? 0.0
             : completedTaskCount / plannedTaskCount;
+        // Count the consecutive fully completed planned days at the end of
+        // the displayed month (up to today for the current month).
         var streak = 0;
-        var cursor = today;
-        while (true) {
-          final p = planFor(cursor);
-          if (!p.hasPlan || p.score < .7) break;
+        var cursor = today.isBefore(monthEnd) ? today : monthEnd;
+        while (!cursor.isBefore(monthStart)) {
+          final plan = planFor(cursor);
+          if (!plan.hasPlan || plan.completedTasks != plan.tasks.length) break;
           streak++;
           cursor = cursor.subtract(const Duration(days: 1));
         }
@@ -788,18 +831,24 @@ class _PremiumMonthViewState extends ConsumerState<_PremiumMonthView> {
                   planFor: planFor,
                   today: today,
                   selected: widget.anchorDate,
-                  onTap: widget.onDayTap,
+                  onTap: (date) {
+                    widget.onDayTap(date);
+                    _showDateTasksDialog(context, planFor(date));
+                  },
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            AnimatedSwitcher(
-              duration: DimiMotion.fast,
-              transitionBuilder: (child, animation) =>
-                  FadeTransition(opacity: animation, child: child),
-              child: _SelectedPlanCard(
-                key: ValueKey(_dateOnly(widget.anchorDate)),
-                plan: planFor(widget.anchorDate),
+            const SizedBox(height: 8),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: AppSpacing.screenHorizontal),
+              child: Text(
+                'Tap a date to view its tasks. To plan a future event, switch to Day and choose the date above; Add Event will appear there.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 10,
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
           ],
@@ -808,46 +857,98 @@ class _PremiumMonthViewState extends ConsumerState<_PremiumMonthView> {
     );
   }
 
-  // ignore: unused_element
-  void _showDetails(
-    BuildContext context,
-    _DayPlan plan,
-  ) => showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    backgroundColor: AppColors.surface,
-    builder: (_) => Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            DateFormat('MMMM d, yyyy').format(plan.date),
-            style: Theme.of(context).textTheme.titleLarge,
+  Future<void> _showDateTasksDialog(BuildContext context, _DayPlan plan) {
+    final percent = (plan.score * 100).round();
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        ),
+        title: Text(
+          'Tasks on ${DateFormat('d MMM yyyy').format(plan.date)}',
+          style: const TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
           ),
-          const SizedBox(height: 8),
-          Text(
-            plan.hasPlan
-                ? '${(plan.score * 100).round()}% completed'
-                : 'No plan recorded',
-            style: const TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '${_minutesLabel(plan.completedMinutes)} / ${_minutesLabel(plan.plannedMinutes)} planned',
-          ),
-          Text(
-            '${plan.completedTasks} of ${plan.tasks.length} tasks completed',
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: plan.tasks.isEmpty
+              ? const Text(
+                  'No tasks planned for this date.',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    color: AppColors.textSecondary,
+                  ),
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$percent% complete · ${plan.completedTasks} of ${plan.tasks.length} done',
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: plan.tasks.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (_, index) {
+                          final task = plan.tasks[index];
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            leading: Icon(
+                              task.isCompleted
+                                  ? Icons.check_circle_rounded
+                                  : Icons.radio_button_unchecked_rounded,
+                              color: task.isCompleted
+                                  ? AppColors.success
+                                  : AppColors.textSecondary,
+                            ),
+                            title: Text(
+                              task.title,
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 13,
+                                decoration: task.isCompleted
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                              ),
+                            ),
+                            subtitle: Text(
+                              task.isCompleted ? 'Completed' : 'Not completed',
+                              style: const TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
           ),
         ],
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _HeatmapCard extends StatelessWidget {
@@ -1326,52 +1427,6 @@ class _CalendarCard extends StatelessWidget {
   );
 }
 
-class _SelectedPlanCard extends StatelessWidget {
-  const _SelectedPlanCard({super.key, required this.plan});
-  final _DayPlan plan;
-  @override
-  Widget build(BuildContext context) => _PlannerCard(
-    child: Row(
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: const BoxDecoration(
-            color: AppColors.background,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.description_outlined),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Tasks on ${DateFormat('d MMM').format(plan.date)}',
-                style: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              Text(
-                '${plan.completedTasks} of ${plan.tasks.length} completed',
-                style: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const Icon(Icons.chevron_right_rounded),
-      ],
-    ),
-  );
-}
-
 class _PlannerCard extends StatelessWidget {
   const _PlannerCard({
     required this.child,
@@ -1390,10 +1445,6 @@ class _PlannerCard extends StatelessWidget {
     child: child,
   );
 }
-
-String _minutesLabel(int minutes) => minutes < 60
-    ? '${minutes}m'
-    : '${minutes ~/ 60}h${minutes % 60 == 0 ? '' : ' ${minutes % 60}m'}';
 
 // ignore: unused_element
 class _MonthView extends ConsumerWidget {
@@ -1621,7 +1672,17 @@ class _CompletionHeatmap extends StatelessWidget {
                         : '${DateFormat('d MMM').format(day)} · $done/$total complete',
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: _heatColor(ratio, total),
+                        color: heatmapColors[ratio <= 0
+                            ? 0
+                            : ratio < .25
+                            ? 1
+                            : ratio < .5
+                            ? 2
+                            : ratio < .75
+                            ? 3
+                            : ratio < 1
+                            ? 4
+                            : 5],
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),
@@ -1641,14 +1702,24 @@ class _CompletionHeatmap extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 5),
-                ...[0.0, .25, .5, .75, 1.0].map(
+                ...[0.0, .125, .375, .625, .875, 1.0].map(
                   (ratio) => Padding(
                     padding: const EdgeInsets.only(left: 3),
                     child: Container(
                       width: 9,
                       height: 9,
                       decoration: BoxDecoration(
-                        color: _heatColor(ratio, 1),
+                        color: heatmapColors[ratio <= 0
+                            ? 0
+                            : ratio < .25
+                            ? 1
+                            : ratio < .5
+                            ? 2
+                            : ratio < .75
+                            ? 3
+                            : ratio < 1
+                            ? 4
+                            : 5],
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -1671,13 +1742,6 @@ class _CompletionHeatmap extends StatelessWidget {
     );
   }
 
-  static Color _heatColor(double ratio, int total) {
-    if (total == 0 || ratio == 0) return AppColors.accentSoft;
-    if (ratio < .25) return AppColors.accent.withAlpha(70);
-    if (ratio < .5) return AppColors.accent.withAlpha(120);
-    if (ratio < .75) return AppColors.accent.withAlpha(180);
-    return AppColors.accent;
-  }
 }
 
 // ─── Task tile ────────────────────────────────────────────────────────────────
@@ -1696,10 +1760,13 @@ class _TaskTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final dao = ref.read(taskDaoProvider);
     final done = task.isCompleted;
-
+    final isFuture = _isFuturePlannerTask(task);
+    final isPast = _isPastPlannerTask(task);
     return GestureDetector(
-      onLongPress: () => _showOptions(context, ref),
-      onTap: tapToToggle ? () => dao.toggleCompleted(task.id, !done) : null,
+      onLongPress: isPast ? null : () => _showOptions(context, ref),
+      onTap: tapToToggle && !isFuture && !isPast
+          ? () => dao.toggleCompleted(task.id, !done)
+          : null,
       child: Container(
         padding: EdgeInsets.symmetric(
           horizontal: compact ? 10 : 14,
@@ -1777,7 +1844,9 @@ class _TaskTile extends ConsumerWidget {
             ),
             // Checkbox
             GestureDetector(
-              onTap: tapToToggle
+              onTap: isFuture || isPast
+                  ? null
+                  : tapToToggle
                   ? null
                   : () => dao.toggleCompleted(task.id, !done),
               child: AnimatedContainer(
@@ -1826,6 +1895,8 @@ class _TaskTile extends ConsumerWidget {
   };
 
   Future<void> _showOptions(BuildContext context, WidgetRef ref) async {
+    final isFuture = _isFuturePlannerTask(task);
+    if (_isPastPlannerTask(task)) return;
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: AppColors.surface,
@@ -1867,18 +1938,18 @@ class _TaskTile extends ConsumerWidget {
               onTap: () => Navigator.pop(ctx, 'edit'),
             ),
             ListTile(
-              leading: Icon(
-                task.isCompleted
-                    ? Icons.radio_button_unchecked
-                    : Icons.check_circle_outline,
-                color: AppColors.accent,
+                leading: Icon(
+                  task.isCompleted
+                      ? Icons.radio_button_unchecked
+                      : Icons.check_circle_outline,
+                  color: AppColors.accent,
+                ),
+                title: Text(
+                  task.isCompleted ? 'Mark incomplete' : 'Mark complete',
+                  style: const TextStyle(fontFamily: 'Poppins', fontSize: 14),
+                ),
+                onTap: () => Navigator.pop(ctx, 'toggle'),
               ),
-              title: Text(
-                task.isCompleted ? 'Mark incomplete' : 'Mark complete',
-                style: const TextStyle(fontFamily: 'Poppins', fontSize: 14),
-              ),
-              onTap: () => Navigator.pop(ctx, 'toggle'),
-            ),
             ListTile(
               leading: const Icon(
                 Icons.delete_outline,
@@ -1905,7 +1976,11 @@ class _TaskTile extends ConsumerWidget {
 
     switch (action) {
       case 'edit':
-        await showAddTaskSheet(context, existingTask: task);
+        await showAddTaskSheet(
+          context,
+          existingTask: task,
+          plannerEntry: true,
+        );
         break;
       case 'toggle':
         await dao.toggleCompleted(task.id, !task.isCompleted);
@@ -1918,15 +1993,17 @@ class _TaskTile extends ConsumerWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
             ),
-            title: const Text(
-              'Delete task?',
+            title: Text(
+              isFuture ? 'Delete future event?' : 'Delete task?',
               style: TextStyle(
                 fontFamily: 'Poppins',
                 fontWeight: FontWeight.w600,
               ),
             ),
             content: Text(
-              'Remove "${task.title}"?',
+              isFuture
+                  ? 'This event is planned for ${DateFormat('d MMM yyyy').format(task.dueDate)}. Remove "${task.title}"?'
+                  : 'Remove "${task.title}"?',
               style: const TextStyle(fontFamily: 'Poppins', fontSize: 13),
             ),
             actions: [
@@ -1942,13 +2019,30 @@ class _TaskTile extends ConsumerWidget {
             ],
           ),
         );
-        if (ok == true) await dao.deleteTask(task.id);
+        if (ok == true) {
+          final notificationId = await dao.deleteTaskWithReminder(task.id);
+          if (notificationId != null) {
+            await NotificationService.instance.cancelReminder(notificationId);
+          }
+        }
         break;
     }
   }
 }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
+
+bool _isFuturePlannerTask(Task task) {
+  final due = _dateOnly(task.dueDate);
+  final today = _dateOnly(DateTime.now());
+  return due.isAfter(today);
+}
+
+bool _isPastPlannerTask(Task task) {
+  final due = _dateOnly(task.dueDate);
+  final today = _dateOnly(DateTime.now());
+  return due.isBefore(today);
+}
 
 int _timeToMinutes(String? time) {
   if (time == null || time.isEmpty) return 1440;

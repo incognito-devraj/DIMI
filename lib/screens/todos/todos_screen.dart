@@ -32,7 +32,6 @@ class _TodosScreenState extends ConsumerState<TodosScreen> {
   @override
   void initState() {
     super.initState();
-    ref.read(taskDaoProvider).purgeExpiredCompletedTodos();
   }
 
   @override
@@ -420,7 +419,7 @@ Future<void> _showMinimalTodoDialog(BuildContext context, WidgetRef ref) async {
     barrierColor: const Color(0x99000000),
     transitionDuration: const Duration(milliseconds: 220),
     pageBuilder: (_, _, _) => DimiFixedDialog(
-      height: 330,
+      height: 320,
       maxWidth: 420,
       child: _TodoAddDialog(dao: ref.read(taskDaoProvider)),
     ),
@@ -475,9 +474,6 @@ class _TodoAddDialogState extends State<_TodoAddDialog> {
         category: const Value('Personal'),
         dueDate: Value(DateTime.now()),
         dueTime: const Value(null),
-        plannedMinutes: const Value(60),
-        completedMinutes: const Value(0),
-        reminderMinutesBefore: const Value(null),
         isCompleted: const Value(false),
         isPlannerEntry: const Value(false),
         createdAt: Value(DateTime.now()),
@@ -556,7 +552,7 @@ class _TodoAddDialogState extends State<_TodoAddDialog> {
                           'Capture it now, get it done later.',
                           style: TextStyle(
                             fontFamily: 'Poppins',
-                            fontSize: 13,
+                            fontSize: 11,
                             color: AppColors.textSecondary,
                           ),
                         ),
@@ -585,9 +581,11 @@ class _TodoAddDialogState extends State<_TodoAddDialog> {
               maxLength: _maxTodoCharacters,
               textCapitalization: TextCapitalization.words,
               onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Type a To-Do',
-                counterStyle: TextStyle(fontFamily: 'Poppins', fontSize: 11),
+                counterText: '',
+                suffixText: '${_controller.text.length}/60',
+                suffixStyle: TextStyle(fontFamily: 'Poppins', fontSize: 10),
               ),
             ),
             const SizedBox(height: 18),

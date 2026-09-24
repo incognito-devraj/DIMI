@@ -14,6 +14,18 @@ void main() {
     expect(TransactionParser.parse(event('₹500 refunded'))!.type, TransactionType.refund);
   });
 
+  test('supports the real rupee sign and treats refunds as credits', () {
+    final incoming = TransactionParser.parse(event('\u20B9500 credited'))!;
+    expect(incoming.amountMinor, 50000);
+    expect(incoming.direction, TransactionDirection.credit);
+    final refund = TransactionParser.parse(event('\u20B9500 refunded'))!;
+    expect(refund.direction, TransactionDirection.credit);
+  });
+
+  test('does not guess when a notification contains both directions', () {
+    expect(TransactionParser.parse(event('INR 500 debited and INR 500 credited')), isNull);
+  });
+
   test('normalizes merchants and identifies sources', () {
     final candidate = TransactionParser.parse(event('Paid Rs. 1,250.50 at STARBUCKS'))!;
     expect(candidate.amountMinor, 125050);

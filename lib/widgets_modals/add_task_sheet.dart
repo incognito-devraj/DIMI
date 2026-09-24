@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import '../data/database.dart';
 import '../providers/task_providers.dart';
 import '../providers/reminder_providers.dart';
+import '../providers/database_provider.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/todo_text.dart';
@@ -26,9 +27,9 @@ Future<void> showAddTaskSheet(
   final saved = await showGeneralDialog<bool>(
     context: context,
     barrierDismissible: true,
-    barrierLabel: 'Add Task',
+    barrierLabel: plannerEntry ? 'Add Event' : 'Add Task',
     barrierColor: const Color(0x99000000),
-    transitionDuration: const Duration(milliseconds: 220),
+    transitionDuration: const Duration(milliseconds: 250),
     pageBuilder: (_, _, _) => _KeyboardPositionedDialog(
       child: _AddTaskSheet(
         initialDate: initialDate,
@@ -36,26 +37,32 @@ Future<void> showAddTaskSheet(
         plannerEntry: plannerEntry,
       ),
     ),
-    transitionBuilder: (_, animation, _, child) => FadeTransition(
-      opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
-      child: SlideTransition(
-        position:
-            Tween<Offset>(
-              begin: const Offset(0, -0.025),
-              end: Offset.zero,
-            ).animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-            ),
-        child: child,
-      ),
-    ),
+    transitionBuilder: (_, animation, __, child) {
+      final curvedAnimation = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      final slideAnimation = Tween<Offset>(
+        begin: const Offset(0, 0.08),
+        end: Offset.zero,
+      ).animate(curvedAnimation);
+      final fadeAnimation = Tween<double>(
+        begin: 0.0,
+        end: 1.0,
+      ).animate(curvedAnimation);
+      return FadeTransition(
+        opacity: fadeAnimation,
+        child: SlideTransition(position: slideAnimation, child: child),
+      );
+    },
   );
   if (saved == true && context.mounted) {
     await showDimiSuccessDialog(
       context,
       title: existingTask == null
-          ? (plannerEntry ? 'Task Added!' : 'To-Do Added!')
-          : 'Task Updated!',
+          ? (plannerEntry ? 'Event Added!' : 'To-Do Added!')
+          : (plannerEntry ? 'Event Updated!' : 'Task Updated!'),
     );
   }
 }
@@ -75,17 +82,16 @@ class _KeyboardPositionedDialogState extends State<_KeyboardPositionedDialog> {
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
-    final restingHeight =
-        _restingHeight ??= MediaQuery.sizeOf(context).height;
+    final restingHeight = _restingHeight ??= MediaQuery.sizeOf(context).height;
     const dialogExtent = 434.0;
-    final defaultTop = restingHeight * 0.19;
+    final defaultTop = math.max(
+      media.padding.top + 8,
+      (restingHeight - dialogExtent) / 2,
+    );
     final keyboardTop = restingHeight - media.viewInsets.bottom;
     final dialogBottom = defaultTop + dialogExtent;
     final keyboardShift = math.max(0.0, dialogBottom - keyboardTop);
-    final top = math.max(
-      media.padding.top + 8,
-      defaultTop - keyboardShift,
-    );
+    final top = math.max(media.padding.top + 8, defaultTop - keyboardShift);
 
     return Align(
       alignment: Alignment.topCenter,
@@ -132,6 +138,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
   late String _category;
   int? _reminderMinutes;
   bool _saving = false;
+  String? _timeError;
 
   bool get _isEditing => widget.existingTask != null;
 
@@ -158,9 +165,10 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     final t = widget.existingTask;
     _titleCtrl = TextEditingController(text: t?.title ?? '');
     _descCtrl = TextEditingController(text: t?.description ?? '');
-    _dueDate = t?.dueDate ?? widget.initialDate ?? DateTime.now();
+    final initialDate = t?.dueDate ?? widget.initialDate ?? DateTime.now();
+    _dueDate = DateTime(initialDate.year, initialDate.month, initialDate.day);
     _category = t?.category ?? 'Personal';
-    _reminderMinutes = t?.reminderMinutesBefore;
+    _reminderMinutes = null;
 
     if (t?.dueTime != null && t!.dueTime!.isNotEmpty) {
       final parts = t.dueTime!.split(':');
@@ -171,7 +179,6 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
         );
       }
     }
-
   }
 
   @override
@@ -195,10 +202,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
             onPrimary: AppColors.surface,
           ),
           dialogTheme: Theme.of(ctx).dialogTheme.copyWith(
-            constraints: const BoxConstraints(
-              maxWidth: 500,
-              maxHeight: 500,
-            ),
+            constraints: const BoxConstraints(maxWidth: 500, maxHeight: 500),
             insetPadding: const EdgeInsets.symmetric(
               horizontal: 22,
               vertical: 24,
@@ -215,7 +219,11 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
         ),
       ),
     );
-    if (picked != null && mounted) setState(() => _dueDate = picked);
+    if (picked != null && mounted) {
+      setState(
+        () => _dueDate = DateTime(picked.year, picked.month, picked.day),
+      );
+    }
   }
 
   Future<void> _pickTime() async {
@@ -228,10 +236,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
           colorScheme: Theme.of(ctx).colorScheme
               .copyWith(primary: AppColors.accent),
           dialogTheme: Theme.of(ctx).dialogTheme.copyWith(
-            constraints: const BoxConstraints(
-              maxWidth: 500,
-              maxHeight: 560,
-            ),
+            constraints: const BoxConstraints(maxWidth: 500, maxHeight: 560),
             insetPadding: const EdgeInsets.symmetric(
               horizontal: 22,
               vertical: 24,
@@ -248,7 +253,12 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
         ),
       ),
     );
-    if (picked != null && mounted) setState(() => _dueTime = picked);
+    if (picked != null && mounted) {
+      setState(() {
+        _dueTime = picked;
+        _timeError = null;
+      });
+    }
   }
 
   String? _timeStr() {
@@ -265,11 +275,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (widget.plannerEntry && _dueTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a time for the planner task.'),
-        ),
-      );
+      setState(() => _timeError = 'Select a time before creating the event.');
       return;
     }
     setState(() => _saving = true);
@@ -278,10 +284,14 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     final savedTitle = widget.plannerEntry
         ? _titleCtrl.text.trim()
         : formatTodoTitle(_titleCtrl.text);
+    final dueDate = DateTime(_dueDate.year, _dueDate.month, _dueDate.day);
 
     int? savedTaskId;
-    if (_isEditing) {
-      await dao.updateTask(
+    Reminder? reminderToSchedule;
+    final db = ref.read(databaseProvider);
+    await db.transaction(() async {
+      if (_isEditing) {
+        await dao.updateTask(
         TasksCompanion(
           id: Value(widget.existingTask!.id),
           title: Value(savedTitle),
@@ -289,43 +299,40 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
             _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
           ),
           category: Value(_category),
-          dueDate: Value(_dueDate),
+          dueDate: Value(dueDate),
           dueTime: Value(_timeStr()),
-          reminderMinutesBefore: Value(_reminderMinutes),
           isCompleted: Value(widget.existingTask!.isCompleted),
           completedAt: Value(widget.existingTask!.completedAt),
           createdAt: Value(widget.existingTask!.createdAt),
           isPlannerEntry: Value(widget.existingTask!.isPlannerEntry),
-          plannedMinutes: Value(widget.existingTask!.plannedMinutes),
-          completedMinutes: Value(widget.existingTask!.completedMinutes),
         ),
-      );
-    } else {
-      savedTaskId = await dao.insertTask(
+        );
+        savedTaskId = widget.existingTask!.id;
+      } else {
+        savedTaskId = await dao.insertTask(
         TasksCompanion(
           title: Value(savedTitle),
           description: Value(
             _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
           ),
           category: Value(_category),
-          dueDate: Value(_dueDate),
+          dueDate: Value(dueDate),
           dueTime: Value(_timeStr()),
-          reminderMinutesBefore: Value(_reminderMinutes),
           isCompleted: const Value(false),
           isPlannerEntry: Value(widget.plannerEntry),
           createdAt: Value(DateTime.now()),
         ),
-      );
-    }
+        );
+      }
 
     // Planner reminders are real reminders as well as task metadata, so they
     // appear in the Reminders tab and can be completed there.
-    if (!_isEditing && widget.plannerEntry && savedTaskId != null) {
+    if (widget.plannerEntry && savedTaskId != null) {
       final taskTime = _dueTime!;
       final taskDueAt = DateTime(
-        _dueDate.year,
-        _dueDate.month,
-        _dueDate.day,
+        dueDate.year,
+        dueDate.month,
+        dueDate.day,
         taskTime.hour,
         taskTime.minute,
       );
@@ -333,13 +340,20 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
         Duration(minutes: _reminderMinutes ?? 0),
       );
       final reminderDao = ref.read(reminderDaoProvider);
-      final reminderId = await reminderDao.insertReminder(
-        RemindersCompanion.insert(title: savedTitle, dueAt: reminderDueAt),
-      );
-      final reminder = await reminderDao.getById(reminderId);
-      if (reminder != null) {
-        await NotificationService.instance.scheduleReminder(reminder);
+      if (_isEditing) {
+        reminderToSchedule = await reminderDao.updateByTaskId(
+          savedTaskId!, title: savedTitle, dueAt: reminderDueAt,
+        );
+      } else {
+        final reminderId = await reminderDao.insertReminder(
+          RemindersCompanion.insert(taskId: Value(savedTaskId!), title: savedTitle, dueAt: reminderDueAt),
+        );
+        reminderToSchedule = await reminderDao.getById(reminderId);
       }
+    }
+    });
+    if (reminderToSchedule != null) {
+      await NotificationService.instance.scheduleReminder(reminderToSchedule!);
     }
 
     if (mounted) Navigator.of(context).pop(true);
@@ -367,231 +381,265 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
       child: SafeArea(
         top: false,
         child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Handle
-                const SizedBox(height: 12),
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.divider,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                const SizedBox(height: 14),
-                // Header
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 108,
-                        height: 94,
-                        child: Image.asset(
-                          'assets/illustrations/Planner.png',
-                          fit: BoxFit.contain,
-                        ),
+              ),
+              const SizedBox(height: 8),
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 108,
+                      height: 94,
+                      child: Image.asset(
+                        'assets/illustrations/Planner.png',
+                        fit: BoxFit.contain,
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _isEditing
-                                  ? (widget.plannerEntry
-                                        ? 'Edit Task'
-                                        : 'Edit To-Do')
-                                  : (widget.plannerEntry
-                                        ? 'Add Task'
-                                        : 'Add To-Do'),
-                              style: Theme.of(context).textTheme.headlineMedium,
-                            ),
-                            const SizedBox(height: 7),
-                            TextFormField(
-                              controller: _titleCtrl,
-                              autofocus: !_isEditing,
-                              textCapitalization: TextCapitalization.sentences,
-                              maxLength: 60,
-                              inputFormatters: [
-                                LengthLimitingTextInputFormatter(60),
-                              ],
-                              decoration: const InputDecoration(
-                                hintText: 'New task...',
-                                counterText: '',
-                                errorStyle: TextStyle(
-                                  fontSize: 0,
-                                  height: 0,
-                                ),
-                                contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 10,
-                                ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _isEditing
+                                ? (widget.plannerEntry
+                                      ? 'Edit Event'
+                                      : 'Edit To-Do')
+                                : (widget.plannerEntry
+                                      ? 'Add Event'
+                                      : 'Add To-Do'),
+                            style: Theme.of(context).textTheme.headlineMedium,
+                          ),
+                          if (widget.plannerEntry) ...[
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Plan today. A better you tomorrow.',
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 9,
+                                color: AppColors.textSecondary,
                               ),
-                              validator: (v) {
-                                final value = v?.trim() ?? '';
-                                if (value.isEmpty) return 'Title is required';
-                                if (value.split(RegExp(r'\s+')).length > 10) {
-                                  return 'Keep it to 10 words or fewer';
-                                }
-                                return null;
-                              },
                             ),
                           ],
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        child: Container(
-                          width: 34,
-                          height: 34,
-                          decoration: const BoxDecoration(
-                            color: AppColors.background,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.close_rounded, size: 18),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Form
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.screenHorizontal,
-                  ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (!widget.plannerEntry) ...[
-                          _FieldLabel('Description (optional)'),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 4),
                           TextFormField(
-                            controller: _descCtrl,
-                            maxLines: 2,
-                            maxLength: 120,
-                            inputFormatters: [
-                              LengthLimitingTextInputFormatter(120),
-                            ],
+                            controller: _titleCtrl,
+                            autofocus: !_isEditing,
+                            onChanged: (_) => setState(() {}),
                             textCapitalization: TextCapitalization.sentences,
-                            decoration: const InputDecoration(
-                              hintText: 'Add details…',
+                            maxLength: 60,
+                            inputFormatters: [
+                              LengthLimitingTextInputFormatter(60),
+                            ],
+                            decoration: InputDecoration(
+                              hintText: 'New task...',
+                              counterText: '',
+                              suffixText: widget.plannerEntry
+                                  ? '${_titleCtrl.text.length}/60'
+                                  : null,
+                              suffixStyle: const TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 9,
+                                color: AppColors.textSecondary,
+                              ),
+                              errorStyle: TextStyle(fontSize: 0, height: 0),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
                             ),
                             validator: (v) {
                               final value = v?.trim() ?? '';
-                              if (value.isNotEmpty &&
-                                  value.split(RegExp(r'\s+')).length > 20) {
-                                return 'Keep the note to 20 words or fewer';
+                              if (value.isEmpty) return 'Title is required';
+                              if (value.split(RegExp(r'\s+')).length > 10) {
+                                return 'Keep it to 10 words or fewer';
                               }
                               return null;
                             },
                           ),
-                          const SizedBox(height: 12),
-                          _FieldLabel('Date · Time · Reminder'),
-                          const SizedBox(height: 6),
                         ],
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _PickerBtn(
-                                icon: Icons.calendar_today_outlined,
-                                label: DateFormat(
-                                  widget.plannerEntry ? 'd MMM' : 'd MMM yyyy',
-                                ).format(_dueDate),
-                                onTap: _pickDate,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _PickerBtn(
-                                icon: Icons.schedule_outlined,
-                                label: _dueTime != null
-                                    ? _dueTime!.format(context)
-                                    : 'No time',
-                                onTap: _pickTime,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _ReminderPicker(
-                                selected: _reminderMinutes,
-                                options: _reminderOptions,
-                                onSelected: (value) =>
-                                    setState(() => _reminderMinutes = value),
-                              ),
-                            ),
-                          ],
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).pop(),
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: const BoxDecoration(
+                          color: AppColors.background,
+                          shape: BoxShape.circle,
                         ),
-                        const SizedBox(height: 12),
-                        _FieldLabel('Category'),
-                        const SizedBox(height: 8),
-                        _TaskCategoryPicker(
-                          categories: _categories,
-                          selected: _category,
-                          onSelected: (category) =>
-                              setState(() => _category = category),
+                        child: const Icon(Icons.close_rounded, size: 18),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              // Form
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.screenHorizontal,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (!widget.plannerEntry) ...[
+                      _FieldLabel('Description (optional)'),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: _descCtrl,
+                        maxLines: 2,
+                        maxLength: 120,
+                        inputFormatters: [
+                          LengthLimitingTextInputFormatter(120),
+                        ],
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: const InputDecoration(
+                          hintText: 'Add details…',
                         ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 52,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.accent,
-                              foregroundColor: AppColors.surface,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  AppSpacing.buttonRadius,
-                                ),
-                              ),
-                              elevation: 0,
-                            ),
-                            onPressed: _saving ? null : _save,
-                            child: _saving
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: AppColors.surface,
-                                    ),
-                                  )
-                                : Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        _isEditing
-                                            ? 'Save Changes'
-                                            : (widget.plannerEntry
-                                                  ? 'Create Task'
-                                                  : 'Create To-Do'),
-                                        style: const TextStyle(
-                                          fontFamily: 'Poppins',
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      const Icon(
-                                        Icons.arrow_forward_rounded,
-                                        size: 19,
-                                      ),
-                                    ],
-                                  ),
+                        validator: (v) {
+                          final value = v?.trim() ?? '';
+                          if (value.isNotEmpty &&
+                              value.split(RegExp(r'\s+')).length > 20) {
+                            return 'Keep the note to 20 words or fewer';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _FieldLabel('Date · Time · Reminder'),
+                      const SizedBox(height: 6),
+                    ],
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _PickerBtn(
+                            icon: Icons.calendar_today_outlined,
+                            label: DateFormat(
+                              widget.plannerEntry ? 'd MMM' : 'd MMM yyyy',
+                            ).format(_dueDate),
+                            onTap: _pickDate,
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _PickerBtn(
+                            icon: Icons.schedule_outlined,
+                            label: _dueTime != null
+                                ? _dueTime!.format(context)
+                                : 'No time',
+                            onTap: _pickTime,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _ReminderPicker(
+                            selected: _reminderMinutes,
+                            options: _reminderOptions,
+                            onSelected: (value) =>
+                                setState(() => _reminderMinutes = value),
+                          ),
+                        ),
                       ],
                     ),
+                    if (widget.plannerEntry)
+                      SizedBox(
+                        height: 18,
+                        child: _timeError == null
+                            ? null
+                            : Padding(
+                                padding: const EdgeInsets.only(top: 3),
+                                child: Text(
+                                  _timeError!,
+                                  style: const TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 9,
+                                    color: AppColors.danger,
+                                  ),
+                                ),
+                              ),
+                      ),
+                    const SizedBox(height: 6),
+                    _FieldLabel('Category'),
+                    const SizedBox(height: 6),
+                    _TaskCategoryPicker(
+                      categories: _categories,
+                      selected: _category,
+                      onSelected: (category) =>
+                          setState(() => _category = category),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.accent,
+                          foregroundColor: AppColors.surface,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppSpacing.buttonRadius,
+                            ),
+                          ),
+                          elevation: 0,
+                        ),
+                        onPressed: _saving ? null : _save,
+                        child: _saving
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.surface,
+                                ),
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    _isEditing
+                                        ? 'Save Changes'
+                                        : (widget.plannerEntry
+                                              ? 'Create Event'
+                                              : 'Create To-Do'),
+                                    style: const TextStyle(
+                                      fontFamily: 'Poppins',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Icon(
+                                    Icons.arrow_forward_rounded,
+                                    size: 19,
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+        ),
       ),
     );
   }
@@ -823,26 +871,28 @@ class _PickerBtn extends StatelessWidget {
           borderRadius: BorderRadius.circular(26),
         ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(icon, size: 14, color: AppColors.surface),
-            const SizedBox(width: 4),
+            Icon(icon, size: 21, color: AppColors.surface),
             Expanded(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.surface,
-                    fontWeight: FontWeight.w600,
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.surface,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
             ),
             const Icon(
               Icons.keyboard_arrow_down_rounded,
-              size: 16,
+              size: 18,
               color: AppColors.surface,
             ),
           ],
@@ -892,7 +942,7 @@ class _ReminderPicker extends StatelessWidget {
           children: [
             const Icon(
               Icons.notifications_none_rounded,
-              size: 14,
+              size: 18,
               color: AppColors.textSecondary,
             ),
             const SizedBox(width: 4),
@@ -905,6 +955,7 @@ class _ReminderPicker extends StatelessWidget {
                   maxLines: 1,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.surface,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -912,7 +963,7 @@ class _ReminderPicker extends StatelessWidget {
             ),
             const Icon(
               Icons.keyboard_arrow_down_rounded,
-              size: 16,
+              size: 18,
               color: AppColors.surface,
             ),
           ],
@@ -963,7 +1014,11 @@ class _TaskCategoryPicker extends StatelessWidget {
                     width: isSelected ? 1.5 : 1,
                   ),
                 ),
-                child: Icon(_taskCategoryIcon(category), color: color),
+                child: Icon(
+                  _taskCategoryIcon(category),
+                  size: 28,
+                  color: color,
+                ),
               ),
               const SizedBox(height: 4),
               SizedBox(

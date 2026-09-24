@@ -4,6 +4,15 @@ import 'package:intl/intl.dart';
 import '../data/database.dart';
 import '../theme/app_theme.dart';
 
+const heatmapColors = [
+  Color(0xFFF5F0E6), // 0 - none / 0%
+  Color(0xFFF8E8C5), // 1 - 1–24%
+  Color(0xFFF9C85B), // 2 - 25–49%
+  Color(0xFFF5A623), // 3 - 50–74%
+  Color(0xFFD96A0B), // 4 - 75–99%
+  Color(0xFF9C3D0A), // 5 - 100%
+];
+
 /// A lightweight GitHub-style activity heatmap.
 ///
 /// The first row is Sunday and each following column is one calendar week.
@@ -36,10 +45,12 @@ class DimiActivityHeatmap extends StatelessWidget {
       _monthCount,
       (index) => DateTime(firstMonth.year, firstMonth.month + index, 1),
     );
-    final counts = <DateTime, int>{};
+    final totals = <DateTime, int>{};
+    final completed = <DateTime, int>{};
     for (final task in tasks) {
       final day = _dateOnly(task.dueDate);
-      counts[day] = (counts[day] ?? 0) + 1;
+      totals[day] = (totals[day] ?? 0) + 1;
+      if (task.isCompleted) completed[day] = (completed[day] ?? 0) + 1;
     }
 
     final content = Column(
@@ -101,7 +112,8 @@ class DimiActivityHeatmap extends StatelessWidget {
                         _ActivityMonthGroup(
                           month: month,
                           today: today,
-                          counts: counts,
+                          totals: totals,
+                          completed: completed,
                         ),
                         const SizedBox(width: _monthGap),
                       ],
@@ -119,7 +131,7 @@ class DimiActivityHeatmap extends StatelessWidget {
             const Text('Less', style: _legendStyle),
             const SizedBox(width: 5),
             ...List.generate(
-              5,
+              heatmapColors.length,
               (level) => Padding(
                 padding: const EdgeInsets.only(left: 3),
                 child: SizedBox(
@@ -127,7 +139,7 @@ class DimiActivityHeatmap extends StatelessWidget {
                   height: 10,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: _activityColor(level == 0 ? 0 : level * 2),
+                      color: heatmapColors[level],
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -156,25 +168,20 @@ class DimiActivityHeatmap extends StatelessWidget {
   static DateTime _dateOnly(DateTime date) =>
       DateTime(date.year, date.month, date.day);
 
-  static Color _activityColor(int count) {
-    if (count == 0) return AppColors.background;
-    if (count == 1) return AppColors.accent.withAlpha(75);
-    if (count <= 3) return AppColors.accent.withAlpha(125);
-    if (count <= 6) return AppColors.accent.withAlpha(180);
-    return AppColors.accent;
-  }
 }
 
 class _ActivityMonthGroup extends StatelessWidget {
   const _ActivityMonthGroup({
     required this.month,
     required this.today,
-    required this.counts,
+    required this.totals,
+    required this.completed,
   });
 
   final DateTime month;
   final DateTime today;
-  final Map<DateTime, int> counts;
+  final Map<DateTime, int> totals;
+  final Map<DateTime, int> completed;
 
   @override
   Widget build(BuildContext context) {
@@ -229,10 +236,12 @@ class _ActivityMonthGroup extends StatelessWidget {
                             (row == 6 ? 0 : DimiActivityHeatmap._gap),
                       );
                     }
-                    final count = counts[day] ?? 0;
+                    final total = totals[day] ?? 0;
+                    final done = completed[day] ?? 0;
+                    final ratio = total == 0 ? 0.0 : done / total;
                     final color = day.isAfter(today)
-                        ? AppColors.background
-                        : DimiActivityHeatmap._activityColor(count);
+                        ? heatmapColors[0]
+                        : _completionHeatColor(ratio);
                     return Padding(
                       padding: EdgeInsets.only(
                         bottom: row == 6 ? 0 : DimiActivityHeatmap._gap,
@@ -240,10 +249,10 @@ class _ActivityMonthGroup extends StatelessWidget {
                       child: Tooltip(
                         triggerMode: TooltipTriggerMode.tap,
                         message:
-                            '${DateFormat('EEEE, MMMM d, yyyy').format(day)} - $count ${count == 1 ? 'activity' : 'activities'}',
+                            '${DateFormat('EEEE, MMMM d, yyyy').format(day)} - $total ${total == 1 ? 'activity' : 'activities'}',
                         child: Semantics(
                           label:
-                              '${DateFormat('MMMM d, yyyy').format(day)}: $count ${count == 1 ? 'activity' : 'activities'}',
+                            '${DateFormat('MMMM d, yyyy').format(day)}: $total ${total == 1 ? 'activity' : 'activities'}',
                           button: true,
                           child: DecoratedBox(
                             decoration: BoxDecoration(
@@ -267,6 +276,15 @@ class _ActivityMonthGroup extends StatelessWidget {
       ),
     );
   }
+}
+
+Color _completionHeatColor(double ratio) {
+  if (ratio <= 0) return heatmapColors[0];
+  if (ratio < .25) return heatmapColors[1];
+  if (ratio < .5) return heatmapColors[2];
+  if (ratio < .75) return heatmapColors[3];
+  if (ratio < 1) return heatmapColors[4];
+  return heatmapColors[5];
 }
 
 class _DayLabel extends StatelessWidget {

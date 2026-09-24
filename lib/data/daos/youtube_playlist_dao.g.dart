@@ -4,6 +4,7 @@ part of 'youtube_playlist_dao.dart';
 
 // ignore_for_file: type=lint
 mixin _$YoutubePlaylistDaoMixin on DatabaseAccessor<AppDatabase> {
+  $LocalAccountsTable get localAccounts => attachedDatabase.localAccounts;
   $YoutubePlaylistsTable get youtubePlaylists =>
       attachedDatabase.youtubePlaylists;
   $YoutubeVideosTable get youtubeVideos => attachedDatabase.youtubeVideos;
@@ -13,6 +14,8 @@ mixin _$YoutubePlaylistDaoMixin on DatabaseAccessor<AppDatabase> {
 class YoutubePlaylistDaoManager {
   final _$YoutubePlaylistDaoMixin _db;
   YoutubePlaylistDaoManager(this._db);
+  $$LocalAccountsTableTableManager get localAccounts =>
+      $$LocalAccountsTableTableManager(_db.attachedDatabase, _db.localAccounts);
   $$YoutubePlaylistsTableTableManager get youtubePlaylists =>
       $$YoutubePlaylistsTableTableManager(
         _db.attachedDatabase,

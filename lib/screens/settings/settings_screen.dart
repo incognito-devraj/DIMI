@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../config/supabase_config.dart';
 import '../../routing/app_router.dart';
 import '../../services/auth_service.dart';
-import '../../services/notification_service.dart';
+import '../../providers/database_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/dimi_hero.dart';
 
@@ -34,63 +34,6 @@ class SettingsScreen extends ConsumerWidget {
             ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 5)),
-            // ── App Preferences ───────────────────────────────────────────
-            _SectionHeader(title: 'App Preferences'),
-            _SectionCard(
-              items: [
-                _SettingsTile(
-                  icon: Icons.notifications_outlined,
-                  iconColor: AppColors.accent,
-                  label: 'Notifications',
-                  subtitle: 'Manage your reminders and alerts',
-                  onTap: () async {
-                    await NotificationService.instance.requestPermissions();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Notification permissions requested'),
-                          duration: Duration(seconds: 2),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }
-                  },
-                ),
-                _SettingsTile(
-                  icon: Icons.color_lens_outlined,
-                  iconColor: const Color(0xFF9B59B6),
-                  label: 'Appearance',
-                  subtitle: 'Light / Dark / System',
-                  trailing: const Text(
-                    'Light',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 13,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  onTap: () => _showComingSoon(context),
-                ),
-                _SettingsTile(
-                  icon: Icons.language_outlined,
-                  iconColor: AppColors.info,
-                  label: 'Language',
-                  subtitle: 'Choose your preferred language',
-                  trailing: const Text(
-                    'English',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 13,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  onTap: () => _showComingSoon(context),
-                ),
-              ],
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 20)),
-
             // ── Data & Sync ───────────────────────────────────────────────
             _SectionHeader(title: 'Data & Sync'),
             _SectionCard(
@@ -130,6 +73,13 @@ class SettingsScreen extends ConsumerWidget {
                   iconColor: AppColors.textSecondary,
                   label: 'Help & Support',
                   subtitle: 'Get help or contact us',
+                  onTap: () => _showComingSoon(context),
+                ),
+                _SettingsTile(
+                  icon: Icons.feedback_outlined,
+                  iconColor: AppColors.textSecondary,
+                  label: 'Feedback',
+                  subtitle: 'Tell us how we can improve DIMI',
                   onTap: () => _showComingSoon(context),
                 ),
                 _SettingsTile(
@@ -286,12 +236,13 @@ class _AccountSectionState extends State<_AccountSection> {
     // Sign out from Supabase if an active session exists.
     if (SupabaseBootstrap.client?.auth.currentSession != null) {
       try {
-        await AuthService.instance.signOut();
+        await AuthService.instance.signOut(
+          ProviderScope.containerOf(context, listen: false).read(databaseProvider),
+        );
       } catch (_) {
         // Ignore errors — we still navigate to login.
       }
     }
-
     if (!mounted) return;
     setState(() => _loggingOut = false);
     context.go(AppRoutes.login);
@@ -336,7 +287,6 @@ class _SectionHeader extends StatelessWidget {
 
   IconData _iconForTitle(String title) {
     final icons = <String, IconData>{
-      'App Preferences': Icons.tune_rounded,
       'Data & Sync': Icons.storage_rounded,
       'Support & About': Icons.help_outline_rounded,
       'Account': Icons.person_outline_rounded,
@@ -347,7 +297,6 @@ class _SectionHeader extends StatelessWidget {
 
   String? _subtitleForTitle(String title) {
     const subtitles = <String, String>{
-      'App Preferences': 'Make it feel like home.',
       'Data & Sync': 'Your data, your control.',
       'Support & About': 'We’re here for you.',
       'Account': 'Manage your account.',

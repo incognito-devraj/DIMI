@@ -181,7 +181,7 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
             opacity: _showAddButton ? 1 : 0,
             duration: DimiMotion.fast,
             child: DimiAddActionButton(
-              label: 'Add reminder',
+              label: 'Add Reminder',
               icon: Icons.notifications_active_rounded,
               onPressed: () => showAddReminderSheet(context),
             ),
@@ -260,8 +260,8 @@ class _ReminderCard extends ConsumerWidget {
                       decorationColor: AppColors.textSecondary,
                       decorationThickness: 1.6,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    maxLines: 3,
+                    softWrap: true,
                   ),
                   const SizedBox(height: 3),
                   Row(

@@ -41,6 +41,8 @@ const _allMoneyCategories = [
 // Currency formatter — ₹
 final _fmt = NumberFormat('#,##0.00', 'en_IN');
 
+double _moneyMajorAmount(int amountMinor) => amountMinor / 100.0;
+
 class MoneyScreen extends ConsumerStatefulWidget {
   const MoneyScreen({super.key});
 
@@ -161,7 +163,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
   Widget build(BuildContext context) {
     final allAsync = ref.watch(allTransactionsProvider);
     final weeklyAsync = ref.watch(thisWeeksTransactionsProvider);
-    final allLoansAsync = ref.watch(transactionsByTypeProvider('loan'));
+    final allLoansAsync = ref.watch(allTransactionsProvider);
     final expensesAsync = ref.watch(transactionsByTypeProvider('expense'));
 
     // Which list to show
@@ -391,7 +393,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
             opacity: _showAddButton ? 1 : 0,
             duration: DimiMotion.fast,
             child: DimiAddActionButton(
-              label: 'Add transaction',
+              label: 'Add Transaction',
               icon: Icons.currency_rupee_rounded,
               onPressed: () => showAddExpenseSheet(context),
             ),
@@ -418,8 +420,8 @@ class _DetectedTransactionsPanel extends ConsumerWidget {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('New transactions detected', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-            ...pending.take(3).map((candidate) => ListTile(contentPadding: EdgeInsets.zero, title: Text(candidate.merchantName), subtitle: Text('₹${(candidate.amountMinor / 100).toStringAsFixed(2)} · ${candidate.category} · ${candidate.paymentMethod ?? candidate.source}'), trailing: Wrap(spacing: 4, children: [IconButton(tooltip: 'Ignore', icon: const Icon(Icons.close_rounded), onPressed: () => db.transactionDetectionDao.updateStatus(candidate.candidateId, 'IGNORED')), IconButton(tooltip: 'Add', icon: const Icon(Icons.check_rounded), onPressed: () async { final isIncome = candidate.transactionType == 'INCOME'; await db.moneyDao.insertTransaction(MoneyTransactionsCompanion.insert(type: isIncome ? 'income' : 'expense', amount: candidate.amountMinor / 100, category: candidate.category, note: Value('${candidate.merchantName} · Detected automatically'), date: candidate.occurredAt)); await db.transactionDetectionDao.updateStatus(candidate.candidateId, 'CONFIRMED'); })]))),
+            const Text('New Transactions Detected', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+          ...pending.take(3).map((candidate) => ListTile(contentPadding: EdgeInsets.zero, title: Text(candidate.merchantName), subtitle: Text('₹${(candidate.amountMinor / 100).toStringAsFixed(2)} · ${candidate.category} · ${candidate.paymentMethod ?? candidate.source}'), trailing: Wrap(spacing: 4, children: [IconButton(tooltip: 'Ignore', icon: const Icon(Icons.close_rounded), onPressed: () => db.transactionDetectionDao.updateStatus(candidate.candidateId, 'IGNORED')), IconButton(tooltip: 'Add', icon: const Icon(Icons.check_rounded), onPressed: () async { final isIncome = candidate.transactionType == 'INCOME'; await db.moneyDao.insertTransaction(MoneyTransactionsCompanion.insert(type: isIncome ? 'income' : 'expense', amount: candidate.amountMinor, category: candidate.category, note: Value('${candidate.merchantName} · Detected automatically'), date: candidate.occurredAt)); await db.transactionDetectionDao.updateStatus(candidate.candidateId, 'CONFIRMED'); })]))),
           ]),
         ),
       ),
@@ -477,8 +479,8 @@ class _CategorySpendGridV2 extends StatelessWidget {
     final totals = <String, double>{};
     for (final transaction in transactions) {
       if (transaction.type == 'expense') {
-        totals.update(transaction.category, (value) => value + transaction.amount,
-            ifAbsent: () => transaction.amount);
+        totals.update(transaction.category, (value) => value + _moneyMajorAmount(transaction.amount),
+            ifAbsent: () => _moneyMajorAmount(transaction.amount));
       }
     }
     final entries = totals.entries.toList()
@@ -550,8 +552,8 @@ class _CategorySpendGrid extends StatelessWidget {
       if (transaction.type == 'expense') {
         totals.update(
           transaction.category,
-          (value) => value + transaction.amount,
-          ifAbsent: () => transaction.amount,
+          (value) => value + _moneyMajorAmount(transaction.amount),
+          ifAbsent: () => _moneyMajorAmount(transaction.amount),
         );
       }
     }
@@ -648,16 +650,14 @@ class _ExpenseSummaryCards extends StatelessWidget {
   Widget build(BuildContext context) {
     final spent = allTransactions
         .where((t) => t.type == 'expense')
-        .fold(0.0, (s, t) => s + t.amount);
+        .fold(0.0, (s, t) => s + _moneyMajorAmount(t.amount));
     final income = allTransactions
         .where((t) => t.type == 'income')
-        .fold(0.0, (s, t) => s + t.amount);
-    final lent = allLoans
-        .where((t) => t.category == 'Lent')
-        .fold(0.0, (s, t) => s + t.amount);
-    final borrowed = allLoans
-        .where((t) => t.category == 'Borrowed')
-        .fold(0.0, (s, t) => s + t.amount);
+        .fold(0.0, (s, t) => s + _moneyMajorAmount(t.amount));
+    final lent = allLoans.where((t) => t.type == 'lent')
+        .fold(0.0, (s, t) => s + _moneyMajorAmount(t.amount));
+    final borrowed = allLoans.where((t) => t.type == 'borrowed')
+        .fold(0.0, (s, t) => s + _moneyMajorAmount(t.amount));
     final balance = income - spent + lent - borrowed;
     return Column(
       children: [
@@ -888,11 +888,11 @@ class _SummaryCards extends StatelessWidget {
   Widget build(BuildContext context) {
     final spent = weeklyTransactions
         .where((t) => t.type == 'expense')
-        .fold(0.0, (s, t) => s + t.amount);
+        .fold(0.0, (s, t) => s + _moneyMajorAmount(t.amount));
     final income = weeklyTransactions
         .where((t) => t.type == 'income')
-        .fold(0.0, (s, t) => s + t.amount);
-    final lent = allLoans.fold(0.0, (s, t) => s + t.amount);
+        .fold(0.0, (s, t) => s + _moneyMajorAmount(t.amount));
+    final lent = allLoans.fold(0.0, (s, t) => s + _moneyMajorAmount(t.amount));
 
     return Row(
       children: [
@@ -990,7 +990,7 @@ class _SpendingChart extends StatelessWidget {
     final dayAmounts = List.filled(7, 0.0);
     for (final t in transactions) {
       if (t.type == 'expense') {
-        dayAmounts[t.date.weekday - 1] += t.amount;
+        dayAmounts[t.date.weekday - 1] += _moneyMajorAmount(t.amount);
       }
     }
     final maxAmt = dayAmounts.reduce((a, b) => a > b ? a : b);
@@ -1182,7 +1182,8 @@ class _TransactionTile extends ConsumerWidget {
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
                     ),
-                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                    softWrap: true,
                   ),
                   Text(
                     '${txn.category} · ${DateFormat('d MMM yyyy').format(txn.date)}',
@@ -1206,7 +1207,7 @@ class _TransactionTile extends ConsumerWidget {
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerRight,
                   child: Text(
-                    '$sign₹${_fmt.format(txn.amount)}',
+                    '$sign₹${_fmt.format(_moneyMajorAmount(txn.amount))}',
                     style: TextStyle(
                       fontFamily: 'Poppins',
                       fontSize: 13,
@@ -1234,7 +1235,7 @@ class _TransactionTile extends ConsumerWidget {
 
   (Color, IconData) _typeStyle(String type) => switch (type) {
     'income' => (AppColors.success, Icons.arrow_downward_rounded),
-    'loan' => (AppColors.info, Icons.swap_horiz_rounded),
+    'lent' || 'borrowed' => (AppColors.info, Icons.swap_horiz_rounded),
     _ => (AppColors.danger, Icons.arrow_upward_rounded),
   };
 
@@ -1289,7 +1290,7 @@ class _TransactionTile extends ConsumerWidget {
               ),
               const SizedBox(height: 18),
               Text(
-                '$sign${_fmt.format(txn.amount)}',
+                '$sign${_fmt.format(_moneyMajorAmount(txn.amount))}',
                 style: TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 32,
@@ -1300,7 +1301,7 @@ class _TransactionTile extends ConsumerWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                txn.type == 'income' ? 'Income' : txn.type == 'loan' ? 'Loan' : 'Expense',
+                txn.type == 'income' ? 'Income' : txn.type == 'lent' ? 'Lent' : txn.type == 'borrowed' ? 'Borrowed' : 'Expense',
                 style: const TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 13,
@@ -1344,7 +1345,7 @@ class _TransactionTile extends ConsumerWidget {
           'Are you sure?',
           style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
         ),
-        content: Text('Remove this ${txn.type} of ₹${txn.amount}?'),
+        content: Text('Remove this ${txn.type} of ₹${_fmt.format(_moneyMajorAmount(txn.amount))}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),

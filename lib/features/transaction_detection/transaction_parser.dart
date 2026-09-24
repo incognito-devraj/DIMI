@@ -4,6 +4,8 @@ import 'financial_source_gate.dart';
 
 class AmountParser {
   static int? parseMinor(String text) {
+    // Support the real rupee sign and the legacy mojibake stored by older builds.
+    text = text.replaceAll('\u20B9', 'INR ');
     final match = RegExp(r'(?:₹|rs\.?|inr\s*)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)', caseSensitive: false).firstMatch(text) ?? RegExp(r'(?<![a-z])([0-9][0-9,]*\.[0-9]{1,2})(?![a-z])', caseSensitive: false).firstMatch(text);
     if (match == null) return null;
     final normalized = match.group(1)!.replaceAll(',', '');
@@ -44,11 +46,22 @@ class TransactionParser {
     final request = RegExp(r'payment\s+request|collect\s+request|request\s+money').hasMatch(lower);
     final failed = RegExp(r'failed|declined|cancelled|canceled|pending|unsuccessful|reversed').hasMatch(lower);
     final refund = RegExp(r'refund|refunded|reversal').hasMatch(lower);
-    final credit = RegExp(r'credited|received|money received|payment received|paid you|sent you').hasMatch(lower);
-    final debit = !credit && RegExp(r'debited|paid|payment successful|payment of|spent|sent|withdrawn|upi payment').hasMatch(lower);
+    final credit = RegExp(r'credited|deposited|received|money received|payment received|paid you|sent you|cashback').hasMatch(lower);
+    final debit = RegExp(r'debited|paid(?!\s+you\b)|payment successful|payment of|spent|sent to|withdrawn|upi payment').hasMatch(lower);
     if (request || failed) return null;
-    final direction = credit && !debit ? TransactionDirection.credit : debit ? TransactionDirection.debit : TransactionDirection.unknown;
-    final type = refund ? TransactionType.refund : credit && !debit ? TransactionType.income : debit ? TransactionType.expense : TransactionType.unknown;
+    // Do not guess when both directions are present in one notification.
+    final direction = refund || (credit && !debit)
+        ? TransactionDirection.credit
+        : debit && !credit
+            ? TransactionDirection.debit
+            : TransactionDirection.unknown;
+    final type = refund
+        ? TransactionType.refund
+        : credit && !debit
+            ? TransactionType.income
+            : debit && !credit
+                ? TransactionType.expense
+                : TransactionType.unknown;
     if (type == TransactionType.unknown) return null;
     final merchant = MerchantParser.parse(text);
     final referenceId = RegExp(r'\b(?:upi\s*[:#-]?\s*)(\d{8,})\b', caseSensitive: false).firstMatch(text)?.group(1);
