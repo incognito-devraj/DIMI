@@ -27,10 +27,6 @@ class MoneyTransactions extends Table {
   TextColumn get counterparty => text().nullable()();
   DateTimeColumn get date => dateTime().named('occurred_on')();
   TextColumn get source => text().withDefault(const Constant('manual'))();
-
-  /// Local detection provenance only; detection data remains local-only and
-  /// this field is never uploaded as a cloud relationship.
-  TextColumn get detectionCandidateId => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get deletedAt => dateTime().nullable()();

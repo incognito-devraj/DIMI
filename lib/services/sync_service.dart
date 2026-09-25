@@ -96,7 +96,10 @@ class SyncService {
         await db.syncOutboxDao.markProcessing(item.id);
         try {
           await _pushOne(remote, item, context);
-          await db.syncOutboxDao.markCompletedIfCurrent(item.id, item.updatedAt);
+          await db.syncOutboxDao.markCompletedIfCurrent(
+            item.id,
+            item.updatedAt,
+          );
         } on _TransientSyncError catch (error) {
           _log(
             'retry entity=${item.entityType} local=${item.localRowId} error=$error',
@@ -128,7 +131,11 @@ class SyncService {
     final spec = _specs[item.entityType];
     if (spec == null)
       throw StateError('Unsupported sync entity ${item.entityType}');
-    final local = await _readLocal(spec, item.localRowId, context.localAccountId);
+    final local = await _readLocal(
+      spec,
+      item.localRowId,
+      context.localAccountId,
+    );
     if (local == null)
       throw StateError(
         'Missing local row ${item.entityType}:${item.localRowId}',
@@ -150,8 +157,8 @@ class SyncService {
       );
     }
     final localVersion = _date(local['updated_at']);
-    final exactRemoteVersion = spec.localTable == 'tasks' ||
-            spec.localTable == 'youtube_videos'
+    final exactRemoteVersion =
+        spec.localTable == 'tasks' || spec.localTable == 'youtube_videos'
         ? _date(local['remote_updated_at'])
         : null;
     final payload = await _toRemote(spec, local, serverId, context.authUserId);
@@ -196,8 +203,11 @@ class SyncService {
       throw StateError('Remote ${spec.remoteTable} row has no updated_at');
     }
     final relation = SyncVersionProtocol.classifyPendingPush(
-      baseRemoteUpdatedAt: exactRemoteVersion ?? item.baseRemoteUpdatedAt,
-      remoteUpdatedAt: remoteVersion,
+      baseRemoteUpdatedAt: _comparisonVersion(
+        spec,
+        exactRemoteVersion ?? item.baseRemoteUpdatedAt,
+      ),
+      remoteUpdatedAt: _comparisonVersion(spec, remoteVersion),
     );
     if (relation == SyncVersionRelation.localNewer) {
       final result = await remote.updateRow(
@@ -282,8 +292,8 @@ class SyncService {
           serverId,
         );
         if (pending != null) {
-          final pendingBase = spec.localTable == 'tasks' ||
-                  spec.localTable == 'youtube_videos'
+          final pendingBase =
+              spec.localTable == 'tasks' || spec.localTable == 'youtube_videos'
               ? await _remoteVersionForPending(
                   spec,
                   context.localAccountId,
@@ -346,9 +356,7 @@ class SyncService {
   ) async {
     final key = spec.localKey;
     final owner = spec.ownerColumn;
-    final where = owner == null
-        ? '$key = ?'
-        : '$key = ? AND $owner = ?';
+    final where = owner == null ? '$key = ?' : '$key = ? AND $owner = ?';
     final rows = await db
         .customSelect(
           'SELECT * FROM ${spec.localTable} WHERE $where',
@@ -368,13 +376,15 @@ class SyncService {
     final ownership = spec.localTable == 'tasks'
         ? 'local_account_id = ?'
         : 'id IN (SELECT playlist_local_id FROM youtube_playlists WHERE local_account_id = ?)';
-    final rows = await db.customSelect(
-      'SELECT remote_updated_at FROM ${spec.localTable} WHERE server_id = ? AND $ownership',
-      variables: [
-        Variable.withString(serverId),
-        Variable.withInt(accountId),
-      ],
-    ).get();
+    final rows = await db
+        .customSelect(
+          'SELECT remote_updated_at FROM ${spec.localTable} WHERE server_id = ? AND $ownership',
+          variables: [
+            Variable.withString(serverId),
+            Variable.withInt(accountId),
+          ],
+        )
+        .get();
     return rows.isEmpty
         ? null
         : _date(rows.first.read<String?>('remote_updated_at'));
@@ -482,13 +492,11 @@ class SyncService {
     _SyncSpec spec,
     int localId,
     String? serverId,
-    DateTime? updatedAt,
-    {
-      int? accountId,
-      DateTime? expectedLocalUpdatedAt,
-      String? remoteUpdatedAt,
-    }
-  ) async {
+    DateTime? updatedAt, {
+    int? accountId,
+    DateTime? expectedLocalUpdatedAt,
+    String? remoteUpdatedAt,
+  }) async {
     if (serverId == null && updatedAt == null && remoteUpdatedAt == null) {
       return false;
     }
@@ -519,9 +527,11 @@ class SyncService {
     }
     if (expectedLocalUpdatedAt != null) {
       where.add('updated_at = ?');
-      vars.add(Variable.withInt(
-        expectedLocalUpdatedAt.toUtc().millisecondsSinceEpoch ~/ 1000,
-      ));
+      vars.add(
+        Variable.withInt(
+          expectedLocalUpdatedAt.toUtc().millisecondsSinceEpoch ~/ 1000,
+        ),
+      );
     }
     final changed = await db.customUpdate(
       'UPDATE ${spec.localTable} SET ${assignments.join(', ')} WHERE ${where.join(' AND ')}',
@@ -671,11 +681,7 @@ class SyncService {
     return Variable.withString(value.toString());
   }
 
-  Object? _coerceRemoteValue(
-    _SyncSpec spec,
-    _Field field,
-    Object? value,
-  ) {
+  Object? _coerceRemoteValue(_SyncSpec spec, _Field field, Object? value) {
     if (spec.localTable != 'profile_data') return value;
     if (field.local == 'points') {
       if (value == null) return 0;
@@ -714,6 +720,27 @@ class SyncService {
 
   static DateTime? _date(Object? value) {
     return SyncTimestamp.parse(value);
+  }
+
+  // LocalAccounts and ProfileData have only Drift's second-precision
+  // updated_at column. Supabase returns timestamptz with fractional seconds,
+  // so compare these versions at the precision persisted locally. The full
+  // remote version is still used for the Supabase CAS update itself.
+  static DateTime? _comparisonVersion(_SyncSpec spec, DateTime? value) {
+    if (value == null ||
+        (spec.localTable != 'profile_data' &&
+            spec.localTable != 'local_accounts')) {
+      return value;
+    }
+    final utc = value.toUtc();
+    return DateTime.utc(
+      utc.year,
+      utc.month,
+      utc.day,
+      utc.hour,
+      utc.minute,
+      utc.second,
+    );
   }
 
   static DateTime? _calendarDate(Object? value) {
@@ -878,17 +905,6 @@ final _specs = <String, _SyncSpec>{
       _Field('deleted_at', 'deleted_at', date: true),
     ],
   ),
-  OutboxEntity.merchantRule: const _SyncSpec(
-    'merchant_category_rules',
-    'dim_merchant_category_rules',
-    [
-      _Field('merchant_identity', 'merchant_identity'),
-      _Field('category', 'category'),
-      _Field('created_at', 'created_at', date: true),
-      _Field('updated_at', 'updated_at', date: true),
-      _Field('deleted_at', 'deleted_at', date: true),
-    ],
-  ),
   OutboxEntity.playlist: const _SyncSpec(
     'youtube_playlists',
     'dim_youtube_playlists',
@@ -945,7 +961,6 @@ final _pullOrder = <_SyncSpec>[
   _specs[OutboxEntity.task]!,
   _specs[OutboxEntity.note]!,
   _specs[OutboxEntity.moneyTransaction]!,
-  _specs[OutboxEntity.merchantRule]!,
   _specs[OutboxEntity.playlist]!,
   _specs[OutboxEntity.reminder]!,
   _specs[OutboxEntity.video]!,

@@ -1059,7 +1059,7 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
         .read(profileDaoProvider)
         .upsertProfile(
           ProfileTableCompanion(
-            id: const Value(1),
+            id: Value(widget.profile.id),
             name: Value(_nameCtrl.text.trim()),
             role: Value(_roleCtrl.text.trim()),
             email: Value(_emailCtrl.text.trim()),

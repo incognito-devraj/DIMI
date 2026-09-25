@@ -12,7 +12,6 @@ import 'tables/notes.dart';
 import 'tables/reminders.dart';
 import 'tables/local_accounts.dart';
 import 'tables/profile_data.dart';
-import 'tables/transaction_detection.dart';
 import 'tables/youtube_playlists.dart';
 import 'tables/youtube_videos.dart';
 import 'tables/sync_outbox.dart';
@@ -23,7 +22,6 @@ import 'daos/money_dao.dart';
 import 'daos/reminder_dao.dart';
 import 'daos/profile_dao.dart';
 import 'daos/note_dao.dart';
-import 'daos/transaction_detection_dao.dart';
 import 'daos/youtube_playlist_dao.dart';
 import 'daos/local_account_dao.dart';
 import 'daos/sync_outbox_dao.dart';
@@ -40,9 +38,6 @@ part 'database.g.dart';
     Reminders,
     LocalAccounts,
     ProfileData,
-    TransactionDetectionEvents,
-    TransactionCandidates,
-    MerchantCategoryRules,
     YoutubePlaylists,
     YoutubeVideos,
     SyncOutbox,
@@ -53,7 +48,6 @@ part 'database.g.dart';
     ReminderDao,
     ProfileDao,
     NoteDao,
-    TransactionDetectionDao,
     YoutubePlaylistDao,
     LocalAccountDao,
     SyncOutboxDao,
@@ -89,7 +83,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -102,29 +96,16 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(tasks, tasks.isPlannerEntry);
       }
       if (from < 5) {
-        await m.createTable(transactionDetectionEvents);
-        await m.createTable(transactionCandidates);
-        await m.createTable(merchantCategoryRules);
+        // Transaction detection was removed. Its legacy tables are dropped
+        // by the v14 cleanup below.
       }
       if (from < 6) {
-        await m.addColumn(
-          transactionCandidates,
-          transactionCandidates.accountHint,
-        );
-        await m.addColumn(
-          transactionCandidates,
-          transactionCandidates.paymentMethod,
-        );
-        await m.addColumn(
-          transactionCandidates,
-          transactionCandidates.balanceAfterMinor,
-        );
+        // transaction_candidates columns — detection feature removed.
+        // The table itself is dropped in the v14 block below.
       }
       if (from < 7) {
-        await m.addColumn(
-          transactionCandidates,
-          transactionCandidates.bankConfirmationStatus,
-        );
+        // transaction_candidates.bank_confirmation_status — detection feature
+        // removed. The table itself is dropped in the v14 block below.
       }
       if (from < 8) {
         await m.createTable(youtubePlaylists);
@@ -152,6 +133,13 @@ class AppDatabase extends _$AppDatabase {
       if (from < 13) {
         await m.addColumn(youtubeVideos, youtubeVideos.remoteUpdatedAt);
       }
+      if (from < 14) {
+        await customStatement('DROP TABLE IF EXISTS merchant_category_rules');
+        await customStatement('DROP TABLE IF EXISTS transaction_candidates');
+        await customStatement(
+          'DROP TABLE IF EXISTS transaction_detection_events',
+        );
+      }
     },
   );
 
@@ -165,7 +153,6 @@ class AppDatabase extends _$AppDatabase {
       'money_transactions',
       'youtube_playlists',
       'youtube_videos',
-      'merchant_category_rules',
     ];
     for (final table in syncTables) {
       await customStatement('ALTER TABLE $table ADD COLUMN server_id TEXT');
@@ -263,8 +250,12 @@ class AppDatabase extends _$AppDatabase {
       FROM reminders_v8
     ''');
     await customStatement('DROP TABLE reminders_v8');
-    await customStatement('CREATE INDEX idx_reminders_account_enabled_due ON reminders(local_account_id, is_enabled, due_at)');
-    await customStatement('CREATE INDEX idx_reminders_task_id ON reminders(task_id)');
+    await customStatement(
+      'CREATE INDEX idx_reminders_account_enabled_due ON reminders(local_account_id, is_enabled, due_at)',
+    );
+    await customStatement(
+      'CREATE INDEX idx_reminders_task_id ON reminders(task_id)',
+    );
     await customStatement(
       'ALTER TABLE notes ADD COLUMN local_account_id INTEGER NOT NULL DEFAULT 1',
     );
@@ -297,39 +288,6 @@ class AppDatabase extends _$AppDatabase {
     );
     await customStatement(
       'UPDATE money_transactions SET amount_minor = ROUND(amount_minor * 100), created_at = occurred_on, updated_at = occurred_on WHERE created_at = 0',
-    );
-    await customStatement(
-      'ALTER TABLE transaction_detection_events ADD COLUMN local_account_id INTEGER NOT NULL DEFAULT 1',
-    );
-    await customStatement(
-      'ALTER TABLE transaction_detection_events ADD COLUMN processed_at INTEGER',
-    );
-    await customStatement(
-      'ALTER TABLE transaction_detection_events ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0',
-    );
-    await customStatement(
-      'UPDATE transaction_detection_events SET expires_at = received_at + 2592000000 WHERE expires_at = 0',
-    );
-    await customStatement(
-      'ALTER TABLE transaction_candidates ADD COLUMN local_account_id INTEGER NOT NULL DEFAULT 1',
-    );
-    await customStatement(
-      'ALTER TABLE transaction_candidates ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0',
-    );
-    await customStatement(
-      'ALTER TABLE transaction_candidates ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0',
-    );
-    await customStatement(
-      'UPDATE transaction_candidates SET updated_at = created_at, expires_at = occurred_at + 7776000000 WHERE updated_at = 0',
-    );
-    await customStatement(
-      'ALTER TABLE merchant_category_rules ADD COLUMN local_account_id INTEGER NOT NULL DEFAULT 1',
-    );
-    await customStatement(
-      'ALTER TABLE merchant_category_rules ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0',
-    );
-    await customStatement(
-      'UPDATE merchant_category_rules SET created_at = updated_at WHERE created_at = 0',
     );
     await customStatement(
       'ALTER TABLE youtube_playlists ADD COLUMN local_account_id INTEGER NOT NULL DEFAULT 1',

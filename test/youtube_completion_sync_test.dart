@@ -628,6 +628,35 @@ void main() {
     );
   });
 
+  test('profile edits update the existing Supabase profile row', () async {
+    await db.profileDao.upsertProfile(const ProfileTableCompanion(
+      name: Value('First Name'),
+      role: Value('Student'),
+      college: Value('First College'),
+    ));
+    await _service(db, remote, prefs, ctx).syncNow();
+
+    final profileRows = remote._store.entries
+        .where((entry) => entry.key.startsWith('dim_profile_data:'));
+    expect(profileRows, hasLength(1));
+    final profileId = profileRows.single.key.split(':').last;
+
+    await db.profileDao.upsertProfile(const ProfileTableCompanion(
+      name: Value('Updated Name'),
+      role: Value('Graduate'),
+      college: Value('Updated College'),
+    ));
+    await _service(db, remote, prefs, ctx).syncNow();
+
+    final updated = remote._store['dim_profile_data:$profileId']!;
+    expect(updated['role'], 'Graduate');
+    expect(updated['college'], 'Updated College');
+    final account = remote._store.values.firstWhere(
+      (row) => row['user_id'] == _fakeUserId && row['display_name'] != null,
+    );
+    expect(account['display_name'], 'Updated Name');
+  });
+
   test('setCompleted stamps completed/watchedAt/progressUpdatedAt/updatedAt '
       'with the same monotonically-increasing instant', () async {
     final seed = await _seedAndSync(db, remote, prefs, ctx);

@@ -1,5 +1,4 @@
 import 'package:fl_chart/fl_chart.dart';
-import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,8 +7,6 @@ import 'package:intl/intl.dart';
 import '../../data/database.dart';
 import '../../data/daos/money_dao.dart';
 import '../../providers/money_providers.dart';
-import '../../providers/transaction_detection_providers.dart';
-import '../../providers/database_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/dimi_add_action_button.dart';
@@ -185,201 +182,202 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
         },
         child: SafeArea(
           child: Column(
-          children: [
-            // ── App bar ───────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenHorizontal,
-                20,
-                AppSpacing.screenHorizontal,
-                0,
-              ),
-              child: Row(
-                children: [
-                  const Text(
-                    'Finance',
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 26,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+            children: [
+              // ── App bar ───────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenHorizontal,
+                  20,
+                  AppSpacing.screenHorizontal,
+                  0,
+                ),
+                child: Row(
+                  children: [
+                    const Text(
+                      'Finance',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 26,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    tooltip: 'Filter finance',
-                    onPressed: () {
-                      final categories = {
-                        ..._allMoneyCategories,
-                        ...allAsync.maybeWhen(
-                          data: (items) => items
-                              .map((item) => item.category)
-                              .toSet(),
-                          orElse: () => <String>{},
-                        ),
-                      }.toList()..sort();
-                      _openFilter(categories);
-                    },
-                    icon: const Icon(
-                      Icons.bar_chart_rounded,
-                      color: AppColors.textSecondary,
+                    const Spacer(),
+                    IconButton(
+                      tooltip: 'Filter finance',
+                      onPressed: () {
+                        final categories = {
+                          ..._allMoneyCategories,
+                          ...allAsync.maybeWhen(
+                            data: (items) =>
+                                items.map((item) => item.category).toSet(),
+                            orElse: () => <String>{},
+                          ),
+                        }.toList()..sort();
+                        _openFilter(categories);
+                      },
+                      icon: const Icon(
+                        Icons.bar_chart_rounded,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: 'Search finance',
-                    onPressed: _openSearch,
-                    icon: const Icon(
-                      Icons.search_rounded,
-                      color: AppColors.textSecondary,
+                    IconButton(
+                      tooltip: 'Search finance',
+                      onPressed: _openSearch,
+                      icon: const Icon(
+                        Icons.search_rounded,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // ── Tabs ──────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.screenHorizontal,
-              ),
-              child: SizedBox(
-                width: double.infinity,
-                child: PillSegmentedControl(
-                  options: _kTabs,
-                  selected: _tabIndex,
-                  onSelected: (i) => setState(() => _tabIndex = i),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-            // ── Content ───────────────────────────────────────────────
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  const _DetectedTransactionsPanel(),
-                  const SizedBox(height: 8),
-                  // Summary cards (visible on all tabs)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.screenHorizontal,
-                    ),
-                    child: weeklyAsync.when(
-                      data: (weeklyTxns) => allAsync.when(
-                        data: (allTxns) => allLoansAsync.when(
-                          data: (allLoans) => _ExpenseSummaryCards(
-                            weeklyTransactions: weeklyTxns,
-                            allTransactions: allTxns,
-                            allLoans: allLoans,
-                          ),
-                          loading: () => _ExpenseSummaryCards(
-                            weeklyTransactions: weeklyTxns,
-                            allTransactions: allTxns,
-                            allLoans: const [],
-                          ),
-                          error: (_, _) => _ExpenseSummaryCards(
-                            weeklyTransactions: weeklyTxns,
-                            allTransactions: allTxns,
-                            allLoans: const [],
-                          ),
-                        ),
-                        loading: () => const _SkeletonCard(height: 270),
-                        error: (_, _) => const SizedBox.shrink(),
-                      ),
-                      loading: () => const _SkeletonCard(height: 88),
-                      error: (_, _) => const SizedBox.shrink(),
-                    ),
+              // ── Tabs ──────────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.screenHorizontal,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: PillSegmentedControl(
+                    options: _kTabs,
+                    selected: _tabIndex,
+                    onSelected: (i) => setState(() => _tabIndex = i),
                   ),
-                  const SizedBox(height: 12),
+                ),
+              ),
+              const SizedBox(height: 12),
 
-                  if (_tabIndex == 2)
-                    allAsync.when(
-                      data: (transactions) => _CategorySpendGridV2(
-                        transactions: transactions,
-                      ),
-                      loading: () => const _SkeletonCard(height: 180),
-                      error: (_, _) => const SizedBox.shrink(),
-                    )
-                  else ...[
-                  // Transaction list header
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.screenHorizontal,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          _tabIndex == 0
-                              ? 'Recent Transactions'
-                              : _kTabs[_tabIndex],
-                          style: const TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Transaction list
-                  listAsync.when(
-                    data: (txns) {
-                      final query = _searchQuery.toLowerCase();
-                      final filtered = txns.where((txn) {
-                        final matchesCategory = _categoryFilter == null ||
-                            txn.category == _categoryFilter;
-                        final matchesSearch = query.isEmpty ||
-                            txn.category.toLowerCase().contains(query) ||
-                            (txn.note?.toLowerCase().contains(query) ?? false);
-                        return matchesCategory && matchesSearch;
-                      }).toList();
-                      final list = _tabIndex == 0
-                          ? filtered.take(20).toList()
-                          : filtered;
-                      if (list.isEmpty) {
-                        return const EmptyState(
-                          icon: Icons.account_balance_wallet_outlined,
-                          title: 'No transactions yet',
-                          subtitle: 'Tap + to add one.',
-                          asset: 'assets/illustrations/Finance.png',
-                        );
-                      }
-                      return Column(
-                        children: list
-                            .map(
-                              (t) => Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  AppSpacing.screenHorizontal,
-                                  0,
-                                  AppSpacing.screenHorizontal,
-                                  8,
-                                ),
-                                child: _TransactionTile(txn: t),
-                              ),
-                            )
-                            .toList(),
-                      );
-                    },
-                    loading: () => const Padding(
-                      padding: EdgeInsets.symmetric(
+              // ── Content ───────────────────────────────────────────────
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    // Summary cards (visible on all tabs)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.screenHorizontal,
                       ),
-                      child: _SkeletonCard(height: 60),
+                      child: weeklyAsync.when(
+                        data: (weeklyTxns) => allAsync.when(
+                          data: (allTxns) => allLoansAsync.when(
+                            data: (allLoans) => _ExpenseSummaryCards(
+                              weeklyTransactions: weeklyTxns,
+                              allTransactions: allTxns,
+                              allLoans: allLoans,
+                            ),
+                            loading: () => _ExpenseSummaryCards(
+                              weeklyTransactions: weeklyTxns,
+                              allTransactions: allTxns,
+                              allLoans: const [],
+                            ),
+                            error: (_, _) => _ExpenseSummaryCards(
+                              weeklyTransactions: weeklyTxns,
+                              allTransactions: allTxns,
+                              allLoans: const [],
+                            ),
+                          ),
+                          loading: () => const _SkeletonCard(height: 270),
+                          error: (_, _) => const SizedBox.shrink(),
+                        ),
+                        loading: () => const _SkeletonCard(height: 88),
+                        error: (_, _) => const SizedBox.shrink(),
+                      ),
                     ),
-                    error: (e, _) => Center(child: Text('Error: $e')),
-                  ),
-                  SizedBox(height: _showAddButton ? 80 : 0), // FAB clearance
+                    const SizedBox(height: 12),
+
+                    if (_tabIndex == 2)
+                      allAsync.when(
+                        data: (transactions) =>
+                            _CategorySpendGridV2(transactions: transactions),
+                        loading: () => const _SkeletonCard(height: 180),
+                        error: (_, _) => const SizedBox.shrink(),
+                      )
+                    else ...[
+                      // Transaction list header
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.screenHorizontal,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _tabIndex == 0
+                                  ? 'Recent Transactions'
+                                  : _kTabs[_tabIndex],
+                              style: const TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Transaction list
+                      listAsync.when(
+                        data: (txns) {
+                          final query = _searchQuery.toLowerCase();
+                          final filtered = txns.where((txn) {
+                            final matchesCategory =
+                                _categoryFilter == null ||
+                                txn.category == _categoryFilter;
+                            final matchesSearch =
+                                query.isEmpty ||
+                                txn.category.toLowerCase().contains(query) ||
+                                (txn.note?.toLowerCase().contains(query) ??
+                                    false);
+                            return matchesCategory && matchesSearch;
+                          }).toList();
+                          final list = _tabIndex == 0
+                              ? filtered.take(20).toList()
+                              : filtered;
+                          if (list.isEmpty) {
+                            return const EmptyState(
+                              icon: Icons.account_balance_wallet_outlined,
+                              title: 'No transactions yet',
+                              subtitle: 'Tap + to add one.',
+                              asset: 'assets/illustrations/Finance.png',
+                            );
+                          }
+                          return Column(
+                            children: list
+                                .map(
+                                  (t) => Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      AppSpacing.screenHorizontal,
+                                      0,
+                                      AppSpacing.screenHorizontal,
+                                      8,
+                                    ),
+                                    child: _TransactionTile(txn: t),
+                                  ),
+                                )
+                                .toList(),
+                          );
+                        },
+                        loading: () => const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: AppSpacing.screenHorizontal,
+                          ),
+                          child: _SkeletonCard(height: 60),
+                        ),
+                        error: (e, _) => Center(child: Text('Error: $e')),
+                      ),
+                      SizedBox(
+                        height: _showAddButton ? 80 : 0,
+                      ), // FAB clearance
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
           ),
         ),
       ),
@@ -404,32 +402,6 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
     );
   }
 }
-
-class _DetectedTransactionsPanel extends ConsumerWidget {
-  const _DetectedTransactionsPanel();
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final pending = ref.watch(pendingTransactionCandidatesProvider).valueOrNull ?? const <TransactionCandidate>[];
-    if (pending.isEmpty) return const SizedBox.shrink();
-    final db = ref.read(databaseProvider);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenHorizontal),
-      child: Card(
-        elevation: 0,
-        color: AppColors.surface,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('New Transactions Detected', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-          ...pending.take(3).map((candidate) => ListTile(contentPadding: EdgeInsets.zero, title: Text(candidate.merchantName), subtitle: Text('₹${(candidate.amountMinor / 100).toStringAsFixed(2)} · ${candidate.category} · ${candidate.paymentMethod ?? candidate.source}'), trailing: Wrap(spacing: 4, children: [IconButton(tooltip: 'Ignore', icon: const Icon(Icons.close_rounded), onPressed: () => db.transactionDetectionDao.updateStatus(candidate.candidateId, 'IGNORED')), IconButton(tooltip: 'Add', icon: const Icon(Icons.check_rounded), onPressed: () async { final isIncome = candidate.transactionType == 'INCOME'; await db.moneyDao.insertTransaction(MoneyTransactionsCompanion.insert(type: isIncome ? 'income' : 'expense', amount: candidate.amountMinor, category: candidate.category, note: Value('${candidate.merchantName} · Detected automatically'), date: candidate.occurredAt)); await db.transactionDetectionDao.updateStatus(candidate.candidateId, 'CONFIRMED'); })]))),
-          ]),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Summary cards ─────────────────────────────────────────────────────────────
 
 class _FilterChip extends StatelessWidget {
   const _FilterChip({
@@ -479,59 +451,92 @@ class _CategorySpendGridV2 extends StatelessWidget {
     final totals = <String, double>{};
     for (final transaction in transactions) {
       if (transaction.type == 'expense') {
-        totals.update(transaction.category, (value) => value + _moneyMajorAmount(transaction.amount),
-            ifAbsent: () => _moneyMajorAmount(transaction.amount));
+        totals.update(
+          transaction.category,
+          (value) => value + _moneyMajorAmount(transaction.amount),
+          ifAbsent: () => _moneyMajorAmount(transaction.amount),
+        );
       }
     }
     final entries = totals.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenHorizontal),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.screenHorizontal,
+      ),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final width = (constraints.maxWidth - 16) / 3;
           return Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: entries.map((entry) => SizedBox(
-              width: width,
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-                  border: Border.all(color: AppColors.divider),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 30,
-                      height: 30,
+            children: entries
+                .map(
+                  (entry) => SizedBox(
+                    width: width,
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: AppColors.accentSoft,
-                        borderRadius: BorderRadius.circular(9),
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(
+                          AppSpacing.cardRadius,
+                        ),
+                        border: Border.all(color: AppColors.divider),
                       ),
-                      child: Icon(_categoryIcon(entry.key), size: 17, color: AppColors.accent),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 30,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: AppColors.accentSoft,
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Icon(
+                              _categoryIcon(entry.key),
+                              size: 17,
+                              color: AppColors.accent,
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          Text(
+                            entry.key,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            _formatMoney(entry.value),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.danger,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 7),
-                    Text(entry.key, maxLines: 2, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontFamily: 'Poppins', fontSize: 10, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 3),
-                    Text(_formatMoney(entry.value), maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.danger)),
-                  ],
-                ),
-              ),
-            )).toList(),
+                  ),
+                )
+                .toList(),
           );
         },
       ),
     );
   }
 
-  static IconData _categoryIcon(String category) => financeCategoryIcon(category);
+  static IconData _categoryIcon(String category) =>
+      financeCategoryIcon(category);
 
   static String _formatMoney(double amount) {
     final value = amount == amount.roundToDouble()
@@ -561,7 +566,9 @@ class _CategorySpendGrid extends StatelessWidget {
       ..sort((a, b) => b.value.compareTo(a.value));
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenHorizontal),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.screenHorizontal,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -654,9 +661,11 @@ class _ExpenseSummaryCards extends StatelessWidget {
     final income = allTransactions
         .where((t) => t.type == 'income')
         .fold(0.0, (s, t) => s + _moneyMajorAmount(t.amount));
-    final lent = allLoans.where((t) => t.type == 'lent')
+    final lent = allLoans
+        .where((t) => t.type == 'lent')
         .fold(0.0, (s, t) => s + _moneyMajorAmount(t.amount));
-    final borrowed = allLoans.where((t) => t.type == 'borrowed')
+    final borrowed = allLoans
+        .where((t) => t.type == 'borrowed')
         .fold(0.0, (s, t) => s + _moneyMajorAmount(t.amount));
     final balance = income - spent + lent - borrowed;
     return Column(
@@ -777,30 +786,30 @@ class _BalanceStat extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 11,
-              color: Colors.white70,
+            Text(
+              label,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 11,
+                color: Colors.white70,
+              ),
             ),
-          ),
-          SizedBox(
-            width: double.infinity,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                value,
-                style: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
+            SizedBox(
+              width: double.infinity,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
-          ),
           ],
         ),
       ),
@@ -843,30 +852,30 @@ class _LoanCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 11,
-                color: AppColors.textSecondary,
+              Text(
+                label,
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
               ),
-            ),
-            SizedBox(
-              width: double.infinity,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '₹${_fmt.format(value)}',
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+              SizedBox(
+                width: double.infinity,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '₹${_fmt.format(value)}',
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
               ),
-            ),
             ],
           ),
         ),
@@ -1203,27 +1212,27 @@ class _TransactionTile extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    '$sign₹${_fmt.format(_moneyMajorAmount(txn.amount))}',
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: color,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      '$sign₹${_fmt.format(_moneyMajorAmount(txn.amount))}',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: color,
+                      ),
                     ),
                   ),
-                ),
-                Text(
-                  DateFormat('d MMM').format(txn.date),
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 10,
-                    color: AppColors.textSecondary,
+                  Text(
+                    DateFormat('d MMM').format(txn.date),
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 10,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
                 ],
               ),
             ),
@@ -1241,7 +1250,11 @@ class _TransactionTile extends ConsumerWidget {
 
   Future<void> _showDetails(BuildContext context, Color color, IconData icon) {
     final isIncome = txn.type == 'income';
-    final sign = isIncome ? '+' : txn.type == 'expense' ? '-' : '';
+    final sign = isIncome
+        ? '+'
+        : txn.type == 'expense'
+        ? '-'
+        : '';
     final description = txn.note?.trim().isNotEmpty == true
         ? txn.note!.trim()
         : 'No description added';
@@ -1301,7 +1314,13 @@ class _TransactionTile extends ConsumerWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                txn.type == 'income' ? 'Income' : txn.type == 'lent' ? 'Lent' : txn.type == 'borrowed' ? 'Borrowed' : 'Expense',
+                txn.type == 'income'
+                    ? 'Income'
+                    : txn.type == 'lent'
+                    ? 'Lent'
+                    : txn.type == 'borrowed'
+                    ? 'Borrowed'
+                    : 'Expense',
                 style: const TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 13,
@@ -1309,11 +1328,23 @@ class _TransactionTile extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 22),
-              _DetailRow(label: 'Category', value: txn.category, icon: Icons.sell_outlined),
+              _DetailRow(
+                label: 'Category',
+                value: txn.category,
+                icon: Icons.sell_outlined,
+              ),
               const SizedBox(height: 14),
-              _DetailRow(label: 'Date and time', value: DateFormat('EEEE, d MMM yyyy · h:mm a').format(txn.date), icon: Icons.calendar_today_outlined),
+              _DetailRow(
+                label: 'Date and time',
+                value: DateFormat('EEEE, d MMM yyyy · h:mm a').format(txn.date),
+                icon: Icons.calendar_today_outlined,
+              ),
               const SizedBox(height: 14),
-              _DetailRow(label: 'Description', value: description, icon: Icons.notes_rounded),
+              _DetailRow(
+                label: 'Description',
+                value: description,
+                icon: Icons.notes_rounded,
+              ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -1322,10 +1353,18 @@ class _TransactionTile extends ConsumerWidget {
                     backgroundColor: AppColors.textPrimary,
                     foregroundColor: AppColors.surface,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                   onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Done', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Done',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -1345,7 +1384,9 @@ class _TransactionTile extends ConsumerWidget {
           'Are you sure?',
           style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
         ),
-        content: Text('Remove this ${txn.type} of ₹${_fmt.format(_moneyMajorAmount(txn.amount))}?'),
+        content: Text(
+          'Remove this ${txn.type} of ₹${_fmt.format(_moneyMajorAmount(txn.amount))}?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -1364,7 +1405,11 @@ class _TransactionTile extends ConsumerWidget {
 }
 
 class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value, required this.icon});
+  const _DetailRow({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
   final String label;
   final String value;
   final IconData icon;
@@ -1379,9 +1424,24 @@ class _DetailRow extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontFamily: 'Poppins', fontSize: 11, color: AppColors.textSecondary)),
+            Text(
+              label,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
+            ),
             const SizedBox(height: 2),
-            Text(value, style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+            Text(
+              value,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textPrimary,
+              ),
+            ),
           ],
         ),
       ),

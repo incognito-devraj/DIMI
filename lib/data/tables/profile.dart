@@ -5,7 +5,7 @@ import 'package:drift/drift.dart';
 class ProfileTableData {
   const ProfileTableData({required this.id, required this.name, required this.role, required this.email, required this.phone, required this.college, required this.semester, required this.photoPath, required this.points});
   final int id;
-  final String name, role, email, phone, college, semester;
+  final String name, role, email, phone, college, semester; 
   final String? photoPath;
   final int points;
 }

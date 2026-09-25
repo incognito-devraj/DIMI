@@ -24,9 +24,14 @@ class ProfileDao extends DatabaseAccessor<AppDatabase> with _$ProfileDaoMixin {
   // ── Reads ──────────────────────────────────────────────────────────────────
 
   Future<ProfileTableData?> getProfile() async {
-    final account = await (select(
-      localAccounts,
-    )..where((a) => a.isActive.equals(true) & a.deletedAt.isNull())).getSingleOrNull();
+    final activeId = db.activeAccountId;
+    final account = activeId > 0
+        ? await (select(localAccounts)
+              ..where((a) => a.id.equals(activeId) & a.deletedAt.isNull()))
+            .getSingleOrNull()
+        : await (select(localAccounts)
+              ..where((a) => a.isActive.equals(true) & a.deletedAt.isNull()))
+            .getSingleOrNull();
     if (account == null) return null;
     final data = await (select(
       profileData,
@@ -46,18 +51,28 @@ class ProfileDao extends DatabaseAccessor<AppDatabase> with _$ProfileDaoMixin {
 
   // ── Writes ─────────────────────────────────────────────────────────────────
 
-  /// Inserts or replaces the profile row (id always = 1).
+  /// Inserts or replaces the profile row for the currently active account.
   Future<void> upsertProfile(ProfileTableCompanion entry) async {
     await transaction(() async {
     final now = DateTime.now();
-    final id = entry.id.value;
+    final id = db.activeAccountId;
+    if (id <= 0) {
+      throw StateError('Cannot save a profile without an active account');
+    }
     final existingAccount = await (select(localAccounts)..where((a) => a.id.equals(id))).getSingleOrNull();
     final existingProfile = await (select(profileData)..where((p) => p.localAccountId.equals(id))).getSingleOrNull();
+    if (existingAccount == null) {
+      throw StateError('Cannot save a profile for missing account $id');
+    }
+    // Profile writes must not create a second active account. This also
+    // repairs legacy state left by the old profile editor, which activated
+    // account 1 without deactivating the previously active account.
+    await update(localAccounts).write(const LocalAccountsCompanion(isActive: Value(false)));
     await into(localAccounts).insertOnConflictUpdate(
       LocalAccountsCompanion(
         id: Value(id),
-        authProvider: Value(existingAccount?.authProvider ?? 'offline'),
-        authUserId: Value(existingAccount?.authUserId),
+        authProvider: Value(existingAccount.authProvider),
+        authUserId: Value(existingAccount.authUserId),
         email: entry.email,
         displayName: entry.name,
         avatarUrl: entry.photoPath,
@@ -88,7 +103,7 @@ class ProfileDao extends DatabaseAccessor<AppDatabase> with _$ProfileDaoMixin {
         operation: OutboxOperation.update,
         serverId: account.serverId,
         authUserId: account.authUserId,
-        baseRemoteUpdatedAt: existingAccount?.updatedAt,
+        baseRemoteUpdatedAt: existingAccount.updatedAt,
         localMutationAt: account.updatedAt,
         dependencyRank: OutboxDependencyRank.account,
       );
