@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="launch_background">#F4EFE3</color>
+    <color name="dimi_accent">#F5A623</color>
+    <color name="dimi_bg">#FAF3EB</color>
 </resources>

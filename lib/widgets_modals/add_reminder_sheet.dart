@@ -8,11 +8,12 @@ import '../data/database.dart';
 import '../providers/reminder_providers.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/dimi_success_dialog.dart';
 import 'fixed_dialog.dart';
 
 /// Opens the Add Reminder modal bottom sheet.
 Future<void> showAddReminderSheet(BuildContext context) async {
-  await showGeneralDialog<void>(
+  final saved = await showGeneralDialog<bool>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'Add Reminder',
@@ -40,6 +41,9 @@ Future<void> showAddReminderSheet(BuildContext context) async {
       );
     },
   );
+  if (saved == true && context.mounted) {
+    await showDimiSuccessDialog(context, title: 'Reminder Added!');
+  }
 }
 
 class _FixedReminderDialog extends StatelessWidget {
@@ -127,24 +131,38 @@ class _AddReminderSheetState extends ConsumerState<_AddReminderSheet> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
 
-    final id = await ref
-        .read(reminderDaoProvider)
-        .insertReminder(
-          RemindersCompanion(
-            title: Value(_titleCtrl.text.trim()),
-            dueAt: Value(_combinedDateTime),
-            isEnabled: const Value(true),
+    try {
+      final id = await ref
+          .read(reminderDaoProvider)
+          .insertReminder(
+            RemindersCompanion(
+              title: Value(_titleCtrl.text.trim()),
+              dueAt: Value(_combinedDateTime),
+              isEnabled: const Value(true),
+            ),
+          );
+
+      await NotificationService.instance.setReminderSound(id, _sound);
+
+      final reminder = await ref.read(reminderDaoProvider).getById(id);
+      if (reminder != null) {
+        await NotificationService.instance.scheduleReminder(reminder);
+      }
+
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e, st) {
+      debugPrint('[AddReminder] save failed: $e\n$st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not save reminder: $e'),
+            backgroundColor: AppColors.danger,
           ),
         );
-
-    await NotificationService.instance.setReminderSound(id, _sound);
-
-    final reminder = await ref.read(reminderDaoProvider).getById(id);
-    if (reminder != null) {
-      await NotificationService.instance.scheduleReminder(reminder);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-
-    if (mounted) Navigator.of(context).pop();
   }
 
   @override

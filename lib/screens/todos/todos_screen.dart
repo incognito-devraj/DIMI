@@ -454,7 +454,6 @@ class _TodoAddDialogState extends State<_TodoAddDialog> {
   static const _maxTodoCharacters = 60;
   final _controller = TextEditingController();
   bool _saving = false;
-  bool _saved = false;
 
   @override
   void dispose() {
@@ -479,12 +478,7 @@ class _TodoAddDialogState extends State<_TodoAddDialog> {
         createdAt: Value(DateTime.now()),
       ),
     );
-    if (!mounted) return;
-    setState(() => _saved = true);
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    if (mounted && (ModalRoute.of(context)?.isCurrent ?? false)) {
-      Navigator.of(context).pop(true);
-    }
+    if (mounted) Navigator.of(context).pop(true);
   }
 
   @override
@@ -602,33 +596,30 @@ class _TodoAddDialogState extends State<_TodoAddDialog> {
                     borderRadius: BorderRadius.circular(28),
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 180),
-                      child: _saved
-                          ? const Icon(
-                              Icons.check_rounded,
-                              key: ValueKey('saved'),
-                            )
-                          : const SizedBox.shrink(key: ValueKey('add')),
-                    ),
-                    if (_saved) const SizedBox(width: 8),
-                    Text(
-                      _saved ? 'Saved' : 'Save To-Do',
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
+                child: _saving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.surface,
+                        ),
+                      )
+                    : const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Save To-Do',
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Icon(Icons.arrow_forward_rounded, size: 19),
+                        ],
                       ),
-                    ),
-                    if (!_saved) ...[
-                      const SizedBox(width: 8),
-                      const Icon(Icons.arrow_forward_rounded, size: 19),
-                    ],
-                  ],
-                ),
               ),
             ),
             const SizedBox(height: 8),
