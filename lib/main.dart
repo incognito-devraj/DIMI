@@ -7,7 +7,6 @@ import 'data/database.dart';
 import 'providers/database_provider.dart';
 import 'routing/app_router.dart';
 import 'services/notification_service.dart';
-import 'features/transaction_detection/transaction_detection_service.dart';
 import 'theme/app_theme.dart';
 import 'services/auth_service.dart';
 import 'config/supabase_config.dart';
@@ -42,10 +41,6 @@ Future<void> main() async {
   for (final id in expiredReminderIds) {
     await NotificationService.instance.cancelReminder(id);
   }
-  // Drain events captured while the Flutter UI was closed. Parsing remains
-  // local and happens after the first database connection is available.
-  await TransactionDetectionService(db).syncPendingEvents();
-
   // Reschedule all enabled future reminders (handles post-reboot case too).
   final reminders = await db.reminderDao.getAllEnabled();
   await NotificationService.instance.rescheduleAll(reminders);
@@ -98,7 +93,6 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(_expirePastReminders());
-      unawaited(TransactionDetectionService(ref.read(databaseProvider)).syncPendingEvents());
       unawaited(_syncService.syncNow());
       _startForegroundSync();
     } else if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
@@ -111,7 +105,6 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
     _syncTimer?.cancel();
     _syncTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       unawaited(_expirePastReminders());
-      unawaited(TransactionDetectionService(ref.read(databaseProvider)).syncPendingEvents());
       unawaited(_syncService.syncNow());
     });
   }

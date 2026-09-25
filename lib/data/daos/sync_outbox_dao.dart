@@ -26,7 +26,6 @@ class OutboxEntity {
   static const reminder = 'reminders';
   static const note = 'notes';
   static const moneyTransaction = 'money_transactions';
-  static const merchantRule = 'merchant_category_rules';
   static const playlist = 'youtube_playlists';
   static const video = 'youtube_videos';
 }
@@ -38,7 +37,6 @@ class OutboxDependencyRank {
   static const reminder = 40;
   static const note = 50;
   static const moneyTransaction = 60;
-  static const merchantRule = 70;
   static const playlist = 80;
   static const video = 90;
 }

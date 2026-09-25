@@ -372,11 +372,6 @@ class _HomeContentGrid extends ConsumerWidget {
                 final noReminders = reminderItems
                     .where((r) => r.isEnabled)
                     .isEmpty;
-                final allEmpty =
-                    taskItems.isEmpty &&
-                    plannerItems.isEmpty &&
-                    allItems.isEmpty &&
-                    noReminders;
                 Widget todoCard() => _HomeNavigationCard(
                   onTap: () => context.go(AppRoutes.todos),
                   child: taskItems.isEmpty
@@ -449,9 +444,11 @@ class _HomeContentGrid extends ConsumerWidget {
                   financeCard(),
                   reminderCard(),
                 ];
-                return allEmpty
-                    ? _FixedHomeGrid(children: cards)
-                    : _AdaptiveMasonry(children: cards);
+                // Use the measured masonry layout for every data state. The
+                // empty state is still just another card; keeping a separate
+                // fixed-height grid here could clip a card when its content
+                // changes or when the available width is smaller.
+                return _AdaptiveMasonry(children: cards);
               },
               loading: () => const _Shimmer(height: 220),
               error: (_, _) => const SizedBox.shrink(),
@@ -486,53 +483,6 @@ class _HomeNavigationCard extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: child,
-    );
-  }
-}
-
-class _FixedHomeGrid extends StatelessWidget {
-  const _FixedHomeGrid({required this.children});
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const gap = 8.0;
-        final cardWidth = (constraints.maxWidth - gap) / 2;
-        final cardHeight = (cardWidth * 1.28).clamp(228.0, 290.0);
-        Widget card(Widget child) =>
-            SizedBox(width: cardWidth, height: cardHeight, child: child);
-        final source = [
-          ...children,
-          ...List<Widget>.filled(4 - children.length, const SizedBox.shrink()),
-        ];
-        // Keep the requested fixed matrix: To-Do's / Finance, then
-        // Planner / Reminders. The provider-backed card widgets themselves
-        // remain unchanged.
-        final items = [source[0], source[2], source[1], source[3]];
-        return Column(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                card(items[0]),
-                const SizedBox(width: gap),
-                card(items[1]),
-              ],
-            ),
-            const SizedBox(height: gap),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                card(items[2]),
-                const SizedBox(width: gap),
-                card(items[3]),
-              ],
-            ),
-          ],
-        );
-      },
     );
   }
 }
@@ -589,8 +539,8 @@ class _HomeEmptyCard extends StatelessWidget {
         ),
         // This placeholder also lives in the original masonry when only
         // some cards are empty, so its height must never be unbounded.
-        SizedBox(
-          height: 150,
+        ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 150),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -687,24 +637,106 @@ class _RenderAdaptiveMasonry extends RenderBox
     final width = constraints.maxWidth;
     final columnCount = width < _singleColumnBreakpoint ? 1 : 2;
     final columnWidth = columnCount == 1 ? width : (width - _gap) / 2;
+    final children = <RenderBox>[];
     RenderBox? child = firstChild;
-    final heights = List<double>.filled(columnCount, 0);
     while (child != null) {
       child.layout(
         BoxConstraints.tightFor(width: columnWidth),
         parentUsesSize: true,
       );
-      var targetColumn = 0;
-      for (var i = 1; i < heights.length; i++) {
-        if (heights[i] < heights[targetColumn]) targetColumn = i;
+      children.add(child);
+      child = (child.parentData! as _MasonryParentData).nextSibling;
+    }
+
+    final columnIndices = List<List<int>>.generate(
+      columnCount,
+      (_) => <int>[],
+    );
+    if (columnCount == 1) {
+      columnIndices[0].addAll(List<int>.generate(children.length, (i) => i));
+    } else if (children.isNotEmpty) {
+      // All cards have been measured at their real width. Evaluate every
+      // non-empty partition and choose the most balanced column heights.
+      // This lets a very tall card occupy one side while the other cards
+      // stack on the other side, instead of locking cards to fixed columns.
+      var bestMask = 1;
+      var bestDifference = double.infinity;
+      var bestTallest = double.infinity;
+      var bestPreference = double.infinity;
+      var bestOrderPenalty = double.infinity;
+      final partitionCount = 1 << children.length;
+
+      for (var mask = 1; mask < partitionCount - 1; mask++) {
+        final partitionHeights = [0.0, 0.0];
+        final counts = [0, 0];
+        for (var index = 0; index < children.length; index++) {
+          final column = (mask & (1 << index)) == 0 ? 1 : 0;
+          partitionHeights[column] += children[index].size.height;
+          counts[column]++;
+        }
+        for (var column = 0; column < 2; column++) {
+          if (counts[column] > 1) {
+            partitionHeights[column] += _gap * (counts[column] - 1);
+          }
+        }
+
+        final difference =
+            (partitionHeights[0] - partitionHeights[1]).abs();
+        final tallest = partitionHeights[0] > partitionHeights[1]
+            ? partitionHeights[0]
+            : partitionHeights[1];
+
+        // Prefer To-Dos at the top-left and Planner at the top-right only
+        // after balance has been considered. Since source order is retained
+        // within each column, these assignments make them the top cards.
+        var preference = 0.0;
+        if ((mask & 1) == 0) preference++;
+        if ((mask & (1 << 1)) != 0) preference++;
+
+        // For equally balanced layouts, prefer the natural alternating order
+        // (To-Dos/Finance on the left, Planner/Reminders on the right).
+        var orderPenalty = 0.0;
+        for (var index = 0; index < children.length; index++) {
+          final preferredColumn = index.isEven ? 0 : 1;
+          final actualColumn = (mask & (1 << index)) == 0 ? 1 : 0;
+          if (actualColumn != preferredColumn) orderPenalty++;
+        }
+
+        final isBetter = difference < bestDifference ||
+            (difference == bestDifference && tallest < bestTallest) ||
+            (difference == bestDifference &&
+                tallest == bestTallest &&
+                preference < bestPreference) ||
+            (difference == bestDifference &&
+                tallest == bestTallest &&
+                preference == bestPreference &&
+                orderPenalty < bestOrderPenalty);
+        if (isBetter) {
+          bestMask = mask;
+          bestDifference = difference;
+          bestTallest = tallest;
+          bestPreference = preference;
+          bestOrderPenalty = orderPenalty;
+        }
       }
-      final parentData = child.parentData! as _MasonryParentData;
-      parentData.offset = Offset(
-        targetColumn == 0 ? 0 : columnWidth + _gap,
-        heights[targetColumn],
-      );
-      heights[targetColumn] += child.size.height + _gap;
-      child = parentData.nextSibling;
+
+      for (var index = 0; index < children.length; index++) {
+        final column = (bestMask & (1 << index)) == 0 ? 1 : 0;
+        columnIndices[column].add(index);
+      }
+    }
+
+    final heights = List<double>.filled(columnCount, 0);
+    for (var column = 0; column < columnCount; column++) {
+      for (final index in columnIndices[column]) {
+        final child = children[index];
+        final parentData = child.parentData! as _MasonryParentData;
+        parentData.offset = Offset(
+          column == 0 ? 0 : columnWidth + _gap,
+          heights[column],
+        );
+        heights[column] += child.size.height + _gap;
+      }
     }
 
     final contentHeight = heights.isEmpty

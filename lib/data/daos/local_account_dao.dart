@@ -9,8 +9,17 @@ part 'local_account_dao.g.dart';
 class LocalAccountDao extends DatabaseAccessor<AppDatabase> with _$LocalAccountDaoMixin {
   LocalAccountDao(super.db);
 
-  Future<LocalAccount?> getActive() =>
-      (select(localAccounts)..where((a) => a.isActive.equals(true) & a.deletedAt.isNull())).getSingleOrNull();
+  Future<LocalAccount?> getActive() {
+    final activeId = db.activeAccountId;
+    if (activeId > 0) {
+      return (select(localAccounts)
+            ..where((a) => a.id.equals(activeId) & a.deletedAt.isNull()))
+          .getSingleOrNull();
+    }
+    return (select(localAccounts)
+          ..where((a) => a.isActive.equals(true) & a.deletedAt.isNull()))
+        .getSingleOrNull();
+  }
 
   Future<int> ensureOfflineAccount() async {
     final offline = await (select(localAccounts)
