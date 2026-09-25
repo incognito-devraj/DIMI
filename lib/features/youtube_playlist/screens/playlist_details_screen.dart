@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../data/database.dart';
 import '../../../providers/database_provider.dart';
+import '../../../services/notification_service.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/dimi_activity_heatmap.dart';
 import '../models/youtube_playlist.dart';
@@ -1091,84 +1092,52 @@ class _PlaylistReminderSectionState
     _load();
   }
 
-  /// Load by ID stored in SharedPreferences, falling back to title-key scan
-  /// for reminders created before this change.
+  /// Load the reminder rows from Drift. SharedPreferences only stores the
+  /// row IDs for backwards compatibility; the persisted time is always
+  /// read from Reminder.dueAt.
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final dao = ref.read(databaseProvider).reminderDao;
 
-    final watchId = prefs.getInt(_watchKey);
-    final tickId = prefs.getInt(_tickKey);
+    Future<Reminder?> findReminder({required String title, required String key}) async {
+      final storedId = prefs.getInt(key);
+      final byId = storedId == null ? null : await dao.getById(storedId);
+      if (byId != null) return byId;
 
-    // Fast path: we have persisted IDs.
-    if (watchId != null) {
-      final r = await dao.getById(watchId);
-      if (r != null && mounted) {
-        setState(() {
-          _watchEnabled = r.isEnabled;
-          _watchReminderId = r.id;
-          _watchTime = TimeOfDay(hour: r.dueAt.hour, minute: r.dueAt.minute);
-        });
-      }
-    }
-    if (tickId != null) {
-      final r = await dao.getById(tickId);
-      if (r != null && mounted) {
-        setState(() {
-          _tickEnabled = r.isEnabled;
-          _tickReminderId = r.id;
-          _tickTime = TimeOfDay(hour: r.dueAt.hour, minute: r.dueAt.minute);
-        });
-      }
+      final current = await dao.getByTitle(title);
+      if (current != null) return current;
+
+      // Migrate rows created by the older title-key implementation.
+      final legacy = await dao.getByTitle(key);
+      if (legacy == null) return null;
+      await dao.updateReminder(
+        RemindersCompanion(
+          id: Value(legacy.id),
+          title: Value(title),
+          dueAt: Value(legacy.dueAt),
+          isEnabled: Value(legacy.isEnabled),
+        ),
+      );
+      return await dao.getById(legacy.id);
     }
 
-    // Fallback: scan by legacy title key (reminders created before this fix).
-    if (watchId == null || tickId == null) {
-      final all = await dao.getAllEnabled();
-      if (!mounted) return;
-      for (final r in all) {
-        if (watchId == null && r.title == _watchKey) {
-          // Migrate: update title to human-readable and persist ID.
-          await dao.updateReminder(
-            RemindersCompanion(
-              id: Value(r.id),
-              title: Value(_watchTitle),
-              dueAt: Value(r.dueAt),
-              isEnabled: Value(r.isEnabled),
-            ),
-          );
-          await prefs.setInt(_watchKey, r.id);
-          if (mounted) {
-            setState(() {
-              _watchEnabled = r.isEnabled;
-              _watchReminderId = r.id;
-              _watchTime = TimeOfDay(
-                hour: r.dueAt.hour,
-                minute: r.dueAt.minute,
-              );
-            });
-          }
-        }
-        if (tickId == null && r.title == _tickKey) {
-          await dao.updateReminder(
-            RemindersCompanion(
-              id: Value(r.id),
-              title: Value(_tickTitle),
-              dueAt: Value(r.dueAt),
-              isEnabled: Value(r.isEnabled),
-            ),
-          );
-          await prefs.setInt(_tickKey, r.id);
-          if (mounted) {
-            setState(() {
-              _tickEnabled = r.isEnabled;
-              _tickReminderId = r.id;
-              _tickTime = TimeOfDay(hour: r.dueAt.hour, minute: r.dueAt.minute);
-            });
-          }
-        }
-      }
+    final watch = await findReminder(title: _watchTitle, key: _watchKey);
+    final tick = await findReminder(title: _tickTitle, key: _tickKey);
+    if (!mounted) return;
+
+    if (watch != null) {
+      await prefs.setInt(_watchKey, watch.id);
+      _watchReminderId = watch.id;
+      _watchEnabled = watch.isEnabled;
+      _watchTime = TimeOfDay(hour: watch.dueAt.hour, minute: watch.dueAt.minute);
     }
+    if (tick != null) {
+      await prefs.setInt(_tickKey, tick.id);
+      _tickReminderId = tick.id;
+      _tickEnabled = tick.isEnabled;
+      _tickTime = TimeOfDay(hour: tick.dueAt.hour, minute: tick.dueAt.minute);
+    }
+    setState(() {});
   }
 
   Future<void> _save({
@@ -1184,6 +1153,12 @@ class _PlaylistReminderSectionState
     final now = DateTime.now();
     var due = DateTime(now.year, now.month, now.day, time.hour, time.minute);
     if (due.isBefore(now)) due = due.add(const Duration(days: 1));
+
+    int? reminderId = existingId;
+    final previous = existingId == null ? null : await dao.getById(existingId);
+    if (previous != null) {
+      await NotificationService.instance.cancelReminder(previous.notificationId);
+    }
 
     if (existingId != null) {
       await dao.updateReminder(
@@ -1202,8 +1177,35 @@ class _PlaylistReminderSectionState
           isEnabled: Value(enabled),
         ),
       );
+      reminderId = id;
       await prefs.setInt(key, id);
       onSaved(id);
+    }
+
+    final reminder = reminderId == null ? null : await dao.getById(reminderId!);
+    if (reminder == null) return;
+    if (!enabled) {
+      await NotificationService.instance.cancelReminder(reminder.notificationId);
+      return;
+    }
+
+    if (title.startsWith('Watch: ')) {
+      await NotificationService.instance.scheduleWatchReminder(
+        notificationId: reminder.notificationId,
+        contentTitle: title.substring(7),
+        dueAt: reminder.dueAt,
+        playlistId: widget.playlist.playlistId.hashCode,
+      );
+    } else {
+      final unwatched = widget.playlist.videos.where((v) => !v.isCompleted).length;
+      await NotificationService.instance.scheduleTodoReminder(
+        notificationId: reminder.notificationId,
+        taskTitle: title.substring(10),
+        detail: unwatched == 0
+            ? 'Review the videos you watched today'
+            : '$unwatched video${unwatched == 1 ? '' : 's'} still to tick off',
+        dueAt: reminder.dueAt,
+      );
     }
   }
 

@@ -22,6 +22,9 @@ Future<void> main() async {
 
   // Create DB eagerly so local records are ready before the first frame.
   final db = AppDatabase();
+
+  // Attach DB to notification service so action callbacks can write completions.
+  NotificationService.instance.attachDatabase(db);
   final restoredUser = SupabaseBootstrap.client?.auth.currentUser;
   if (restoredUser != null) {
     await AuthService.instance.synchronizeAuthState(db, restoredUser);
@@ -95,7 +98,8 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
       unawaited(_expirePastReminders());
       unawaited(_syncService.syncNow());
       _startForegroundSync();
-    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
       _syncTimer?.cancel();
       _syncTimer = null;
     }
@@ -110,7 +114,10 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
   }
 
   Future<void> _expirePastReminders() async {
-    final ids = await ref.read(databaseProvider).reminderDao.expirePastStandardReminders();
+    final ids = await ref
+        .read(databaseProvider)
+        .reminderDao
+        .expirePastStandardReminders();
     for (final id in ids) {
       await NotificationService.instance.cancelReminder(id);
     }

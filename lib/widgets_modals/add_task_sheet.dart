@@ -292,65 +292,71 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     await db.transaction(() async {
       if (_isEditing) {
         await dao.updateTask(
-        TasksCompanion(
-          id: Value(widget.existingTask!.id),
-          title: Value(savedTitle),
-          description: Value(
-            _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+          TasksCompanion(
+            id: Value(widget.existingTask!.id),
+            title: Value(savedTitle),
+            description: Value(
+              _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+            ),
+            category: Value(_category),
+            dueDate: Value(dueDate),
+            dueTime: Value(_timeStr()),
+            isCompleted: Value(widget.existingTask!.isCompleted),
+            completedAt: Value(widget.existingTask!.completedAt),
+            createdAt: Value(widget.existingTask!.createdAt),
+            isPlannerEntry: Value(widget.existingTask!.isPlannerEntry),
           ),
-          category: Value(_category),
-          dueDate: Value(dueDate),
-          dueTime: Value(_timeStr()),
-          isCompleted: Value(widget.existingTask!.isCompleted),
-          completedAt: Value(widget.existingTask!.completedAt),
-          createdAt: Value(widget.existingTask!.createdAt),
-          isPlannerEntry: Value(widget.existingTask!.isPlannerEntry),
-        ),
         );
         savedTaskId = widget.existingTask!.id;
       } else {
         savedTaskId = await dao.insertTask(
-        TasksCompanion(
-          title: Value(savedTitle),
-          description: Value(
-            _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+          TasksCompanion(
+            title: Value(savedTitle),
+            description: Value(
+              _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+            ),
+            category: Value(_category),
+            dueDate: Value(dueDate),
+            dueTime: Value(_timeStr()),
+            isCompleted: const Value(false),
+            isPlannerEntry: Value(widget.plannerEntry),
+            createdAt: Value(DateTime.now()),
           ),
-          category: Value(_category),
-          dueDate: Value(dueDate),
-          dueTime: Value(_timeStr()),
-          isCompleted: const Value(false),
-          isPlannerEntry: Value(widget.plannerEntry),
-          createdAt: Value(DateTime.now()),
-        ),
         );
       }
 
-    // Planner reminders are real reminders as well as task metadata, so they
-    // appear in the Reminders tab and can be completed there.
-    if (widget.plannerEntry && savedTaskId != null) {
-      final taskTime = _dueTime!;
-      final taskDueAt = DateTime(
-        dueDate.year,
-        dueDate.month,
-        dueDate.day,
-        taskTime.hour,
-        taskTime.minute,
-      );
-      final reminderDueAt = taskDueAt.add(
-        Duration(minutes: _reminderMinutes ?? 0),
-      );
-      final reminderDao = ref.read(reminderDaoProvider);
-      if (_isEditing) {
-        reminderToSchedule = await reminderDao.updateByTaskId(
-          savedTaskId!, title: savedTitle, dueAt: reminderDueAt,
+      // Planner reminders are real reminders as well as task metadata, so they
+      // appear in the Reminders tab and can be completed there.
+      if (widget.plannerEntry && savedTaskId != null) {
+        final taskTime = _dueTime!;
+        final taskDueAt = DateTime(
+          dueDate.year,
+          dueDate.month,
+          dueDate.day,
+          taskTime.hour,
+          taskTime.minute,
         );
-      } else {
-        final reminderId = await reminderDao.insertReminder(
-          RemindersCompanion.insert(taskId: Value(savedTaskId!), title: savedTitle, dueAt: reminderDueAt),
+        final reminderDueAt = taskDueAt.add(
+          Duration(minutes: _reminderMinutes ?? 0),
         );
-        reminderToSchedule = await reminderDao.getById(reminderId);
+        final reminderDao = ref.read(reminderDaoProvider);
+        if (_isEditing) {
+          reminderToSchedule = await reminderDao.updateByTaskId(
+            savedTaskId!,
+            title: savedTitle,
+            dueAt: reminderDueAt,
+          );
+        } else {
+          final reminderId = await reminderDao.insertReminder(
+            RemindersCompanion.insert(
+              taskId: Value(savedTaskId!),
+              title: savedTitle,
+              dueAt: reminderDueAt,
+            ),
+          );
+          reminderToSchedule = await reminderDao.getById(reminderId);
+        }
       }
-    }
     });
     if (reminderToSchedule != null) {
       await NotificationService.instance.scheduleReminder(reminderToSchedule!);
