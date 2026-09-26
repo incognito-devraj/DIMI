@@ -13,6 +13,7 @@ import '../../widgets/pill_segmented_control.dart';
 import '../../widgets_modals/add_task_sheet.dart';
 import '../../utils/time_format.dart';
 import '../../widgets/dimi_activity_heatmap.dart';
+import '../../widgets/dimi_action_dialog.dart';
 import '../../services/notification_service.dart';
 
 const _kViews = ['Day', 'Week', 'Month'];
@@ -1895,6 +1896,59 @@ class _TaskTile extends ConsumerWidget {
   };
 
   Future<void> _showOptions(BuildContext context, WidgetRef ref) async {
+    final isFuture = _isFuturePlannerTask(task);
+    if (_isPastPlannerTask(task)) return;
+    final action = await showDimiActionDialog<String>(
+      context,
+      title: 'Manage planner event',
+      message: 'Update the event details or remove it from your plan.',
+      actions: [
+        const DimiDialogAction(
+          label: 'Edit',
+          value: 'edit',
+          icon: Icons.edit_outlined,
+        ),
+        const DimiDialogAction(
+          label: 'Delete',
+          value: 'delete',
+          icon: Icons.delete_outline,
+          primary: true,
+        ),
+      ],
+    );
+    if (!context.mounted) return;
+    final dao = ref.read(taskDaoProvider);
+    switch (action) {
+      case 'edit':
+        await showAddTaskSheet(
+          context,
+          existingTask: task,
+          plannerEntry: true,
+        );
+        break;
+      case 'delete':
+        final ok = await showDimiActionDialog<bool>(
+          context,
+          title: isFuture ? 'Delete future event?' : 'Delete task?',
+          message: isFuture
+              ? 'This event is planned for ${DateFormat('d MMM yyyy').format(task.dueDate)}. Remove "${task.title}"?'
+              : 'Remove "${task.title}"?',
+          actions: const [
+            DimiDialogAction(label: 'Cancel', value: false),
+            DimiDialogAction(label: 'Delete', value: true, primary: true),
+          ],
+        );
+        if (ok == true) {
+          final notificationId = await dao.deleteTaskWithReminder(task.id);
+          if (notificationId != null) {
+            await NotificationService.instance.cancelReminder(notificationId);
+          }
+        }
+        break;
+    }
+  }
+
+  Future<void> _showOptionsLegacy(BuildContext context, WidgetRef ref) async {
     final isFuture = _isFuturePlannerTask(task);
     if (_isPastPlannerTask(task)) return;
     final action = await showModalBottomSheet<String>(

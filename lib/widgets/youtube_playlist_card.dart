@@ -66,6 +66,7 @@ class _YoutubePlaylistCardState
     final videos = await dao.getVideos(row.id);
 
     return model.YouTubePlaylist(
+      localId: row.id,
       playlistId: row.youtubePlaylistId,
       title: row.title,
       channelTitle: row.channelTitle,

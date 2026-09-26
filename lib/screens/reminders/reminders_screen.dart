@@ -12,6 +12,7 @@ import '../../services/notification_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/dimi_add_action_button.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/dimi_action_dialog.dart';
 import '../../widgets/pill_segmented_control.dart';
 import '../../widgets_modals/add_reminder_sheet.dart';
 
@@ -207,7 +208,7 @@ class _ReminderCard extends ConsumerWidget {
         : reminder.dueAt.isBefore(DateTime.now());
 
     return GestureDetector(
-      onLongPress: () => _showDeleteDialog(context, dao),
+      onLongPress: () => _showActions(context, dao),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
@@ -332,28 +333,39 @@ class _ReminderCard extends ConsumerWidget {
     return '${DateFormat('d MMM').format(dt)} · $timeStr';
   }
 
-  Future<void> _showDeleteDialog(BuildContext context, dynamic dao) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+  Future<void> _showActions(BuildContext context, dynamic dao) async {
+    final action = await showDimiActionDialog<String>(
+      context,
+      title: 'Edit or delete reminder?',
+      message: 'Choose an action for this reminder.',
+      actions: const [
+        DimiDialogAction(label: 'Edit', value: 'edit', icon: Icons.edit_outlined),
+        DimiDialogAction(
+          label: 'Delete',
+          value: 'delete',
+          icon: Icons.delete_outline,
+          primary: true,
         ),
-        title: const Text('Delete reminder?'),
-        content: Text('This will permanently remove "${reminder.title}".'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      ],
+    );
+
+    if (!context.mounted) return;
+    if (action == 'edit') {
+      await showEditReminderSheet(context, reminder);
+    } else if (action == 'delete') {
+      await _showDeleteDialog(context, dao);
+    }
+  }
+
+  Future<void> _showDeleteDialog(BuildContext context, dynamic dao) async {
+    final confirmed = await showDimiActionDialog<bool>(
+      context,
+      title: 'Delete reminder?',
+      message: 'This will permanently remove "${reminder.title}".',
+      actions: const [
+        DimiDialogAction(label: 'Cancel', value: false),
+        DimiDialogAction(label: 'Delete', value: true, primary: true),
+      ],
     );
     if (confirmed == true) {
       await NotificationService.instance.cancelReminder(reminder.id);

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'data/database.dart';
 import 'providers/database_provider.dart';
+import 'providers/task_providers.dart';
 import 'routing/app_router.dart';
 import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
@@ -40,6 +41,7 @@ Future<void> main() async {
   } else {
     await db.localAccountDao.ensureOfflineAccount();
   }
+  await db.reminderDao.repairNotificationIds();
   final expiredReminderIds = await db.reminderDao.expirePastStandardReminders();
   for (final id in expiredReminderIds) {
     await NotificationService.instance.cancelReminder(id);
@@ -95,6 +97,14 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      // Notification actions may have committed through the background
+      // isolate's SQLite connection while the app was paused. Re-read the
+      // local Drift rows before starting any remote sync so Planner reflects
+      // the local completion immediately.
+      ref.invalidate(tasksForDateProvider);
+      ref.invalidate(tasksForWeekProvider);
+      ref.invalidate(plannerTasksForMonthProvider);
+      ref.invalidate(plannerHeatmapProvider);
       unawaited(_expirePastReminders());
       unawaited(_syncService.syncNow());
       _startForegroundSync();
