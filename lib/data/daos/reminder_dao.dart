@@ -260,12 +260,20 @@ class ReminderDao extends DatabaseAccessor<AppDatabase>
             ))
             .getSingleOrNull();
     if (before == null) return false;
-    final changed = await update(reminders).replace(
-      entry.copyWith(
-        localAccountId: Value(db.activeAccountId),
-        updatedAt: Value(DateTime.now()),
-      ),
-    );
+    final changedRows =
+        await (update(reminders)..where(
+              (r) =>
+                  r.id.equals(entry.id.value) &
+                  r.localAccountId.equals(db.activeAccountId) &
+                  r.deletedAt.isNull(),
+            ))
+            .write(
+              entry.copyWith(
+                localAccountId: Value(db.activeAccountId),
+                updatedAt: Value(DateTime.now()),
+              ),
+            );
+    final changed = changedRows > 0;
     if (changed) {
       final row = await (select(
         reminders,

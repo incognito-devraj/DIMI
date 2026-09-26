@@ -102,6 +102,10 @@ class NotificationService {
   // Injected DB reference so action callbacks can write completions.
   AppDatabase? _db;
 
+  /// Called after a notification action has committed its local Drift change
+  /// in the foreground app isolate.
+  VoidCallback? onLocalActionCommitted;
+
   void attachDatabase(AppDatabase db) => _db = db;
 
   static const _confirmationIdOffset = 200000;
@@ -400,33 +404,53 @@ class NotificationService {
     }
   }
 
-  Future<void> _snoozeReminder(int notificationId, Map<String, dynamic> data) async {
+  Future<void> _snoozeReminder(
+    int notificationId,
+    Map<String, dynamic> data,
+  ) async {
     if (_db == null) return;
-    final reminderId = data[_Key.reminderId] as int?;
-    final taskId = data[_Key.taskId] as int?;
-    final reminder = reminderId != null
-        ? await _db!.reminderDao.getById(reminderId)
-        : taskId != null
-        ? await _db!.reminderDao.getByTaskId(taskId)
-        : null;
-    if (reminder == null) return;
-    final dueAt = DateTime.now().add(const Duration(minutes: 5));
-    await _db!.reminderDao.updateReminder(
-      RemindersCompanion(
-        id: Value(reminder.id),
-        dueAt: Value(dueAt),
-        isEnabled: const Value(true),
-      ),
-    );
-    final updated = await _db!.reminderDao.getById(reminder.id);
-    if (updated != null) {
-      await _plugin.cancel(notificationId);
-      await scheduleReminder(updated);
+    try {
+      final reminderId = data[_Key.reminderId] as int?;
+      final taskId = data[_Key.taskId] as int?;
+      final reminder = reminderId != null
+          ? await _db!.reminderDao.getById(reminderId)
+          : taskId != null
+          ? await _db!.reminderDao.getByTaskId(taskId)
+          : null;
+      if (reminder == null) return;
+      final dueAt = DateTime.now().add(const Duration(minutes: 5));
+      await _db!.reminderDao.updateReminder(
+        RemindersCompanion(
+          id: Value(reminder.id),
+          dueAt: Value(dueAt),
+          isEnabled: const Value(true),
+        ),
+      );
+      final updated = await _db!.reminderDao.getById(reminder.id);
+      if (updated != null) {
+        await _plugin.cancel(notificationId);
+        await scheduleReminder(updated);
+      }
+      onLocalActionCommitted?.call();
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('[NotificationService] snooze failed: $e\n$st');
+      }
     }
   }
 
   Future<void> _markDone(Map<String, dynamic> data) async {
     if (_db == null) return;
+    try {
+      await _markDoneUnsafe(data);
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('[NotificationService] mark done failed: $e\n$st');
+      }
+    }
+  }
+
+  Future<void> _markDoneUnsafe(Map<String, dynamic> data) async {
     final playlistId = data[_Key.playlistId] as int?;
     final reminderId = data[_Key.reminderId] as int?;
     if (playlistId != null) {
@@ -464,10 +488,14 @@ class NotificationService {
     }
 
     final taskId = data[_Key.taskId] as int?;
-    if (taskId != null) await _db!.taskDao.completeFromNotification(taskId);
-    if (reminderId != null) {
+    if (taskId != null) {
+      // TaskDao also disables the linked Planner reminder and enqueues its
+      // local-first update, so notification and manual completion match.
+      await _db!.taskDao.completeFromNotification(taskId);
+    } else if (reminderId != null) {
       await _db!.reminderDao.toggleEnabled(reminderId, false);
     }
+    onLocalActionCommitted?.call();
   }
 
   Future<void> _showConfirmation({
@@ -583,12 +611,16 @@ class NotificationService {
         AndroidNotificationAction(
           _Action.markDone,
           'Mark Done',
-          showsUserInterface: false,
+          titleColor: const Color(0xFFF5A623),
+          // Run completion in the main app isolate so the live Drift streams
+          // emit immediately and Planner updates without waiting for sync.
+          showsUserInterface: true,
           cancelNotification: true,
         ),
         AndroidNotificationAction(
           _Action.snooze,
           'Snooze 5 min',
+          titleColor: const Color(0xFFF5A623),
           showsUserInterface: false,
         ),
       ];

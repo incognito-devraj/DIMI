@@ -879,7 +879,10 @@ final _specs = <String, _SyncSpec>{
     _Field('task_id', 'task_id'),
     _Field('title', 'title'),
     _Field('due_at', 'due_at', date: true),
-    _Field('is_enabled', 'is_enabled'),
+    // Reminder activation is changed locally by Mark Done, Snooze, and the
+    // reminder switch. Do not let an older pull resurrect a locally disabled
+    // reminder; the value is still included in push payloads.
+    _Field('is_enabled', 'is_enabled', preserveOnRemoteApply: true),
     _Field('created_at', 'created_at', date: true),
     _Field('updated_at', 'updated_at', date: true),
     _Field('deleted_at', 'deleted_at', date: true),

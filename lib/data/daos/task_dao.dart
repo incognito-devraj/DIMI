@@ -166,6 +166,9 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
           updatedAt: Value(DateTime.now()),
         ),
       );
+    if (task.isPlannerEntry && value) {
+      await _disableLinkedReminders(id, DateTime.now());
+    }
     final row = await (select(tasks)..where((t) => t.id.equals(id))).getSingle();
     await db.syncOutboxDao.enqueue(localAccountId: db.activeAccountId, entityType: OutboxEntity.task, localRowId: id, operation: OutboxOperation.update, serverId: row.serverId, baseRemoteUpdatedAt: _remoteVersion(task), localMutationAt: row.updatedAt, dependencyRank: OutboxDependencyRank.task);
   }
@@ -175,7 +178,11 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
     final task = await (select(tasks)..where((t) =>
       t.id.equals(id) & t.localAccountId.equals(db.activeAccountId) & t.deletedAt.isNull()))
       .getSingleOrNull();
-    if (task == null || task.isCompleted) return;
+    if (task == null) return;
+    if (task.isCompleted) {
+      await _disableLinkedReminders(id, DateTime.now());
+      return;
+    }
     final now = DateTime.now();
     final changed = await (update(tasks)..where((t) =>
       t.id.equals(id) & t.localAccountId.equals(db.activeAccountId) & t.deletedAt.isNull()))
@@ -186,6 +193,40 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
         localRowId: id, operation: OutboxOperation.update, serverId: row.serverId,
         baseRemoteUpdatedAt: _remoteVersion(task), localMutationAt: row.updatedAt,
         dependencyRank: OutboxDependencyRank.task);
+      await _disableLinkedReminders(id, now);
+    }
+  }
+
+  Future<void> _disableLinkedReminders(int taskId, DateTime changedAt) async {
+    final linked = await (select(reminders)..where((r) =>
+      r.taskId.equals(taskId) &
+      r.localAccountId.equals(db.activeAccountId) &
+      r.deletedAt.isNull() &
+      r.isEnabled.equals(true))).get();
+    if (linked.isEmpty) return;
+
+    await (update(reminders)..where((r) =>
+      r.taskId.equals(taskId) &
+      r.localAccountId.equals(db.activeAccountId) &
+      r.deletedAt.isNull() &
+      r.isEnabled.equals(true))).write(
+      RemindersCompanion(
+        isEnabled: const Value(false),
+        updatedAt: Value(changedAt),
+      ),
+    );
+    for (final reminder in linked) {
+      final updated = await (select(reminders)..where((r) => r.id.equals(reminder.id))).getSingle();
+      await db.syncOutboxDao.enqueue(
+        localAccountId: db.activeAccountId,
+        entityType: OutboxEntity.reminder,
+        localRowId: updated.id,
+        operation: OutboxOperation.update,
+        serverId: updated.serverId,
+        baseRemoteUpdatedAt: reminder.updatedAt,
+        localMutationAt: changedAt,
+        dependencyRank: OutboxDependencyRank.reminder,
+      );
     }
   }
 
