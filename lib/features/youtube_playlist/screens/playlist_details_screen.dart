@@ -1207,6 +1207,7 @@ class _PlaylistReminderSectionState
             : '$unwatched video${unwatched == 1 ? '' : 's'} still to tick off',
         dueAt: reminder.dueAt,
         playlistId: widget.playlist.localId,
+        thumbnailUrl: widget.playlist.thumbnailUrl,
       );
     }
   }

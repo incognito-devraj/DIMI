@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' show Color;
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
@@ -19,6 +21,7 @@ import '../data/database.dart';
 // If that drawable is not yet a valid monochrome asset, Android silently
 // replaces it — this constant makes it easy to change in one place.
 const _kNotifIcon = 'dimi_small_status_icon';
+const _thumbnailCacheVersion = 2;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Notification type
@@ -244,6 +247,7 @@ class NotificationService {
     required DateTime dueAt,
     int? taskId,
     int? playlistId,
+    String? thumbnailUrl,
   }) async {
     if (!_ready) return;
     if (dueAt.isBefore(DateTime.now())) return;
@@ -253,15 +257,24 @@ class NotificationService {
         ? DimiNotificationType.playlist
         : DimiNotificationType.todo;
     final notificationTitle = isPlaylistTickOff
-        ? 'End of Day Reminder'
+        ? 'End of Day Reminder ✅'
         : taskTitle;
     final notificationBody = isPlaylistTickOff
         ? 'Tick off your watched videos! ✅\n$taskTitle\n$detail'
         : detail;
+    final displayBody = isPlaylistTickOff
+        ? '$taskTitle\n$detail'
+        : notificationBody;
+    final displayTitle = isPlaylistTickOff
+        ? 'End of Day Reminder \u2705'
+        : notificationTitle;
+    final thumbnailPath = isPlaylistTickOff
+        ? await _cacheThumbnail(thumbnailUrl, notificationId)
+        : null;
     final payload = _buildPayload(
       type: type,
-      title: notificationTitle,
-      body: notificationBody,
+      title: displayTitle,
+      body: displayBody,
       taskId: taskId,
       playlistId: playlistId,
       accountId: _db?.activeAccountId,
@@ -269,12 +282,13 @@ class NotificationService {
 
     await _scheduleAt(
       id: notificationId,
-      title: notificationTitle,
-      body: notificationBody,
+      title: displayTitle,
+      body: displayBody,
       scheduled: tz.TZDateTime.from(dueAt, tz.local),
       details: _buildDetails(
         type: type,
-        bigText: notificationBody,
+        bigText: displayBody,
+        bigPicturePath: thumbnailPath,
       ),
       payload: payload,
     );
@@ -591,13 +605,16 @@ class NotificationService {
       largeIcon: DrawableResourceAndroidBitmap(_largeIconFor(type)),
       sound: soundUri,
       category: AndroidNotificationCategory.reminder,
-      fullScreenIntent: type == DimiNotificationType.reminder,
+      fullScreenIntent:
+          type == DimiNotificationType.reminder ||
+          type == DimiNotificationType.planner,
       autoCancel: true,
       // Expanded big-text style for richer information when pulled down
       styleInformation: bigPicturePath != null
           ? BigPictureStyleInformation(
               FilePathAndroidBitmap(bigPicturePath),
               hideExpandedLargeIcon: false,
+              summaryText: bigText,
             )
           : bigText != null
           ? BigTextStyleInformation(
@@ -705,27 +722,136 @@ class NotificationService {
 
   Future<String?> _cacheThumbnail(String? url, int notificationId) async {
     if (url == null || url.isEmpty) return null;
+
     try {
       final directory = await getApplicationSupportDirectory();
       final cache = Directory('${directory.path}/dimi_notification_thumbnails');
-      if (!await cache.exists()) await cache.create(recursive: true);
-      final file = File('${cache.path}/$notificationId.jpg');
+
+      if (!await cache.exists()) {
+        await cache.create(recursive: true);
+      }
+
+      final file = File(
+        '${cache.path}/${notificationId}_v$_thumbnailCacheVersion.jpg',
+      );
       if (await file.exists()) return file.path;
 
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 5);
       try {
         final request = await client.getUrl(Uri.parse(url));
-        final response = await request.close().timeout(const Duration(seconds: 8));
+        final response = await request.close().timeout(
+          const Duration(seconds: 8),
+        );
         if (response.statusCode != 200) return null;
-        await response.pipe(file.openWrite());
+
+        final builder = BytesBuilder();
+        await for (final chunk in response) {
+          builder.add(chunk);
+        }
+
+        final normalized = _normalizeThumbnail(builder.takeBytes());
+        await file.writeAsBytes(normalized);
+
         return file.path;
       } finally {
         client.close(force: true);
       }
     } catch (error) {
-      if (kDebugMode) debugPrint('[NotificationService] thumbnail cache failed: $error');
+      if (kDebugMode) {
+        debugPrint('[NotificationService] thumbnail cache failed: $error');
+      }
       return null;
     }
+  }
+
+  Uint8List _normalizeThumbnail(Uint8List bytes) {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return bytes;
+
+    var image = decoded;
+
+    const darkThreshold = 24;
+    const uniformFraction = 0.9;
+
+    int luma(img.Pixel p) =>
+        (0.299 * p.r + 0.587 * p.g + 0.114 * p.b).round();
+
+    bool rowIsBar(int y) {
+      var dark = 0;
+      for (var x = 0; x < image.width; x++) {
+        if (luma(image.getPixel(x, y)) < darkThreshold) dark++;
+      }
+      return dark / image.width >= uniformFraction;
+    }
+
+    bool colIsBar(int x) {
+      var dark = 0;
+      for (var y = 0; y < image.height; y++) {
+        if (luma(image.getPixel(x, y)) < darkThreshold) dark++;
+      }
+      return dark / image.height >= uniformFraction;
+    }
+
+    var top = 0;
+    while (top < image.height ~/ 3 && rowIsBar(top)) top++;
+
+    var bottom = image.height - 1;
+    while (bottom > image.height * 2 ~/ 3 && rowIsBar(bottom)) {
+      bottom--;
+    }
+
+    var left = 0;
+    while (left < image.width ~/ 3 && colIsBar(left)) left++;
+
+    var right = image.width - 1;
+    while (right > image.width * 2 ~/ 3 && colIsBar(right)) {
+      right--;
+    }
+
+    if (top > 0 ||
+        bottom < image.height - 1 ||
+        left > 0 ||
+        right < image.width - 1) {
+      image = img.copyCrop(
+        image,
+        x: left,
+        y: top,
+        width: right - left + 1,
+        height: bottom - top + 1,
+      );
+    }
+
+    const targetRatio = 16 / 9;
+    final currentRatio = image.width / image.height;
+
+    if (currentRatio > targetRatio) {
+      final newWidth = (image.height * targetRatio).round();
+      final x = (image.width - newWidth) ~/ 2;
+
+      image = img.copyCrop(
+        image,
+        x: x,
+        y: 0,
+        width: newWidth,
+        height: image.height,
+      );
+    } else if (currentRatio < targetRatio) {
+      final newHeight = (image.width / targetRatio).round();
+      final y = (image.height - newHeight) ~/ 2;
+
+      image = img.copyCrop(
+        image,
+        x: 0,
+        y: y,
+        width: image.width,
+        height: newHeight,
+      );
+    }
+
+    final resized = img.copyResize(image, width: 640);
+
+    return Uint8List.fromList(img.encodeJpg(resized, quality: 85));
   }
 
   // ── Utility ───────────────────────────────────────────────────────────────
