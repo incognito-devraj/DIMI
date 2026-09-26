@@ -2,6 +2,7 @@ import 'youtube_video.dart';
 
 class YouTubePlaylist {
   const YouTubePlaylist({
+    this.localId,
     required this.playlistId,
     required this.title,
     required this.channelTitle,
@@ -12,6 +13,7 @@ class YouTubePlaylist {
     required this.videos,
   });
 
+  final int? localId;
   final String playlistId;
   final String title;
   final String channelTitle;

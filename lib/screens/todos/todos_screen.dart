@@ -371,27 +371,6 @@ class _NoteCard extends ConsumerWidget {
                 ],
               ),
             ),
-            PopupMenuButton<String>(
-              onSelected: (value) async {
-                if (value == 'edit')
-                  await _showNoteEditor(
-                    context,
-                    note: note,
-                    dao: ref.read(noteDaoProvider),
-                  );
-                if (value == 'delete' &&
-                    await showDimiDeleteConfirmation(
-                      context,
-                      itemLabel: 'note',
-                    )) {
-                  await ref.read(noteDaoProvider).deleteNote(note.id);
-                }
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'edit', child: Text('Edit')),
-                PopupMenuItem(value: 'delete', child: Text('Delete')),
-              ],
-            ),
           ],
         ),
       ),
@@ -684,7 +663,12 @@ Future<void> _showNoteViewer(
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      TextButton(
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.accentSoft,
+                          foregroundColor: AppColors.textPrimary,
+                          shape: const StadiumBorder(),
+                        ),
                         onPressed: () async {
                           Navigator.pop(dialogContext);
                           await _showNoteEditor(
@@ -695,7 +679,13 @@ Future<void> _showNoteViewer(
                         },
                         child: const Text('Edit Note'),
                       ),
-                      FilledButton.tonal(
+                      const SizedBox(width: 12),
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.accent,
+                          foregroundColor: AppColors.surface,
+                          shape: const StadiumBorder(),
+                        ),
                         onPressed: () async {
                           final confirmed = await showDimiDeleteConfirmation(
                             dialogContext,

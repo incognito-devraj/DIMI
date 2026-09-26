@@ -15,7 +15,7 @@
     <application
         android:label="DIMI"
         android:name="${applicationName}"
-        android:icon="@drawable/dimi_logo">
+        android:icon="@drawable/dimi_small_status_icon">
 
         <activity
             android:name=".MainActivity"

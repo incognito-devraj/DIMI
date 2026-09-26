@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:ui' show Color;
 
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -14,7 +18,7 @@ import '../data/database.dart';
 // We reference the drawable we copied from assets/logos/notification.png.
 // If that drawable is not yet a valid monochrome asset, Android silently
 // replaces it — this constant makes it easy to change in one place.
-const _kNotifIcon = '@drawable/dimi_status_icon';
+const _kNotifIcon = 'dimi_small_status_icon';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Notification type
@@ -25,6 +29,10 @@ enum DimiNotificationType {
   /// A standard timed reminder (planner event, class, general).
   reminder,
 
+  planner,
+
+  finance,
+
   /// Remind the user to continue watching a YouTube playlist.
   playlist,
 
@@ -34,8 +42,6 @@ enum DimiNotificationType {
   /// Remind the user to watch/read a linked video or note.
   watch,
 
-  /// Internal: the snooze-picker notification shown after tapping Snooze.
-  snoozePicker,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -46,12 +52,7 @@ abstract final class _Action {
   static const markDone = 'dimi_mark_done';
   static const openPlaylist = 'dimi_open_playlist';
   static const open = 'dimi_open';
-  static const snooze = 'dimi_snooze'; // shows picker
-  static const snooze5 = 'dimi_snooze_5';
-  static const snooze10 = 'dimi_snooze_10';
-  static const snooze30 = 'dimi_snooze_30';
-  static const snooze60 = 'dimi_snooze_60';
-  static const snoozeTomorrow = 'dimi_snooze_tomorrow';
+  static const snooze = 'dimi_snooze';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -59,11 +60,13 @@ abstract final class _Action {
 // ─────────────────────────────────────────────────────────────────────────────
 
 abstract final class _Channel {
-  static const reminderId = 'dimi_reminders';
-  static const playlistId = 'dimi_playlist';
-  static const todoId = 'dimi_todo';
-  static const watchId = 'dimi_watch';
-  static const snoozePicker = 'dimi_snooze_picker';
+  // Versioned IDs ensure Android does not reuse an old channel label such as
+  // the previous "DIMI" channel name already stored on the device.
+  static const reminderId = 'dimi_reminders_v2';
+  static const youtubeId = 'dimi_youtube_v2';
+  static const plannerId = 'dimi_planner_v2';
+  static const financeId = 'dimi_finance_v2';
+  static const todoId = 'dimi_todo_v2';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,7 +81,7 @@ abstract final class _Key {
   static const reminderId = 'reminder_id';
   static const taskId = 'task_id';
   static const playlistId = 'playlist_id';
-  static const origId = 'orig_id'; // for snooze: original notification id
+  static const accountId = 'account_id';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -101,9 +104,7 @@ class NotificationService {
 
   void attachDatabase(AppDatabase db) => _db = db;
 
-  // ── Snooze-picker notification ID offset ───────────────────────────────
-  // We show the picker as a new notification whose id = original id + offset.
-  static const _snoozePickerOffset = 100000;
+  static const _confirmationIdOffset = 200000;
 
   // ── Init ─────────────────────────────────────────────────────────────────
 
@@ -120,6 +121,11 @@ class NotificationService {
       onDidReceiveNotificationResponse: _handleResponse,
       onDidReceiveBackgroundNotificationResponse: _handleResponseBackground,
     );
+
+    // Scheduled notifications persist across an APK update. Clear any
+    // payloads created with a previous icon name before main.dart reloads the
+    // enabled reminders using the current notification configuration.
+    await _plugin.cancelAll();
 
     final androidPlugin = _plugin
         .resolvePlatformSpecificImplementation<
@@ -154,9 +160,15 @@ class NotificationService {
     if (reminder.dueAt.isBefore(DateTime.now())) return;
 
     final sound = await _soundForReminder(reminder.id);
-    final type = _typeForReminder(reminder.title);
+    final type = await _typeForReminder(reminder);
     final notificationTitle = _notificationTitleForReminder(reminder.title);
-    final detail = _detailFromReminderTitle(reminder.title);
+    final detail = _detailFromReminderTitle(reminder.title, type: type);
+    final playlist = await _playlistForReminder(reminder.title);
+    final playlistId = playlist?.id;
+    final thumbnailPath = await _cacheThumbnail(
+      playlist?.thumbnailUrl,
+      reminder.notificationId,
+    );
     final payload = _buildPayload(
       type: type,
       title: notificationTitle,
@@ -164,6 +176,8 @@ class NotificationService {
       sound: sound,
       reminderId: reminder.id,
       taskId: reminder.taskId,
+      playlistId: playlistId,
+      accountId: reminder.localAccountId,
     );
 
     await _scheduleAt(
@@ -174,11 +188,8 @@ class NotificationService {
       details: _buildDetails(
         type: type,
         sound: sound,
-        bigText: _bigTextForReminder(
-          type: type,
-          title: notificationTitle,
-          detail: detail,
-        ),
+        bigText: detail,
+        bigPicturePath: thumbnailPath,
       ),
       payload: payload,
     );
@@ -191,13 +202,15 @@ class NotificationService {
     required int unwatchedCount,
     required DateTime dueAt,
     required int playlistLocalId,
+    String? thumbnailUrl,
   }) async {
     if (!_ready) return;
     if (dueAt.isBefore(DateTime.now())) return;
 
+    final thumbnailPath = await _cacheThumbnail(thumbnailUrl, notificationId);
     final payload = _buildPayload(
       type: DimiNotificationType.playlist,
-      title: 'Continue Watching',
+      title: 'YouTube Reminder',
       body:
           '$playlistTitle • $unwatchedCount unwatched video${unwatchedCount == 1 ? '' : 's'}',
       playlistId: playlistLocalId,
@@ -205,12 +218,13 @@ class NotificationService {
 
     await _scheduleAt(
       id: notificationId,
-      title: 'Continue Watching',
+      title: 'YouTube Reminder',
       body:
           '$playlistTitle • $unwatchedCount unwatched video${unwatchedCount == 1 ? '' : 's'}',
       scheduled: tz.TZDateTime.from(dueAt, tz.local),
       details: _buildDetails(
         type: DimiNotificationType.playlist,
+        bigPicturePath: thumbnailPath,
         bigText:
             'You have $unwatchedCount unwatched videos in "$playlistTitle". Keep the momentum going! 🎯',
       ),
@@ -225,25 +239,38 @@ class NotificationService {
     required String detail, // e.g. "You planned 2 problems today"
     required DateTime dueAt,
     int? taskId,
+    int? playlistId,
   }) async {
     if (!_ready) return;
     if (dueAt.isBefore(DateTime.now())) return;
 
+    final isPlaylistTickOff = playlistId != null;
+    final type = isPlaylistTickOff
+        ? DimiNotificationType.playlist
+        : DimiNotificationType.todo;
+    final notificationTitle = isPlaylistTickOff
+        ? 'End of Day Reminder'
+        : taskTitle;
+    final notificationBody = isPlaylistTickOff
+        ? 'Tick off your watched videos! ✅\n$taskTitle\n$detail'
+        : detail;
     final payload = _buildPayload(
-      type: DimiNotificationType.todo,
-      title: taskTitle,
-      body: detail,
+      type: type,
+      title: notificationTitle,
+      body: notificationBody,
       taskId: taskId,
+      playlistId: playlistId,
+      accountId: _db?.activeAccountId,
     );
 
     await _scheduleAt(
       id: notificationId,
-      title: taskTitle,
-      body: detail,
+      title: notificationTitle,
+      body: notificationBody,
       scheduled: tz.TZDateTime.from(dueAt, tz.local),
       details: _buildDetails(
-        type: DimiNotificationType.todo,
-        bigText: '$taskTitle\n$detail',
+        type: type,
+        bigText: notificationBody,
       ),
       payload: payload,
     );
@@ -256,25 +283,29 @@ class NotificationService {
     required DateTime dueAt,
     int? taskId,
     int? playlistId,
+    String? thumbnailUrl,
   }) async {
     if (!_ready) return;
     if (dueAt.isBefore(DateTime.now())) return;
 
+    final thumbnailPath = await _cacheThumbnail(thumbnailUrl, notificationId);
     final payload = _buildPayload(
       type: DimiNotificationType.watch,
-      title: 'Remember to Watch',
-      body: contentTitle,
+      title: 'YouTube Reminder',
+      body: 'Time to watch your playlist!\n$contentTitle',
       taskId: taskId,
       playlistId: playlistId,
+      accountId: _db?.activeAccountId,
     );
 
     await _scheduleAt(
       id: notificationId,
-      title: 'Remember to Watch',
-      body: contentTitle,
+      title: 'YouTube Reminder',
+      body: 'Time to watch your playlist!\n$contentTitle',
       scheduled: tz.TZDateTime.from(dueAt, tz.local),
       details: _buildDetails(
         type: DimiNotificationType.watch,
+        bigPicturePath: thumbnailPath,
         bigText:
             'You wanted to watch/read:\n"$contentTitle"\n\nTap Open to get started 📺',
       ),
@@ -287,7 +318,28 @@ class NotificationService {
   Future<void> cancelReminder(int id) async {
     if (!_ready) return;
     await _plugin.cancel(id);
-    await _plugin.cancel(id + _snoozePickerOffset);
+  }
+
+  Future<void> showTestNotification() async {
+    if (!_ready) return;
+    await _plugin.show(
+      987654,
+      'Testing Events',
+      'Don\'t forget to be on time.',
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _Channel.reminderId,
+          'Reminders',
+          channelDescription: 'Reminder notifications',
+          importance: Importance.defaultImportance,
+          priority: Priority.defaultPriority,
+          icon: _kNotifIcon,
+          color: const Color(0xFFF5A623),
+          largeIcon: const DrawableResourceAndroidBitmap('dimi_reminder_large'),
+          autoCancel: true,
+        ),
+      ),
+    );
   }
 
   Future<void> rescheduleAll(List<Reminder> reminders) async {
@@ -320,19 +372,18 @@ class NotificationService {
         ? const <String, dynamic>{}
         : jsonDecode(response.payload!) as Map<String, dynamic>;
 
+    // Background actions run with a fresh database instance. Restore the
+    // account carried by the reminder payload before using account-scoped DAOs.
+    var accountId = data[_Key.accountId] as int?;
+    if (accountId != null && accountId > 0) {
+      _db?.setActiveAccountId(accountId!);
+    }
+
     switch (actionId) {
       // ── Mark done ────────────────────────────────────────────────────────
       case _Action.markDone:
+        await _markDone(data);
         await _plugin.cancel(id);
-        await _plugin.cancel(id + _snoozePickerOffset);
-        final taskId = data[_Key.taskId] as int?;
-        if (taskId != null && _db != null) {
-          await _db!.taskDao.toggleCompleted(taskId, true);
-        }
-        final reminderId = data[_Key.reminderId] as int?;
-        if (reminderId != null && _db != null) {
-          await _db!.reminderDao.toggleEnabled(reminderId, false);
-        }
 
       // ── Open / Open Playlist ─────────────────────────────────────────────
       case _Action.openPlaylist:
@@ -342,105 +393,105 @@ class NotificationService {
       // The notification tap (null actionId) also reaches here if the user
       // taps the body; the router's initialLocation handles routing.
 
-      // ── Snooze (show picker) ─────────────────────────────────────────────
       case _Action.snooze:
-        await _plugin.cancel(id);
-        await _showSnoozePicker(
-          pickerId: id + _snoozePickerOffset,
-          origId: id,
-          origPayload: response.payload ?? '{}',
-          origTitle: data[_Key.title] as String? ?? 'Reminder',
-        );
+        await _snoozeReminder(id, data);
+        break;
 
-      // ── Snooze durations ─────────────────────────────────────────────────
-      case _Action.snooze5:
-      case _Action.snooze10:
-      case _Action.snooze30:
-      case _Action.snooze60:
-      case _Action.snoozeTomorrow:
-        await _plugin.cancel(id); // dismiss picker
-        final snoozeMin = _snoozeMinutes(actionId!);
-        final origId = data[_Key.origId] as int? ?? (id - _snoozePickerOffset);
-        final origPayload = data['orig_payload'] as String? ?? '{}';
-        final origData = jsonDecode(origPayload) as Map<String, dynamic>;
-        final type = DimiNotificationType.values.firstWhere(
-          (t) => t.name == (origData[_Key.type] as String? ?? 'reminder'),
-          orElse: () => DimiNotificationType.reminder,
-        );
-        final sound = origData[_Key.sound] as String? ?? 'default';
-        final dueAt = actionId == _Action.snoozeTomorrow
-            ? _tomorrowMorning()
-            : tz.TZDateTime.now(tz.local).add(Duration(minutes: snoozeMin));
-
-        await _scheduleAt(
-          id: origId,
-          title: origData[_Key.title] as String? ?? 'Reminder',
-          body: origData[_Key.body] as String? ?? '',
-          scheduled: dueAt,
-          details: _buildDetails(type: type, sound: sound),
-          payload: origPayload,
-        );
     }
   }
 
-  /// Shows a snooze-picker notification listing all snooze options as actions.
-  Future<void> _showSnoozePicker({
-    required int pickerId,
-    required int origId,
-    required String origPayload,
-    required String origTitle,
-  }) async {
-    final pickerPayload = jsonEncode({
-      _Key.type: DimiNotificationType.snoozePicker.name,
-      _Key.origId: origId,
-      'orig_payload': origPayload,
-    });
+  Future<void> _snoozeReminder(int notificationId, Map<String, dynamic> data) async {
+    if (_db == null) return;
+    final reminderId = data[_Key.reminderId] as int?;
+    final taskId = data[_Key.taskId] as int?;
+    final reminder = reminderId != null
+        ? await _db!.reminderDao.getById(reminderId)
+        : taskId != null
+        ? await _db!.reminderDao.getByTaskId(taskId)
+        : null;
+    if (reminder == null) return;
+    final dueAt = DateTime.now().add(const Duration(minutes: 5));
+    await _db!.reminderDao.updateReminder(
+      RemindersCompanion(
+        id: Value(reminder.id),
+        dueAt: Value(dueAt),
+        isEnabled: const Value(true),
+      ),
+    );
+    final updated = await _db!.reminderDao.getById(reminder.id);
+    if (updated != null) {
+      await _plugin.cancel(notificationId);
+      await scheduleReminder(updated);
+    }
+  }
 
+  Future<void> _markDone(Map<String, dynamic> data) async {
+    if (_db == null) return;
+    final playlistId = data[_Key.playlistId] as int?;
+    final reminderId = data[_Key.reminderId] as int?;
+    if (playlistId != null) {
+      await _db!.youtubePlaylistDao.markWatchedToday(playlistId);
+      final reminder = reminderId == null
+          ? null
+          : await _db!.reminderDao.getById(reminderId);
+      if (reminder != null) {
+        final now = DateTime.now();
+        var nextDue = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          reminder.dueAt.hour,
+          reminder.dueAt.minute,
+        );
+        if (!nextDue.isAfter(now)) nextDue = nextDue.add(const Duration(days: 1));
+        await _db!.reminderDao.updateReminder(
+          RemindersCompanion(
+            id: Value(reminder.id),
+            title: Value(reminder.title),
+            dueAt: Value(nextDue),
+            isEnabled: const Value(true),
+          ),
+        );
+        final updated = await _db!.reminderDao.getById(reminder.id);
+        if (updated != null) await scheduleReminder(updated);
+      }
+      await _showConfirmation(
+        id: (reminderId ?? playlistId) + _confirmationIdOffset,
+        title: 'Playlist updated',
+        body: "Today's watched videos have been marked done.",
+      );
+      return;
+    }
+
+    final taskId = data[_Key.taskId] as int?;
+    if (taskId != null) await _db!.taskDao.completeFromNotification(taskId);
+    if (reminderId != null) {
+      await _db!.reminderDao.toggleEnabled(reminderId, false);
+    }
+  }
+
+  Future<void> _showConfirmation({
+    required int id,
+    required String title,
+    required String body,
+  }) async {
     await _plugin.show(
-      pickerId,
-      'Snooze "$origTitle"',
-      'Choose how long to snooze',
+      id,
+      title,
+      body,
       NotificationDetails(
         android: AndroidNotificationDetails(
-          _Channel.snoozePicker,
-          'Snooze Options',
-          channelDescription: 'Snooze duration picker for DIMI reminders',
-          importance: Importance.high,
-          priority: Priority.high,
+          _Channel.reminderId,
+          'Reminders',
+          channelDescription: 'Reminder confirmations',
+          importance: Importance.defaultImportance,
+          priority: Priority.defaultPriority,
           icon: _kNotifIcon,
           color: const Color(0xFFF5A623),
-          category: AndroidNotificationCategory.reminder,
+          largeIcon: const DrawableResourceAndroidBitmap('dimi_logo'),
           autoCancel: true,
-          actions: const [
-            AndroidNotificationAction(
-              _Action.snooze5,
-              'Snooze 5 min',
-              showsUserInterface: false,
-            ),
-            AndroidNotificationAction(
-              _Action.snooze10,
-              'Snooze 10 min',
-              showsUserInterface: false,
-            ),
-            AndroidNotificationAction(
-              _Action.snooze30,
-              'Snooze 30 min',
-              showsUserInterface: false,
-            ),
-            AndroidNotificationAction(
-              _Action.snooze60,
-              'Snooze 1 hour',
-              showsUserInterface: false,
-            ),
-            AndroidNotificationAction(
-              _Action.snoozeTomorrow,
-              'Tomorrow 8 AM',
-              showsUserInterface: false,
-            ),
-          ],
         ),
       ),
-      payload: pickerPayload,
     );
   }
 
@@ -450,20 +501,23 @@ class NotificationService {
     required DimiNotificationType type,
     String sound = 'default',
     String? bigText,
+    String? bigPicturePath,
   }) {
     final channelId = switch (type) {
       DimiNotificationType.reminder => _Channel.reminderId,
-      DimiNotificationType.playlist => _Channel.playlistId,
-      DimiNotificationType.todo => _Channel.todoId,
-      DimiNotificationType.watch => _Channel.watchId,
-      DimiNotificationType.snoozePicker => _Channel.snoozePicker,
+      DimiNotificationType.planner => _Channel.plannerId,
+      DimiNotificationType.finance => _Channel.financeId,
+      DimiNotificationType.playlist => _Channel.youtubeId,
+      DimiNotificationType.todo => _Channel.reminderId,
+      DimiNotificationType.watch => _Channel.youtubeId,
     };
     final channelName = switch (type) {
       DimiNotificationType.reminder => 'Reminders',
-      DimiNotificationType.playlist => 'Playlist Reminders',
-      DimiNotificationType.todo => 'To-Do Reminders',
-      DimiNotificationType.watch => 'Watch Reminders',
-      DimiNotificationType.snoozePicker => 'Snooze Options',
+      DimiNotificationType.planner => 'Planner',
+      DimiNotificationType.finance => 'Finance',
+      DimiNotificationType.playlist => 'YouTube',
+      DimiNotificationType.todo => 'Reminders',
+      DimiNotificationType.watch => 'YouTube',
     };
 
     final soundUri = switch (sound) {
@@ -481,97 +535,63 @@ class NotificationService {
     return AndroidNotificationDetails(
       channelId,
       channelName,
-      channelDescription: 'DIMI $channelName',
+      channelDescription: '$channelName notifications',
       importance: Importance.max,
       priority: Priority.max,
       icon: _kNotifIcon,
       // DIMI amber accent shown in the notification shade on supported OEMs
       color: switch (type) {
         DimiNotificationType.playlist => const Color(0xFFE53935),
+        DimiNotificationType.planner => const Color(0xFFF5A623),
+        DimiNotificationType.finance => const Color(0xFF34C759),
         DimiNotificationType.todo => const Color(0xFF43A047),
         DimiNotificationType.watch => const Color(0xFF7E57C2),
         _ => const Color(0xFFF5A623),
       },
-      largeIcon: const DrawableResourceAndroidBitmap('dimi_logo'),
+      largeIcon: DrawableResourceAndroidBitmap(_largeIconFor(type)),
       sound: soundUri,
       category: AndroidNotificationCategory.reminder,
       fullScreenIntent: type == DimiNotificationType.reminder,
-      autoCancel: false,
+      autoCancel: true,
       // Expanded big-text style for richer information when pulled down
-      styleInformation: bigText != null
+      styleInformation: bigPicturePath != null
+          ? BigPictureStyleInformation(
+              FilePathAndroidBitmap(bigPicturePath),
+              hideExpandedLargeIcon: false,
+            )
+          : bigText != null
           ? BigTextStyleInformation(
               bigText,
               htmlFormatBigText: false,
               contentTitle: null,
-              summaryText: 'DIMI',
             )
           : null,
       actions: actions,
     );
   }
 
+  String _largeIconFor(DimiNotificationType type) => switch (type) {
+    DimiNotificationType.planner => 'dimi_planner',
+    DimiNotificationType.finance => 'dimi_finance',
+    DimiNotificationType.reminder || DimiNotificationType.todo =>
+      'dimi_reminder_large',
+    DimiNotificationType.playlist || DimiNotificationType.watch => 'dimi_logo',
+  };
+
   List<AndroidNotificationAction> _actionsFor(DimiNotificationType type) {
-    return switch (type) {
-      DimiNotificationType.reminder => const [
+    return const [
         AndroidNotificationAction(
           _Action.markDone,
-          'Mark done',
+          'Mark Done',
           showsUserInterface: false,
           cancelNotification: true,
         ),
         AndroidNotificationAction(
           _Action.snooze,
-          'Snooze',
+          'Snooze 5 min',
           showsUserInterface: false,
         ),
-      ],
-      DimiNotificationType.playlist => const [
-        AndroidNotificationAction(
-          _Action.openPlaylist,
-          'Open Playlist',
-          showsUserInterface: true,
-          cancelNotification: true,
-        ),
-        AndroidNotificationAction(
-          _Action.snooze,
-          'Snooze',
-          showsUserInterface: false,
-        ),
-      ],
-      DimiNotificationType.todo => const [
-        AndroidNotificationAction(
-          _Action.markDone,
-          'Mark done',
-          showsUserInterface: false,
-          cancelNotification: true,
-        ),
-        AndroidNotificationAction(
-          _Action.snooze,
-          'Snooze',
-          showsUserInterface: false,
-        ),
-      ],
-      DimiNotificationType.watch => const [
-        AndroidNotificationAction(
-          _Action.open,
-          'Open',
-          showsUserInterface: true,
-          cancelNotification: true,
-        ),
-        AndroidNotificationAction(
-          _Action.snooze,
-          'Snooze',
-          showsUserInterface: false,
-        ),
-        AndroidNotificationAction(
-          _Action.markDone,
-          'Mark done',
-          showsUserInterface: false,
-          cancelNotification: true,
-        ),
-      ],
-      DimiNotificationType.snoozePicker => const [],
-    };
+      ];
   }
 
   // ── Schedule helper ───────────────────────────────────────────────────────
@@ -617,6 +637,7 @@ class NotificationService {
     int? reminderId,
     int? taskId,
     int? playlistId,
+    int? accountId,
   }) {
     final map = <String, dynamic>{
       _Key.type: type.name,
@@ -627,6 +648,7 @@ class NotificationService {
     if (reminderId != null) map[_Key.reminderId] = reminderId;
     if (taskId != null) map[_Key.taskId] = taskId;
     if (playlistId != null) map[_Key.playlistId] = playlistId;
+    if (accountId != null && accountId > 0) map[_Key.accountId] = accountId;
     return jsonEncode(map);
   }
 
@@ -637,24 +659,77 @@ class NotificationService {
     return prefs.getString('dimi_reminder_sound_$id') ?? 'default';
   }
 
-  // ── Utility ───────────────────────────────────────────────────────────────
+  Future<String?> _cacheThumbnail(String? url, int notificationId) async {
+    if (url == null || url.isEmpty) return null;
+    try {
+      final directory = await getApplicationSupportDirectory();
+      final cache = Directory('${directory.path}/dimi_notification_thumbnails');
+      if (!await cache.exists()) await cache.create(recursive: true);
+      final file = File('${cache.path}/$notificationId.jpg');
+      if (await file.exists()) return file.path;
 
-  String _detailFromReminderTitle(String title) {
-    // If the title already has a detail hint ("Tick off:" / "Watch:") strip it.
-    if (title.startsWith('Tick off: ')) return 'Complete your to-do item';
-    if (title.startsWith('Watch: ')) return title.substring(7);
-    return 'Tap to open DIMI';
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+      try {
+        final request = await client.getUrl(Uri.parse(url));
+        final response = await request.close().timeout(const Duration(seconds: 8));
+        if (response.statusCode != 200) return null;
+        await response.pipe(file.openWrite());
+        return file.path;
+      } finally {
+        client.close(force: true);
+      }
+    } catch (error) {
+      if (kDebugMode) debugPrint('[NotificationService] thumbnail cache failed: $error');
+      return null;
+    }
   }
 
-  DimiNotificationType _typeForReminder(String title) {
+  // ── Utility ───────────────────────────────────────────────────────────────
+
+  String _detailFromReminderTitle(
+    String title, {
+    DimiNotificationType? type,
+  }) {
+    // If the title already has a detail hint ("Tick off:" / "Watch:") strip it.
+    if (title.startsWith('Tick off: ')) {
+      return 'Tick off your watched videos!\n${title.substring(10)}';
+    }
+    if (title.startsWith('Watch: ')) {
+      return 'Time to watch your playlist!\n${title.substring(7)}';
+    }
+    return switch (type) {
+      DimiNotificationType.planner => 'Your planner event is starting.',
+      DimiNotificationType.finance => 'Review your finances.',
+      _ => 'Don\'t forget to be on time.',
+    };
+  }
+
+  Future<YoutubePlaylist?> _playlistForReminder(String title) async {
+    if (_db == null) return null;
+    final playlistTitle = title.startsWith('Watch: ')
+        ? title.substring(7)
+        : title.startsWith('Tick off: ')
+        ? title.substring(10)
+        : null;
+    if (playlistTitle == null) return null;
+    return _db!.youtubePlaylistDao.getByTitle(playlistTitle);
+  }
+
+  Future<DimiNotificationType> _typeForReminder(Reminder reminder) async {
+    final title = reminder.title;
     if (title.startsWith('Watch: ')) return DimiNotificationType.watch;
-    if (title.startsWith('Tick off: ')) return DimiNotificationType.todo;
+    if (title.startsWith('Tick off: ')) return DimiNotificationType.playlist;
+    if (title.startsWith('Finance: ')) return DimiNotificationType.finance;
+    if (reminder.taskId != null && _db != null) {
+      final task = await _db!.taskDao.getById(reminder.taskId!);
+      if (task?.isPlannerEntry == true) return DimiNotificationType.planner;
+    }
     return DimiNotificationType.reminder;
   }
 
   String _notificationTitleForReminder(String title) {
-    if (title.startsWith('Watch: ')) return 'Continue Watching';
-    if (title.startsWith('Tick off: ')) return title.substring(9);
+    if (title.startsWith('Watch: ')) return 'YouTube Reminder';
+    if (title.startsWith('Tick off: ')) return 'End of Day Reminder';
     return title;
   }
 
@@ -663,30 +738,11 @@ class NotificationService {
     required String title,
     required String detail,
   }) => switch (type) {
-    DimiNotificationType.watch => 'Continue watching:\n$detail\n\nTap Open to get started.',
+    DimiNotificationType.watch => '$detail\n\nTap Mark done when you finish.',
     DimiNotificationType.todo => '$title\n$detail',
     _ => '$title\n$detail\n\nDon\'t forget to be on time! ✨',
   };
 
-  int _snoozeMinutes(String actionId) => switch (actionId) {
-    _Action.snooze5 => 5,
-    _Action.snooze10 => 10,
-    _Action.snooze30 => 30,
-    _Action.snooze60 => 60,
-    _ => 5,
-  };
-
-  tz.TZDateTime _tomorrowMorning() {
-    final now = tz.TZDateTime.now(tz.local);
-    final tomorrow = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day + 1,
-      8,
-    );
-    return tomorrow;
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -695,7 +751,21 @@ class NotificationService {
 
 @pragma('vm:entry-point')
 void _handleResponseBackground(NotificationResponse response) {
-  // Background isolate — we can only perform lightweight DB-free work here.
-  // Full DB interactions happen in the foreground handler after the app starts.
-  debugPrint('[NotificationService] background action: ${response.actionId}');
+  unawaited(_handleResponseInBackground(response));
+}
+
+@pragma('vm:entry-point')
+Future<void> _handleResponseInBackground(NotificationResponse response) async {
+  final service = NotificationService.instance;
+  if (!service._ready) {
+    tz.initializeTimeZones();
+    await service._plugin.initialize(
+      const InitializationSettings(
+        android: AndroidInitializationSettings(_kNotifIcon),
+      ),
+    );
+    service._ready = true;
+  }
+  service.attachDatabase(AppDatabase());
+  await service._processAction(response);
 }

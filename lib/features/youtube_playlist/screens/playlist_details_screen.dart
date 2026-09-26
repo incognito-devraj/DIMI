@@ -1194,7 +1194,8 @@ class _PlaylistReminderSectionState
         notificationId: reminder.notificationId,
         contentTitle: title.substring(7),
         dueAt: reminder.dueAt,
-        playlistId: widget.playlist.playlistId.hashCode,
+        playlistId: widget.playlist.localId,
+        thumbnailUrl: widget.playlist.thumbnailUrl,
       );
     } else {
       final unwatched = widget.playlist.videos.where((v) => !v.isCompleted).length;
@@ -1205,16 +1206,38 @@ class _PlaylistReminderSectionState
             ? 'Review the videos you watched today'
             : '$unwatched video${unwatched == 1 ? '' : 's'} still to tick off',
         dueAt: reminder.dueAt,
+        playlistId: widget.playlist.localId,
       );
     }
   }
 
   Future<void> _toggleWatch(bool v) async {
-    setState(() => _watchEnabled = v);
+    if (v) {
+      final picked = await showTimePicker(
+        context: context,
+        initialTime: _watchTime,
+      );
+      if (picked == null || !mounted) return;
+      setState(() {
+        _watchTime = picked;
+        _watchEnabled = true;
+      });
+      await _save(
+        key: _watchKey,
+        title: _watchTitle,
+        enabled: true,
+        time: picked,
+        existingId: _watchReminderId,
+        onSaved: (id) => setState(() => _watchReminderId = id),
+      );
+      return;
+    }
+
+    setState(() => _watchEnabled = false);
     await _save(
       key: _watchKey,
       title: _watchTitle,
-      enabled: v,
+      enabled: false,
       time: _watchTime,
       existingId: _watchReminderId,
       onSaved: (id) => setState(() => _watchReminderId = id),
@@ -1222,11 +1245,32 @@ class _PlaylistReminderSectionState
   }
 
   Future<void> _toggleTick(bool v) async {
-    setState(() => _tickEnabled = v);
+    if (v) {
+      final picked = await showTimePicker(
+        context: context,
+        initialTime: _tickTime,
+      );
+      if (picked == null || !mounted) return;
+      setState(() {
+        _tickTime = picked;
+        _tickEnabled = true;
+      });
+      await _save(
+        key: _tickKey,
+        title: _tickTitle,
+        enabled: true,
+        time: picked,
+        existingId: _tickReminderId,
+        onSaved: (id) => setState(() => _tickReminderId = id),
+      );
+      return;
+    }
+
+    setState(() => _tickEnabled = false);
     await _save(
       key: _tickKey,
       title: _tickTitle,
-      enabled: v,
+      enabled: false,
       time: _tickTime,
       existingId: _tickReminderId,
       onSaved: (id) => setState(() => _tickReminderId = id),

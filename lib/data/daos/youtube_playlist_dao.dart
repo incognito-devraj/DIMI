@@ -43,6 +43,15 @@ class YoutubePlaylistDao extends DatabaseAccessor<AppDatabase>
           ))
           .getSingleOrNull();
 
+  Future<YoutubePlaylist?> getByTitle(String title) =>
+      (select(youtubePlaylists)..where(
+            (p) =>
+                p.localAccountId.equals(db.activeAccountId) &
+                p.deletedAt.isNull() &
+                p.title.equals(title),
+          ))
+          .getSingleOrNull();
+
   Stream<List<YoutubeVideo>> watchVideos(int playlistId) =>
       (select(youtubeVideos).join([
               innerJoin(
@@ -263,6 +272,34 @@ class YoutubePlaylistDao extends DatabaseAccessor<AppDatabase>
       'operation=${outbox?.operation} serverId=${outbox?.serverId} '
       'state=${outbox?.state} base=${outbox?.baseRemoteUpdatedAt}',
     );
+  }
+
+  /// Completes videos in this playlist that were watched today. This is used
+  /// by the notification action so "Mark done" performs the same local-first
+  /// completion write as the playlist screen.
+  Future<int> markWatchedToday(int playlistId) async {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    final end = start.add(const Duration(days: 1));
+    final videos = await (select(youtubeVideos).join([
+          innerJoin(
+            youtubePlaylists,
+            youtubePlaylists.id.equalsExp(youtubeVideos.playlistLocalId),
+          ),
+        ])
+          ..where(
+            youtubeVideos.playlistLocalId.equals(playlistId) &
+                youtubeVideos.deletedAt.isNull() &
+                youtubePlaylists.localAccountId.equals(db.activeAccountId) &
+                youtubePlaylists.deletedAt.isNull() &
+                youtubeVideos.watchedAt.isBiggerOrEqualValue(start) &
+                youtubeVideos.watchedAt.isSmallerThanValue(end),
+          ))
+        .get();
+    for (final row in videos.map((row) => row.readTable(youtubeVideos))) {
+      if (!row.completed) await setCompleted(row.id, true);
+    }
+    return videos.length;
   }
 
   Future<void> deletePlaylist(int playlistId) async {

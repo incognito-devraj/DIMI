@@ -46,6 +46,42 @@ Future<void> showAddReminderSheet(BuildContext context) async {
   }
 }
 
+/// Edits an existing normal reminder without changing its identity.
+Future<void> showEditReminderSheet(
+  BuildContext context,
+  Reminder reminder,
+) async {
+  final saved = await showGeneralDialog<bool>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'Edit Reminder',
+    barrierColor: const Color(0x99000000),
+    transitionDuration: const Duration(milliseconds: 250),
+    pageBuilder: (_, _, _) =>
+        _FixedReminderDialog(child: _AddReminderSheet(existing: reminder)),
+    transitionBuilder: (_, animation, __, child) {
+      final curvedAnimation = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(
+        opacity: curvedAnimation,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.08),
+            end: Offset.zero,
+          ).animate(curvedAnimation),
+          child: child,
+        ),
+      );
+    },
+  );
+  if (saved == true && context.mounted) {
+    await showDimiSuccessDialog(context, title: 'Reminder Updated!');
+  }
+}
+
 class _FixedReminderDialog extends StatelessWidget {
   const _FixedReminderDialog({required this.child});
   final Widget child;
@@ -56,7 +92,9 @@ class _FixedReminderDialog extends StatelessWidget {
 }
 
 class _AddReminderSheet extends ConsumerStatefulWidget {
-  const _AddReminderSheet();
+  const _AddReminderSheet({this.existing});
+
+  final Reminder? existing;
 
   @override
   ConsumerState<_AddReminderSheet> createState() => _AddReminderSheetState();
@@ -66,12 +104,21 @@ class _AddReminderSheetState extends ConsumerState<_AddReminderSheet> {
   final _formKey = GlobalKey<FormState>();
   final _titleCtrl = TextEditingController();
 
-  DateTime _dueDate = DateTime.now().add(const Duration(hours: 1));
-  TimeOfDay _dueTime = TimeOfDay.fromDateTime(
-    DateTime.now().add(const Duration(hours: 1)),
-  );
+  DateTime _dueDate = DateTime.now();
+  TimeOfDay _dueTime = TimeOfDay.fromDateTime(DateTime.now());
   bool _saving = false;
   String _sound = 'default';
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    if (existing != null) {
+      _titleCtrl.text = existing.title;
+      _dueDate = existing.dueAt;
+      _dueTime = TimeOfDay.fromDateTime(existing.dueAt);
+    }
+  }
 
   static const _soundOptions = {
     'default': 'Default phone notification',
@@ -132,21 +179,38 @@ class _AddReminderSheetState extends ConsumerState<_AddReminderSheet> {
     setState(() => _saving = true);
 
     try {
-      final id = await ref
-          .read(reminderDaoProvider)
-          .insertReminder(
-            RemindersCompanion(
-              title: Value(_titleCtrl.text.trim()),
-              dueAt: Value(_combinedDateTime),
-              isEnabled: const Value(true),
-            ),
-          );
+      final dao = ref.read(reminderDaoProvider);
+      final existing = widget.existing;
+      final id = existing == null
+          ? await dao.insertReminder(
+              RemindersCompanion(
+                title: Value(_titleCtrl.text.trim()),
+                dueAt: Value(_combinedDateTime),
+                isEnabled: const Value(true),
+              ),
+            )
+          : existing.id;
+
+      if (existing != null) {
+        await dao.updateReminder(
+          RemindersCompanion(
+            id: Value(existing.id),
+            title: Value(_titleCtrl.text.trim()),
+            dueAt: Value(_combinedDateTime),
+            isEnabled: Value(existing.isEnabled),
+          ),
+        );
+      }
 
       await NotificationService.instance.setReminderSound(id, _sound);
 
-      final reminder = await ref.read(reminderDaoProvider).getById(id);
+      final reminder = await dao.getById(id);
       if (reminder != null) {
-        await NotificationService.instance.scheduleReminder(reminder);
+        if (reminder.isEnabled) {
+          await NotificationService.instance.scheduleReminder(reminder);
+        } else {
+          await NotificationService.instance.cancelReminder(reminder.notificationId);
+        }
       }
 
       if (mounted) Navigator.of(context).pop(true);

@@ -10,6 +10,7 @@ import '../../providers/money_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/dimi_add_action_button.dart';
+import '../../widgets/dimi_action_dialog.dart';
 import '../../core/motion/dimi_motion.dart';
 import '../../widgets/pill_segmented_control.dart';
 import '../../widgets/section_card.dart';
@@ -346,20 +347,50 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                               asset: 'assets/illustrations/Finance.png',
                             );
                           }
+                          final grouped = <DateTime, List<MoneyTransaction>>{};
+                          for (final transaction in list) {
+                            final day = DateTime(
+                              transaction.date.year,
+                              transaction.date.month,
+                              transaction.date.day,
+                            );
+                            grouped.putIfAbsent(day, () => []).add(transaction);
+                          }
                           return Column(
-                            children: list
-                                .map(
-                                  (t) => Padding(
+                            children: [
+                              for (final entry in grouped.entries) ...[
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    AppSpacing.screenHorizontal,
+                                    8,
+                                    AppSpacing.screenHorizontal,
+                                    6,
+                                  ),
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      DateFormat('EEEE, d MMM yyyy').format(entry.key),
+                                      style: const TextStyle(
+                                        fontFamily: 'Poppins',
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                for (final transaction in entry.value)
+                                  Padding(
                                     padding: const EdgeInsets.fromLTRB(
                                       AppSpacing.screenHorizontal,
                                       0,
                                       AppSpacing.screenHorizontal,
                                       8,
                                     ),
-                                    child: _TransactionTile(txn: t),
+                                    child: _TransactionTile(txn: transaction),
                                   ),
-                                )
-                                .toList(),
+                              ],
+                            ],
                           );
                         },
                         loading: () => const Padding(
@@ -1195,7 +1226,7 @@ class _TransactionTile extends ConsumerWidget {
                     softWrap: true,
                   ),
                   Text(
-                    '${txn.category} · ${DateFormat('d MMM yyyy').format(txn.date)}',
+                    txn.category,
                     style: const TextStyle(
                       fontFamily: 'Poppins',
                       fontSize: 10,
@@ -1223,14 +1254,6 @@ class _TransactionTile extends ConsumerWidget {
                         fontWeight: FontWeight.w600,
                         color: color,
                       ),
-                    ),
-                  ),
-                  Text(
-                    DateFormat('d MMM').format(txn.date),
-                    style: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 10,
-                      color: AppColors.textSecondary,
                     ),
                   ),
                 ],
@@ -1375,6 +1398,20 @@ class _TransactionTile extends ConsumerWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context, MoneyDao dao) async {
+    final ok = await showDimiActionDialog<bool>(
+      context,
+      title: 'Are you sure?',
+      message:
+          'Remove this ${txn.type} of ₹${_fmt.format(_moneyMajorAmount(txn.amount))}?',
+      actions: const [
+        DimiDialogAction(label: 'Cancel', value: false),
+        DimiDialogAction(label: 'Delete', value: true, primary: true),
+      ],
+    );
+    if (ok == true) await dao.deleteTransaction(txn.id);
+  }
+
+  Future<void> _confirmDeleteLegacy(BuildContext context, MoneyDao dao) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1388,12 +1425,21 @@ class _TransactionTile extends ConsumerWidget {
           'Remove this ${txn.type} of ₹${_fmt.format(_moneyMajorAmount(txn.amount))}?',
         ),
         actions: [
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.accent,
+              foregroundColor: AppColors.surface,
+              shape: const StadiumBorder(),
+            ),
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancel'),
           ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.accent,
+              foregroundColor: AppColors.surface,
+              shape: const StadiumBorder(),
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete'),
           ),

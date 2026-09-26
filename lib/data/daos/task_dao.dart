@@ -12,6 +12,15 @@ part 'task_dao.g.dart';
 class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
   TaskDao(super.db);
 
+  Future<Task?> getById(int id) {
+    return (select(tasks)
+          ..where((task) =>
+              task.id.equals(id) &
+              task.localAccountId.equals(db.activeAccountId) &
+              task.deletedAt.isNull()))
+        .getSingleOrNull();
+  }
+
   // ── Streams ────────────────────────────────────────────────────────────────
 
   /// All tasks, newest first.
@@ -159,6 +168,25 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
       );
     final row = await (select(tasks)..where((t) => t.id.equals(id))).getSingle();
     await db.syncOutboxDao.enqueue(localAccountId: db.activeAccountId, entityType: OutboxEntity.task, localRowId: id, operation: OutboxOperation.update, serverId: row.serverId, baseRemoteUpdatedAt: _remoteVersion(task), localMutationAt: row.updatedAt, dependencyRank: OutboxDependencyRank.task);
+  }
+
+  /// Notification actions complete locally even when a planner date has passed.
+  Future<void> completeFromNotification(int id) async {
+    final task = await (select(tasks)..where((t) =>
+      t.id.equals(id) & t.localAccountId.equals(db.activeAccountId) & t.deletedAt.isNull()))
+      .getSingleOrNull();
+    if (task == null || task.isCompleted) return;
+    final now = DateTime.now();
+    final changed = await (update(tasks)..where((t) =>
+      t.id.equals(id) & t.localAccountId.equals(db.activeAccountId) & t.deletedAt.isNull()))
+      .write(TasksCompanion(isCompleted: const Value(true), completedAt: Value(now), updatedAt: Value(now)));
+    if (changed > 0) {
+      final row = await (select(tasks)..where((t) => t.id.equals(id))).getSingle();
+      await db.syncOutboxDao.enqueue(localAccountId: db.activeAccountId, entityType: OutboxEntity.task,
+        localRowId: id, operation: OutboxOperation.update, serverId: row.serverId,
+        baseRemoteUpdatedAt: _remoteVersion(task), localMutationAt: row.updatedAt,
+        dependencyRank: OutboxDependencyRank.task);
+    }
   }
 
   Future<int> deleteTask(int id) async {

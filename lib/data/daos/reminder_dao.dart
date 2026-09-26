@@ -131,6 +131,47 @@ class ReminderDao extends DatabaseAccessor<AppDatabase>
           ))
           .getSingleOrNull();
 
+  /// Repairs legacy notification IDs that were created from epoch timestamps
+  /// and therefore cannot be passed to Android's 32-bit notification API.
+  /// Notification IDs are local-only; the reminder schema already has the
+  /// stable row ID needed to replace them.
+  Future<void> repairNotificationIds() async {
+    const maxAndroidNotificationId = 2147483647;
+    final rows = await (select(reminders)..where((r) => r.deletedAt.isNull())).get();
+    final used = <int>{
+      for (final row in rows)
+        if (row.notificationId > 0 &&
+            row.notificationId <= maxAndroidNotificationId)
+          row.notificationId,
+    };
+    final invalid = rows
+        .where(
+          (row) =>
+              row.notificationId <= 0 ||
+              row.notificationId > maxAndroidNotificationId,
+        )
+        .toList();
+    if (invalid.isEmpty) return;
+
+    await transaction(() async {
+      for (var index = 0; index < invalid.length; index++) {
+        final row = invalid[index];
+        final temporaryId = -2147483000 + index;
+        await (update(reminders)..where((r) => r.id.equals(row.id))).write(
+          RemindersCompanion(notificationId: Value(temporaryId)),
+        );
+      }
+      for (final row in invalid) {
+        var replacement = row.id;
+        while (used.contains(replacement)) replacement++;
+        used.add(replacement);
+        await (update(reminders)..where((r) => r.id.equals(row.id))).write(
+          RemindersCompanion(notificationId: Value(replacement)),
+        );
+      }
+    });
+  }
+
   Future<Reminder?> getByTitle(String title) =>
       (select(reminders)..where(
             (r) =>

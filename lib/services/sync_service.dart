@@ -292,6 +292,10 @@ class SyncService {
           serverId,
         );
         if (pending != null) {
+          // Every outbox mutation, including reminders, retains the
+          // server's updated_at value observed before the local edit. Use it
+          // for the compare-and-swap pull guard so an older Supabase row
+          // cannot overwrite a newer local due time or enabled state.
           final pendingBase =
               spec.localTable == 'tasks' || spec.localTable == 'youtube_videos'
               ? await _remoteVersionForPending(
@@ -299,7 +303,7 @@ class SyncService {
                   context.localAccountId,
                   serverId,
                 )
-              : null;
+              : pending.baseRemoteUpdatedAt;
           final relation = SyncVersionProtocol.classifyPendingPush(
             baseRemoteUpdatedAt: pendingBase ?? pending.baseRemoteUpdatedAt,
             remoteUpdatedAt: version,
@@ -865,8 +869,8 @@ final _specs = <String, _SyncSpec>{
     _Field('is_planner_entry', 'is_planner_entry', preserveOnRemoteApply: true),
     _Field('local_date', 'local_date', date: true, dateOnly: true),
     _Field('due_time_hhmm', 'due_time_hhmm'),
-    _Field('is_completed', 'is_completed'),
-    _Field('completed_at', 'completed_at', date: true),
+    _Field('is_completed', 'is_completed', preserveOnRemoteApply: true),
+    _Field('completed_at', 'completed_at', date: true, preserveOnRemoteApply: true),
     _Field('created_at', 'created_at', date: true),
     _Field('updated_at', 'updated_at', date: true),
     _Field('deleted_at', 'deleted_at', date: true),
