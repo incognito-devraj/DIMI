@@ -303,7 +303,7 @@ class _ReminderCard extends ConsumerWidget {
                   }
                 } else {
                   await NotificationService.instance.cancelReminder(
-                    reminder.id,
+                    reminder.notificationId,
                   );
                 }
               },
@@ -368,7 +368,9 @@ class _ReminderCard extends ConsumerWidget {
       ],
     );
     if (confirmed == true) {
-      await NotificationService.instance.cancelReminder(reminder.id);
+      await NotificationService.instance.cancelReminder(
+        reminder.notificationId,
+      );
       await dao.deleteReminder(reminder.id);
     }
   }

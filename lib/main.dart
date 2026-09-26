@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'data/database.dart';
 import 'providers/database_provider.dart';
 import 'providers/task_providers.dart';
+import 'providers/reminder_providers.dart';
 import 'routing/app_router.dart';
 import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
@@ -74,6 +75,8 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _syncService = SyncService(ref.read(databaseProvider));
+    NotificationService.instance.onLocalActionCommitted =
+        _refreshLocalNotificationState;
     _startForegroundSync();
     _authSubscription = SupabaseBootstrap.authChanges.listen((authState) {
       final db = ref.read(databaseProvider);
@@ -89,6 +92,7 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    NotificationService.instance.onLocalActionCommitted = null;
     _syncTimer?.cancel();
     _authSubscription?.cancel();
     super.dispose();
@@ -101,10 +105,7 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
       // isolate's SQLite connection while the app was paused. Re-read the
       // local Drift rows before starting any remote sync so Planner reflects
       // the local completion immediately.
-      ref.invalidate(tasksForDateProvider);
-      ref.invalidate(tasksForWeekProvider);
-      ref.invalidate(plannerTasksForMonthProvider);
-      ref.invalidate(plannerHeatmapProvider);
+      _refreshLocalNotificationState();
       unawaited(_expirePastReminders());
       unawaited(_syncService.syncNow());
       _startForegroundSync();
@@ -113,6 +114,17 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
       _syncTimer?.cancel();
       _syncTimer = null;
     }
+  }
+
+  void _refreshLocalNotificationState() {
+    if (!mounted) return;
+    ref.invalidate(tasksForDateProvider);
+    ref.invalidate(tasksForWeekProvider);
+    ref.invalidate(plannerTasksForMonthProvider);
+    ref.invalidate(plannerHeatmapProvider);
+    ref.invalidate(allRemindersProvider);
+    ref.invalidate(todaysRemindersProvider);
+    ref.invalidate(upcomingRemindersProvider);
   }
 
   void _startForegroundSync() {
