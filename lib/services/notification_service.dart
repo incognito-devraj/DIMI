@@ -388,11 +388,13 @@ class NotificationService {
       case _Action.markDone:
         await _markDone(data);
         await _plugin.cancel(id);
+        break;
 
       // ── Open / Open Playlist ─────────────────────────────────────────────
       case _Action.openPlaylist:
       case _Action.open:
         await _plugin.cancel(id);
+        break;
       // Deep-link handled by go_router — we just dismiss the notification.
       // The notification tap (null actionId) also reaches here if the user
       // taps the body; the router's initialLocation handles routing.
@@ -412,26 +414,36 @@ class NotificationService {
     try {
       final reminderId = data[_Key.reminderId] as int?;
       final taskId = data[_Key.taskId] as int?;
-      final reminder = reminderId != null
-          ? await _db!.reminderDao.getById(reminderId)
-          : taskId != null
+      // Planner notifications must resolve through task_id so snooze edits
+      // the reminder belonging to the exact Planner event.
+      final reminder = taskId != null
           ? await _db!.reminderDao.getByTaskId(taskId)
+          : reminderId != null
+          ? await _db!.reminderDao.getById(reminderId)
           : null;
       if (reminder == null) return;
       final dueAt = DateTime.now().add(const Duration(minutes: 5));
-      await _db!.reminderDao.updateReminder(
+      final changed = await _db!.reminderDao.updateReminder(
         RemindersCompanion(
           id: Value(reminder.id),
           dueAt: Value(dueAt),
           isEnabled: const Value(true),
         ),
       );
+      if (!changed) return;
+      // Drift is the first commit. UI refresh must not depend on scheduling.
+      onLocalActionCommitted?.call();
       final updated = await _db!.reminderDao.getById(reminder.id);
       if (updated != null) {
-        await _plugin.cancel(notificationId);
+        try {
+          await _plugin.cancel(notificationId);
+        } catch (e, st) {
+          if (kDebugMode) {
+            debugPrint('[NotificationService] snooze cancel failed: $e\n$st');
+          }
+        }
         await scheduleReminder(updated);
       }
-      onLocalActionCommitted?.call();
     } catch (e, st) {
       if (kDebugMode) {
         debugPrint('[NotificationService] snooze failed: $e\n$st');
@@ -611,7 +623,7 @@ class NotificationService {
         AndroidNotificationAction(
           _Action.markDone,
           'Mark Done',
-          titleColor: const Color(0xFFF5A623),
+          titleColor: const Color(0xFF1B1B1B),
           // Run completion in the main app isolate so the live Drift streams
           // emit immediately and Planner updates without waiting for sync.
           showsUserInterface: true,
@@ -620,7 +632,7 @@ class NotificationService {
         AndroidNotificationAction(
           _Action.snooze,
           'Snooze 5 min',
-          titleColor: const Color(0xFFF5A623),
+          titleColor: const Color(0xFF1B1B1B),
           showsUserInterface: false,
         ),
       ];
