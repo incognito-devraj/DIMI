@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -108,6 +110,7 @@ class _AddReminderSheetState extends ConsumerState<_AddReminderSheet> {
   TimeOfDay _dueTime = TimeOfDay.fromDateTime(DateTime.now());
   bool _saving = false;
   String _sound = 'default';
+  String? _customSoundLabel;
 
   @override
   void initState() {
@@ -117,7 +120,17 @@ class _AddReminderSheetState extends ConsumerState<_AddReminderSheet> {
       _titleCtrl.text = existing.title;
       _dueDate = existing.dueAt;
       _dueTime = TimeOfDay.fromDateTime(existing.dueAt);
+      unawaited(_restoreSound(existing.id));
     }
+  }
+
+  Future<void> _restoreSound(int id) async {
+    final sound = await NotificationService.instance.getReminderSound(id);
+    if (!mounted) return;
+    setState(() {
+      _sound = sound;
+      if (sound.startsWith('file:')) _customSoundLabel = 'Custom sound selected';
+    });
   }
 
   static const _soundOptions = {
@@ -125,6 +138,19 @@ class _AddReminderSheetState extends ConsumerState<_AddReminderSheet> {
     'ringtone': 'Phone ringtone',
     'alarm': 'Alarm tone',
   };
+  static const _customSoundOption = '__choose_custom_sound__';
+
+  Future<void> _pickCustomSound() async {
+    final picked = await NotificationService.instance.pickReminderSound(
+      widget.existing?.id ?? 0,
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _sound = picked;
+        _customSoundLabel = 'Custom sound selected';
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -377,16 +403,31 @@ class _AddReminderSheetState extends ConsumerState<_AddReminderSheet> {
                       decoration: const InputDecoration(
                         prefixIcon: Icon(Icons.music_note_outlined),
                       ),
-                      items: _soundOptions.entries
-                          .map(
-                            (entry) => DropdownMenuItem<String>(
-                              value: entry.key,
-                              child: Text(entry.value),
+                      items: [
+                        ..._soundOptions.entries.map(
+                          (entry) => DropdownMenuItem<String>(
+                            value: entry.key,
+                            child: Text(entry.value),
+                          ),
+                        ),
+                        if (_sound.startsWith('file:'))
+                          DropdownMenuItem<String>(
+                            value: _sound,
+                            child: Text(
+                              _customSoundLabel ?? 'Custom sound selected',
                             ),
-                          )
-                          .toList(),
+                          ),
+                        const DropdownMenuItem<String>(
+                          value: _customSoundOption,
+                          child: Text('Choose your own sound'),
+                        ),
+                      ],
                       onChanged: (value) {
-                        if (value != null) setState(() => _sound = value);
+                        if (value == _customSoundOption) {
+                          unawaited(_pickCustomSound());
+                        } else if (value != null) {
+                          setState(() => _sound = value);
+                        }
                       },
                     ),
                     const SizedBox(height: 10),

@@ -1189,27 +1189,12 @@ class _PlaylistReminderSectionState
       return;
     }
 
-    if (title.startsWith('Watch: ')) {
-      await NotificationService.instance.scheduleWatchReminder(
-        notificationId: reminder.notificationId,
-        contentTitle: title.substring(7),
-        dueAt: reminder.dueAt,
-        playlistId: widget.playlist.localId,
-        thumbnailUrl: widget.playlist.thumbnailUrl,
-      );
-    } else {
-      final unwatched = widget.playlist.videos.where((v) => !v.isCompleted).length;
-      await NotificationService.instance.scheduleTodoReminder(
-        notificationId: reminder.notificationId,
-        taskTitle: title.substring(10),
-        detail: unwatched == 0
-            ? 'Review the videos you watched today'
-            : '$unwatched video${unwatched == 1 ? '' : 's'} still to tick off',
-        dueAt: reminder.dueAt,
-        playlistId: widget.playlist.localId,
-        thumbnailUrl: widget.playlist.thumbnailUrl,
-      );
-    }
+    await NotificationService.instance.setDailyReminderTime(
+      reminder.id,
+      hour: reminder.dueAt.hour,
+      minute: reminder.dueAt.minute,
+    );
+    await NotificationService.instance.scheduleReminder(reminder);
   }
 
   Future<void> _toggleWatch(bool v) async {
