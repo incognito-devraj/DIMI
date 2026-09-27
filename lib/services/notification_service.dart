@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'dart:ui' show Color;
 
 import 'package:drift/drift.dart' show Value;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:image/image.dart' as img;
@@ -112,6 +113,8 @@ class NotificationService {
   void attachDatabase(AppDatabase db) => _db = db;
 
   static const _confirmationIdOffset = 200000;
+  static const _dailyOccurrenceOffset = 1000000000;
+  static const _dailyOccurrenceDays = 30;
 
   // ── Init ─────────────────────────────────────────────────────────────────
 
@@ -134,16 +137,6 @@ class NotificationService {
     // enabled reminders using the current notification configuration.
     await _plugin.cancelAll();
 
-    final androidPlugin = _plugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-    if (androidPlugin != null) {
-      await androidPlugin.requestNotificationsPermission();
-      await androidPlugin.requestExactAlarmsPermission();
-      await androidPlugin.requestFullScreenIntentPermission();
-    }
-
     _ready = true;
     if (kDebugMode) debugPrint('[NotificationService] initialised');
   }
@@ -162,9 +155,22 @@ class NotificationService {
   // ── Public schedule helpers ───────────────────────────────────────────────
 
   /// Schedules a standard reminder notification.
-  Future<void> scheduleReminder(Reminder reminder) async {
+  Future<void> scheduleReminder(
+    Reminder reminder, {
+    int? notificationIdOverride,
+    DateTime? dueAtOverride,
+  }) async {
     if (!_ready || !reminder.isEnabled) return;
-    if (reminder.dueAt.isBefore(DateTime.now())) return;
+    final isDailyPlaylist = _isDailyPlaylistReminder(reminder);
+    if (isDailyPlaylist && notificationIdOverride == null) {
+      await _ensureDailyReminderTime(reminder);
+    }
+    var dueAt = dueAtOverride ?? reminder.dueAt;
+    if (dueAt.isBefore(DateTime.now())) {
+      if (!isDailyPlaylist) return;
+      dueAt = await _upcomingDailyDue(reminder, DateTime.now());
+    }
+    final notificationId = notificationIdOverride ?? reminder.notificationId;
 
     final sound = await _soundForReminder(reminder.id);
     final type = await _typeForReminder(reminder);
@@ -188,10 +194,10 @@ class NotificationService {
     );
 
     await _scheduleAt(
-      id: reminder.notificationId,
+      id: notificationId,
       title: notificationTitle,
       body: detail,
-      scheduled: tz.TZDateTime.from(reminder.dueAt, tz.local),
+      scheduled: tz.TZDateTime.from(dueAt, tz.local),
       details: _buildDetails(
         type: type,
         sound: sound,
@@ -200,6 +206,19 @@ class NotificationService {
       ),
       payload: payload,
     );
+    if (isDailyPlaylist && notificationIdOverride == null) {
+      var nextDue = await _nextDailyDue(reminder, dueAt);
+      for (var day = 1; day <= _dailyOccurrenceDays; day++) {
+        await scheduleReminder(
+          reminder,
+          notificationIdOverride: reminder.notificationId +
+              _dailyOccurrenceOffset +
+              day,
+          dueAtOverride: nextDue,
+        );
+        nextDue = await _nextDailyDue(reminder, nextDue);
+      }
+    }
   }
 
   /// Schedules a playlist watch-reminder notification.
@@ -242,6 +261,7 @@ class NotificationService {
   /// Schedules a to-do completion reminder.
   Future<void> scheduleTodoReminder({
     required int notificationId,
+    int? reminderId,
     required String taskTitle,
     required String detail, // e.g. "You planned 2 problems today"
     required DateTime dueAt,
@@ -275,6 +295,7 @@ class NotificationService {
       type: type,
       title: displayTitle,
       body: displayBody,
+      reminderId: reminderId,
       taskId: taskId,
       playlistId: playlistId,
       accountId: _db?.activeAccountId,
@@ -297,6 +318,7 @@ class NotificationService {
   /// Schedules a watch/remember reminder.
   Future<void> scheduleWatchReminder({
     required int notificationId,
+    int? reminderId,
     required String contentTitle,
     required DateTime dueAt,
     int? taskId,
@@ -311,6 +333,7 @@ class NotificationService {
       type: DimiNotificationType.watch,
       title: 'YouTube Reminder',
       body: 'Time to watch your playlist!\n$contentTitle',
+      reminderId: reminderId,
       taskId: taskId,
       playlistId: playlistId,
       accountId: _db?.activeAccountId,
@@ -336,6 +359,11 @@ class NotificationService {
   Future<void> cancelReminder(int id) async {
     if (!_ready) return;
     await _plugin.cancel(id);
+    // Playlist reminders also keep a separately scheduled next-day
+    // occurrence. Disabling/deleting the reminder must remove both.
+    for (var day = 1; day <= _dailyOccurrenceDays; day++) {
+      await _plugin.cancel(id + _dailyOccurrenceOffset + day);
+    }
   }
 
   Future<void> showTestNotification() async {
@@ -373,6 +401,83 @@ class NotificationService {
     await prefs.setString('dimi_reminder_sound_$id', sound);
   }
 
+  Future<void> setDailyReminderTime(
+    int id, {
+    required int hour,
+    required int minute,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('dimi_daily_reminder_hour_$id', hour);
+    await prefs.setInt('dimi_daily_reminder_minute_$id', minute);
+  }
+
+  bool _isDailyPlaylistReminder(Reminder reminder) =>
+      reminder.title.startsWith('Watch: ') ||
+      reminder.title.startsWith('Tick off: ');
+
+  Future<void> _ensureDailyReminderTime(Reminder reminder) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!prefs.containsKey('dimi_daily_reminder_hour_${reminder.id}')) {
+      await setDailyReminderTime(
+        reminder.id,
+        hour: reminder.dueAt.hour,
+        minute: reminder.dueAt.minute,
+      );
+    }
+  }
+
+  Future<DateTime> _nextDailyDue(Reminder reminder, DateTime from) async {
+    final prefs = await SharedPreferences.getInstance();
+    final hour = prefs.getInt('dimi_daily_reminder_hour_${reminder.id}') ??
+        reminder.dueAt.hour;
+    final minute =
+        prefs.getInt('dimi_daily_reminder_minute_${reminder.id}') ??
+        reminder.dueAt.minute;
+    return DateTime(from.year, from.month, from.day + 1, hour, minute);
+  }
+
+  Future<DateTime> _upcomingDailyDue(Reminder reminder, DateTime now) async {
+    final prefs = await SharedPreferences.getInstance();
+    final hour = prefs.getInt('dimi_daily_reminder_hour_${reminder.id}') ??
+        reminder.dueAt.hour;
+    final minute =
+        prefs.getInt('dimi_daily_reminder_minute_${reminder.id}') ??
+        reminder.dueAt.minute;
+    var due = DateTime(now.year, now.month, now.day, hour, minute);
+    if (!due.isAfter(now)) due = due.add(const Duration(days: 1));
+    return due;
+  }
+
+  /// Stores a private copy so Android can read the file when the scheduled
+  /// notification fires, even if the original picker URI is no longer valid.
+  Future<String?> pickReminderSound(int id) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['mp3', 'wav', 'ogg', 'm4a', 'aac'],
+      withData: false,
+    );
+    final sourcePath = result?.files.single.path;
+    if (sourcePath == null || sourcePath.isEmpty) return null;
+
+    final directory = await getApplicationSupportDirectory();
+    final soundDirectory = Directory('${directory.path}/dimi_reminder_sounds');
+    await soundDirectory.create(recursive: true);
+    final extension = result!.files.single.extension ?? 'mp3';
+    final destination = File(
+      '${soundDirectory.path}/reminder_${id}_${DateTime.now().microsecondsSinceEpoch}.$extension',
+    );
+    await File(sourcePath).copy(destination.path);
+
+    final value = 'file:${destination.path}';
+    await setReminderSound(id, value);
+    return value;
+  }
+
+  Future<String> getReminderSound(int id) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('dimi_reminder_sound_$id') ?? 'default';
+  }
+
   // ── Action response handler ───────────────────────────────────────────────
 
   Future<void> _handleResponse(NotificationResponse response) async {
@@ -400,8 +505,11 @@ class NotificationService {
     switch (actionId) {
       // ── Mark done ────────────────────────────────────────────────────────
       case _Action.markDone:
-        await _markDone(data);
+        // Cancel before rescheduling recurring playlist occurrences. If the
+        // fired notification is the daily follow-up ID, cancelling after the
+        // write would cancel the newly scheduled next occurrence instead.
         await _plugin.cancel(id);
+        await _markDone(data);
         break;
 
       // ── Open / Open Playlist ─────────────────────────────────────────────
@@ -485,15 +593,20 @@ class NotificationService {
           ? null
           : await _db!.reminderDao.getById(reminderId);
       if (reminder != null) {
+        final playlistHasWork = await _db!.youtubePlaylistDao
+            .hasUncompletedVideos(playlistId);
+        if (!playlistHasWork) {
+          await _db!.reminderDao.toggleEnabled(reminder.id, false);
+          await cancelReminder(reminder.notificationId);
+          await _showConfirmation(
+            id: (reminderId ?? playlistId) + _confirmationIdOffset,
+            title: 'Playlist complete',
+            body: 'All videos in this playlist are complete.',
+          );
+          return;
+        }
         final now = DateTime.now();
-        var nextDue = DateTime(
-          now.year,
-          now.month,
-          now.day,
-          reminder.dueAt.hour,
-          reminder.dueAt.minute,
-        );
-        if (!nextDue.isAfter(now)) nextDue = nextDue.add(const Duration(days: 1));
+        final nextDue = await _nextDailyDue(reminder, now);
         await _db!.reminderDao.updateReminder(
           RemindersCompanion(
             id: Value(reminder.id),
@@ -557,7 +670,7 @@ class NotificationService {
     String? bigText,
     String? bigPicturePath,
   }) {
-    final channelId = switch (type) {
+    final channelBase = switch (type) {
       DimiNotificationType.reminder => _Channel.reminderId,
       DimiNotificationType.planner => _Channel.plannerId,
       DimiNotificationType.finance => _Channel.financeId,
@@ -565,6 +678,9 @@ class NotificationService {
       DimiNotificationType.todo => _Channel.reminderId,
       DimiNotificationType.watch => _Channel.youtubeId,
     };
+    // Android freezes a channel's sound after its first creation. A distinct
+    // channel per sound prevents a previous/default channel from winning.
+    final channelId = '${channelBase}_${_stableSoundId(sound)}';
     final channelName = switch (type) {
       DimiNotificationType.reminder => 'Reminders',
       DimiNotificationType.planner => 'Planner',
@@ -574,13 +690,16 @@ class NotificationService {
       DimiNotificationType.watch => 'YouTube',
     };
 
-    final soundUri = switch (sound) {
+    final soundValue = sound.startsWith('file:') ? sound.substring(5) : sound;
+    final soundUri = switch (soundValue) {
       'ringtone' => const UriAndroidNotificationSound(
         'content://settings/system/ringtone',
       ),
       'alarm' => const UriAndroidNotificationSound(
         'content://settings/system/alarm_alert',
       ),
+      _ when soundValue.isNotEmpty && soundValue != 'default' =>
+        UriAndroidNotificationSound('file://$soundValue'),
       _ => null,
     };
 
@@ -627,6 +746,15 @@ class NotificationService {
     );
   }
 
+  String _stableSoundId(String sound) {
+    if (sound == 'default') return 'default';
+    var value = 17;
+    for (final unit in sound.codeUnits) {
+      value = (value * 31 + unit) & 0x7fffffff;
+    }
+    return value.toRadixString(36);
+  }
+
   String _largeIconFor(DimiNotificationType type) => switch (type) {
     DimiNotificationType.planner => 'dimi_planner',
     DimiNotificationType.finance => 'dimi_finance',
@@ -650,7 +778,9 @@ class NotificationService {
           _Action.snooze,
           'Snooze 5 min',
           titleColor: const Color(0xFF1B1B1B),
-          showsUserInterface: false,
+          // Run in the foreground isolate so active Drift streams refresh
+          // immediately; sync remains fire-and-forget after local commit.
+          showsUserInterface: true,
         ),
       ];
   }

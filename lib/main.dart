@@ -57,6 +57,16 @@ Future<void> main() async {
       child: const DimiApp(),
     ),
   );
+
+  // Let the first frame/splash finish before opening Android settings. The
+  // permission flow must never interrupt app launch.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 800), () {
+        return NotificationService.instance.requestPermissions();
+      }),
+    );
+  });
 }
 
 class DimiApp extends ConsumerStatefulWidget {

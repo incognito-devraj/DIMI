@@ -399,7 +399,9 @@ class ReminderDao extends DatabaseAccessor<AppDatabase>
                 r.localAccountId.equals(db.activeAccountId) &
                 r.deletedAt.isNull() &
                 r.isEnabled.equals(true) &
-                r.dueAt.isBiggerThanValue(now),
+                (r.dueAt.isBiggerThanValue(now) |
+                    r.title.like('Watch: %') |
+                    r.title.like('Tick off: %')),
           )
           ..orderBy([(r) => OrderingTerm.asc(r.dueAt)]))
         .get();

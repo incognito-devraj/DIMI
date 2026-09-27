@@ -1,0 +1,26 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Resource keep rules for R8/ProGuard resource shrinking.
+
+  flutter_local_notifications resolves notification icons at runtime via
+  Resources.getIdentifier(name, "drawable", packageName) — a pure string
+  lookup that R8's static analysis cannot trace. Without this file, enabling
+  isShrinkResources = true in build.gradle.kts causes R8 to strip every
+  drawable that is only referenced by name at runtime, resulting in:
+
+    PlatformException(invalid_icon,
+      The resource dimi_small_status_icon could not be found …)
+
+  All drawable names passed to AndroidNotificationDetails(icon: …) or
+  AndroidInitializationSettings(…) must be listed here.
+-->
+<resources
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/dimi_small_status_icon,
+                @drawable/dimi_reminder_large,
+                @drawable/dimi_logo,
+                @drawable/dimi_planner,
+                @drawable/dimi_finance,
+                @drawable/dimi_notification,
+                @drawable/dimi_reminder,
+                @drawable/dimi_splash_status_icon" />

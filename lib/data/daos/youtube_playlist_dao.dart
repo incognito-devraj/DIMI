@@ -302,6 +302,19 @@ class YoutubePlaylistDao extends DatabaseAccessor<AppDatabase>
     return videos.length;
   }
 
+  Future<bool> hasUncompletedVideos(int playlistId) async {
+    final row = await (select(youtubeVideos)
+          ..where(
+            (video) =>
+                video.playlistLocalId.equals(playlistId) &
+                video.deletedAt.isNull() &
+                video.completed.equals(false),
+          )
+          ..limit(1))
+        .getSingleOrNull();
+    return row != null;
+  }
+
   Future<void> deletePlaylist(int playlistId) async {
     await transaction(() async {
       final owned =

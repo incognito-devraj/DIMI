@@ -280,6 +280,22 @@ class SyncService {
           newest = version;
         final serverId = remoteRow['id'] as String?;
         if (serverId == null) continue;
+        final remoteVersion = _date(remoteRow['updated_at']);
+        final localVersion = spec.localTable == 'reminders'
+            ? await _localUpdatedAtForRemoteRow(
+                spec,
+                context.localAccountId,
+                serverId,
+              )
+            : null;
+        // A pull may contain a stale snapshot after a local snooze has
+        // already been pushed/acknowledged. Never let that snapshot restore
+        // the reminder's previous due_at when the local row is newer.
+        if (localVersion != null &&
+            remoteVersion != null &&
+            !localVersion.isBefore(remoteVersion)) {
+          continue;
+        }
         if (spec.localTable == 'youtube_videos') {
           _log(
             'youtube pull server=$serverId completed=${remoteRow['completed']} '
@@ -351,6 +367,23 @@ class SyncService {
       if (newest != null)
         await prefs.setString(key, newest.toUtc().toIso8601String());
     }
+  }
+
+  Future<DateTime?> _localUpdatedAtForRemoteRow(
+    _SyncSpec spec,
+    int accountId,
+    String serverId,
+  ) async {
+    final rows = await db.customSelect(
+      'SELECT updated_at FROM ${spec.localTable} '
+      'WHERE server_id = ? AND local_account_id = ? LIMIT 1',
+      variables: [
+        Variable.withString(serverId),
+        Variable.withInt(accountId),
+      ],
+    ).get();
+    if (rows.isEmpty) return null;
+    return _date(rows.first.read<Object?>('updated_at'));
   }
 
   Future<Map<String, dynamic>?> _readLocal(
@@ -867,8 +900,20 @@ final _specs = <String, _SyncSpec>{
     // existing row so a stale/legacy remote false cannot hide an event from
     // the planner after navigation or a pull refresh.
     _Field('is_planner_entry', 'is_planner_entry', preserveOnRemoteApply: true),
-    _Field('local_date', 'local_date', date: true, dateOnly: true),
-    _Field('due_time_hhmm', 'due_time_hhmm'),
+    // Planner schedule is local-first. A stale pull must never move an
+    // existing event back after a local snooze or edit.
+    _Field(
+      'local_date',
+      'local_date',
+      date: true,
+      dateOnly: true,
+      preserveOnRemoteApply: true,
+    ),
+    _Field(
+      'due_time_hhmm',
+      'due_time_hhmm',
+      preserveOnRemoteApply: true,
+    ),
     _Field('is_completed', 'is_completed', preserveOnRemoteApply: true),
     _Field('completed_at', 'completed_at', date: true, preserveOnRemoteApply: true),
     _Field('created_at', 'created_at', date: true),
@@ -878,7 +923,10 @@ final _specs = <String, _SyncSpec>{
   OutboxEntity.reminder: const _SyncSpec('reminders', 'dim_reminders', [
     _Field('task_id', 'task_id'),
     _Field('title', 'title'),
-    _Field('due_at', 'due_at', date: true),
+    // All reminder kinds (normal, planner, Watch and Tick off) share this
+    // table. Their schedule is local-first so creating another reminder can
+    // never restore an older due_at on an existing row.
+    _Field('due_at', 'due_at', date: true, preserveOnRemoteApply: true),
     // Reminder activation is changed locally by Mark Done, Snooze, and the
     // reminder switch. Do not let an older pull resurrect a locally disabled
     // reminder; the value is still included in push payloads.
