@@ -17,16 +17,38 @@ import 'services/sync_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Create and expose the local database before the first frame. All other
+  // startup work continues in the background so Android never shows a blank
+  // window while Supabase, notifications, sync, and rescheduling initialize.
+  final db = AppDatabase();
+  NotificationService.instance.attachDatabase(db);
+
+  runApp(
+    ProviderScope(
+      overrides: [databaseProvider.overrideWithValue(db)],
+      child: const DimiApp(),
+    ),
+  );
+
+  unawaited(_finishStartup(db));
+
+  // Let the first frame/splash finish before opening Android settings. The
+  // permission flow must never interrupt app launch.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 800), () {
+        return NotificationService.instance.requestPermissions();
+      }),
+    );
+  });
+}
+
+Future<void> _finishStartup(AppDatabase db) async {
   await SupabaseBootstrap.initialize();
 
   // Initialise notifications before anything else.
   await NotificationService.instance.init();
 
-  // Create DB eagerly so local records are ready before the first frame.
-  final db = AppDatabase();
-
-  // Attach DB to notification service so action callbacks can write completions.
-  NotificationService.instance.attachDatabase(db);
   final restoredUser = SupabaseBootstrap.client?.auth.currentUser;
   if (restoredUser != null) {
     await AuthService.instance.synchronizeAuthState(db, restoredUser);
@@ -50,23 +72,6 @@ Future<void> main() async {
   // Reschedule all enabled future reminders (handles post-reboot case too).
   final reminders = await db.reminderDao.getAllEnabled();
   await NotificationService.instance.rescheduleAll(reminders);
-
-  runApp(
-    ProviderScope(
-      overrides: [databaseProvider.overrideWithValue(db)],
-      child: const DimiApp(),
-    ),
-  );
-
-  // Let the first frame/splash finish before opening Android settings. The
-  // permission flow must never interrupt app launch.
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    unawaited(
-      Future<void>.delayed(const Duration(milliseconds: 800), () {
-        return NotificationService.instance.requestPermissions();
-      }),
-    );
-  });
 }
 
 class DimiApp extends ConsumerStatefulWidget {
