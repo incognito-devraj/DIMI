@@ -152,6 +152,9 @@ final GoRouter appRouter = GoRouter(
           playlist: state.extra is YouTubePlaylist
               ? state.extra! as YouTubePlaylist
               : mockYouTubePlaylist,
+          initialFilter: state.uri.queryParameters['filter'] == 'unwatched'
+              ? 2
+              : 0,
         ),
       ),
     ),

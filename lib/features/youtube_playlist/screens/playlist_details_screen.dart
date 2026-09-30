@@ -22,17 +22,34 @@ import '../widgets/youtube_playlist_widgets.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 class PlaylistDetailsScreen extends ConsumerWidget {
-  const PlaylistDetailsScreen({super.key, required this.playlist});
+  const PlaylistDetailsScreen({
+    super.key,
+    required this.playlist,
+    this.initialFilter = 0,
+  });
   final YouTubePlaylist playlist;
+  final int initialFilter;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final videosAsync = ref.watch(_videosProvider(playlist));
     return videosAsync.when(
-      data: (videos) => _PlaylistPage(playlist: playlist, videos: videos),
-      loading: () => _PlaylistPage(playlist: playlist, videos: playlist.videos),
+      data: (videos) => _PlaylistPage(
+        playlist: playlist,
+        videos: videos,
+        initialFilter: initialFilter,
+      ),
+      loading: () => _PlaylistPage(
+        playlist: playlist,
+        videos: playlist.videos,
+        initialFilter: initialFilter,
+      ),
       error: (_, __) =>
-          _PlaylistPage(playlist: playlist, videos: playlist.videos),
+          _PlaylistPage(
+            playlist: playlist,
+            videos: playlist.videos,
+            initialFilter: initialFilter,
+          ),
     );
   }
 }
@@ -78,9 +95,14 @@ YouTubeVideo _toVideo(YoutubeVideo v) => YouTubeVideo(
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PlaylistPage extends ConsumerStatefulWidget {
-  const _PlaylistPage({required this.playlist, required this.videos});
+  const _PlaylistPage({
+    required this.playlist,
+    required this.videos,
+    required this.initialFilter,
+  });
   final YouTubePlaylist playlist;
   final List<YouTubeVideo> videos;
+  final int initialFilter;
 
   @override
   ConsumerState<_PlaylistPage> createState() => _PlaylistPageState();
@@ -102,6 +124,7 @@ class _PlaylistPageState extends ConsumerState<_PlaylistPage> {
   @override
   void initState() {
     super.initState();
+    _filter = widget.initialFilter;
     _frozenList = _buildFrozenList(widget.videos, _filter);
   }
 
