@@ -102,6 +102,7 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   bool _ready = false;
+  Future<void>? _initFuture;
 
   // Injected DB reference so action callbacks can write completions.
   AppDatabase? _db;
@@ -118,7 +119,9 @@ class NotificationService {
 
   // ── Init ─────────────────────────────────────────────────────────────────
 
-  Future<void> init() async {
+  Future<void> init() => _initFuture ??= _init();
+
+  Future<void> _init() async {
     tz.initializeTimeZones();
 
     // Use the new DIMI notification icon for the small status-bar icon.
@@ -142,6 +145,12 @@ class NotificationService {
   }
 
   Future<void> requestPermissions() async {
+    final initFuture = _initFuture;
+    if (!_ready && initFuture != null) {
+      await initFuture;
+    }
+    if (!_ready) return;
+
     final ap = _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin

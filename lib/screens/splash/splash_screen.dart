@@ -6,7 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/dimi_blob_background.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Timing spec (all values in fractions of a 3 200 ms controller)
+// Timing spec (all values in fractions of a 1 000 ms controller)
 //
 //  0 ms       Background cream appears instantly (Scaffold bg color).
 //  0–250 ms   Logo: opacity 0→1, scale 0.92→1.00  [0.000–0.078]
@@ -19,7 +19,7 @@ import '../../widgets/dimi_blob_background.dart';
 //              background opacity 1→0             [0.688–0.797]
 // ─────────────────────────────────────────────────────────────────────────────
 
-const _kTotalMs = 3200;
+const _kTotalMs = 1000;
 
 // Entrance
 const _kLogoFadeIn = Interval(0.000, 0.078, curve: Curves.easeOut);
