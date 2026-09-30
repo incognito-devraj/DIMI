@@ -13,6 +13,8 @@ import 'theme/app_theme.dart';
 import 'services/auth_service.dart';
 import 'config/supabase_config.dart';
 import 'services/sync_service.dart';
+import 'features/youtube_playlist/models/youtube_playlist.dart';
+import 'features/youtube_playlist/models/youtube_video.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -92,6 +94,8 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
     _syncService = SyncService(ref.read(databaseProvider));
     NotificationService.instance.onLocalActionCommitted =
         _refreshLocalNotificationState;
+    NotificationService.instance.onOpenPlaylistUnwatched =
+        _openPlaylistUnwatched;
     _startForegroundSync();
     _authSubscription = SupabaseBootstrap.authChanges.listen((authState) {
       final db = ref.read(databaseProvider);
@@ -108,6 +112,7 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     NotificationService.instance.onLocalActionCommitted = null;
+    NotificationService.instance.onOpenPlaylistUnwatched = null;
     _syncTimer?.cancel();
     _authSubscription?.cancel();
     super.dispose();
@@ -140,6 +145,42 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
     ref.invalidate(allRemindersProvider);
     ref.invalidate(todaysRemindersProvider);
     ref.invalidate(upcomingRemindersProvider);
+  }
+
+  Future<void> _openPlaylistUnwatched(int playlistId) async {
+    final db = ref.read(databaseProvider);
+    final row = await db.youtubePlaylistDao.getById(playlistId);
+    if (!mounted || row == null) return;
+    final videos = await db.youtubePlaylistDao.getVideos(row.id);
+    if (!mounted) return;
+    appRouter.go(
+      '${AppRoutes.playlistDetails}?filter=unwatched',
+      extra: YouTubePlaylist(
+        localId: row.id,
+        playlistId: row.youtubePlaylistId,
+        title: row.title,
+        channelTitle: row.channelTitle,
+        description: row.description,
+        thumbnailUrl: row.thumbnailUrl,
+        totalVideos: row.totalVideos,
+        totalDurationSeconds: row.totalDurationSeconds,
+        videos: videos
+            .map(
+              (video) => YouTubeVideo(
+                localId: video.id,
+                videoId: video.youtubeVideoId,
+                title: video.title,
+                thumbnailUrl: video.thumbnailUrl,
+                position: video.position,
+                durationISO: video.durationIso,
+                durationSeconds: video.durationSeconds,
+                isCompleted: video.completed,
+                watchedAt: video.watchedAt,
+              ),
+            )
+            .toList(),
+      ),
+    );
   }
 
   void _startForegroundSync() {

@@ -34,6 +34,15 @@ class YoutubePlaylistDao extends DatabaseAccessor<AppDatabase>
           ))
           .watchSingleOrNull();
 
+  Future<YoutubePlaylist?> getById(int id) =>
+      (select(youtubePlaylists)..where(
+            (p) =>
+                p.id.equals(id) &
+                p.localAccountId.equals(db.activeAccountId) &
+                p.deletedAt.isNull(),
+          ))
+          .getSingleOrNull();
+
   Future<YoutubePlaylist?> getByYoutubeId(String userId, String playlistId) =>
       (select(youtubePlaylists)..where(
             (p) =>

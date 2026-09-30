@@ -111,6 +111,9 @@ class NotificationService {
   /// in the foreground app isolate.
   VoidCallback? onLocalActionCommitted;
 
+  /// Opens a playlist directly from its notification action.
+  Future<void> Function(int playlistId)? onOpenPlaylistUnwatched;
+
   void attachDatabase(AppDatabase db) => _db = db;
 
   static const _confirmationIdOffset = 200000;
@@ -519,6 +522,16 @@ class NotificationService {
         // write would cancel the newly scheduled next occurrence instead.
         await _plugin.cancel(id);
         await _markDone(data);
+        final playlistId = data[_Key.playlistId] as int?;
+        final type = data[_Key.type] as String?;
+        if (playlistId != null &&
+            (type == DimiNotificationType.playlist.name ||
+                type == DimiNotificationType.watch.name)) {
+          // Start navigation after the local completion commit so the
+          // Unwatched section opens with the correct current contents.
+          final openPlaylist = onOpenPlaylistUnwatched;
+          if (openPlaylist != null) unawaited(openPlaylist(playlistId));
+        }
         break;
 
       // ── Open / Open Playlist ─────────────────────────────────────────────
@@ -553,6 +566,21 @@ class NotificationService {
           ? await _db!.reminderDao.getById(reminderId)
           : null;
       if (reminder == null) return;
+
+      // A daily playlist reminder has one persisted time and a set of
+      // separately scheduled occurrences. Snoozing must affect only the
+      // notification that fired; changing the reminder row would move the
+      // daily time (and every future occurrence) by five minutes.
+      if (_isDailyPlaylistReminder(reminder)) {
+        await _plugin.cancel(notificationId);
+        await scheduleReminder(
+          reminder,
+          notificationIdOverride: notificationId,
+          dueAtOverride: DateTime.now().add(const Duration(minutes: 5)),
+        );
+        return;
+      }
+
       final dueAt = DateTime.now().add(const Duration(minutes: 5));
       final changed = await _db!.reminderDao.updateReminder(
         RemindersCompanion(
@@ -1037,7 +1065,7 @@ class NotificationService {
   }
 
   String _notificationTitleForReminder(String title) {
-    if (title.startsWith('Watch: ')) return 'YouTube Reminder';
+    if (title.startsWith('Watch: ')) return 'Daily Watch Reminder';
     if (title.startsWith('Tick off: ')) return 'End of Day Reminder';
     return title;
   }
