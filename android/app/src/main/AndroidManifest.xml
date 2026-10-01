@@ -4,7 +4,11 @@
 
     <!-- Notifications (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <!-- Exact alarms (Android 12+) -->
+    <!-- Exact alarms — USE_EXACT_ALARM is granted automatically on install
+         and cannot be revoked by the user, unlike SCHEDULE_EXACT_ALARM which
+         requires a manual grant in Settings and can be revoked. Both alarmClock
+         and exactAllowWhileIdle scheduling modes require one of these. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <!-- Reschedule on reboot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
@@ -72,10 +76,12 @@
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
             android:exported="false"/>
 
-        <!-- Boot-completed receiver to reschedule notifications after reboot -->
+        <!-- Boot-completed receiver to reschedule notifications after reboot.
+             android:exported="true" is REQUIRED on Android 12+ — the OS will
+             not deliver BOOT_COMPLETED to an unexported receiver. -->
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>

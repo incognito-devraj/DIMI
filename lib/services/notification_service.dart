@@ -189,7 +189,6 @@ class NotificationService {
         >();
     if (ap == null) return;
     await ap.requestNotificationsPermission();
-    await ap.requestExactAlarmsPermission();
     await ap.requestFullScreenIntentPermission();
   }
 
@@ -1015,7 +1014,7 @@ class NotificationService {
         body,
         scheduled,
         NotificationDetails(android: details),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: AndroidScheduleMode.alarmClock,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         payload: payload,
