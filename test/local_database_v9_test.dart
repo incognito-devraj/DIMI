@@ -136,10 +136,19 @@ void main() {
         isNotNull,
       );
 
-      await db.localAccountDao.activate(1);
-      final offlineProfile = await db.profileDao.getProfile();
-      expect(offlineProfile?.name, 'Student');
-      expect(offlineProfile?.role, isEmpty);
+      expect((await db.profileDao.getProfile())?.name, 'Should belong to B');
+      expect(
+        await (db.select(db.localAccounts)
+              ..where((account) => account.authProvider.equals('offline')))
+            .get(),
+        isEmpty,
+      );
+      expect(
+        await (db.select(db.localAccounts)
+              ..where((account) => account.isActive.equals(true)))
+            .get(),
+        hasLength(1),
+      );
     },
   );
 
