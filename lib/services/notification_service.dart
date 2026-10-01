@@ -48,6 +48,10 @@ enum DimiNotificationType {
 
 }
 
+/// Controls whether reminder-class notifications are ordinary shade
+/// notifications or Android full-screen notifications.
+enum DimiNotificationMode { normal, fullScreen }
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Action ID constants (must be stable — they survive process death)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -82,10 +86,12 @@ abstract final class _Key {
   static const title = 'title';
   static const body = 'body';
   static const sound = 'sound';
+  static const timeMillis = 'time_millis';
   static const reminderId = 'reminder_id';
   static const taskId = 'task_id';
   static const playlistId = 'playlist_id';
   static const accountId = 'account_id';
+  static const notificationId = 'notification_id';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -114,11 +120,15 @@ class NotificationService {
   /// Opens a playlist directly from its notification action.
   Future<void> Function(int playlistId)? onOpenPlaylistUnwatched;
 
+  /// Opens the dedicated in-app full-screen reminder experience.
+  Future<void> Function(Map<String, dynamic> data)? onOpenFullScreenReminder;
+
   void attachDatabase(AppDatabase db) => _db = db;
 
   static const _confirmationIdOffset = 200000;
   static const _dailyOccurrenceOffset = 1000000000;
   static const _dailyOccurrenceDays = 30;
+  static const _notificationModeKey = 'dimi_notification_mode';
 
   // ── Init ─────────────────────────────────────────────────────────────────
 
@@ -137,6 +147,7 @@ class NotificationService {
       onDidReceiveNotificationResponse: _handleResponse,
       onDidReceiveBackgroundNotificationResponse: _handleResponseBackground,
     );
+    final launchDetails = await _plugin.getNotificationAppLaunchDetails();
 
     // Scheduled notifications persist across an APK update. Clear any
     // payloads created with a previous icon name before main.dart reloads the
@@ -144,6 +155,10 @@ class NotificationService {
     await _plugin.cancelAll();
 
     _ready = true;
+    if (launchDetails?.didNotificationLaunchApp == true &&
+        launchDetails?.notificationResponse != null) {
+      await _processAction(launchDetails!.notificationResponse!);
+    }
     if (kDebugMode) debugPrint('[NotificationService] initialised');
   }
 
@@ -186,6 +201,7 @@ class NotificationService {
 
     final sound = await _soundForReminder(reminder.id);
     final type = await _typeForReminder(reminder);
+    final fullScreen = await isFullScreenModeEnabled();
     final notificationTitle = _notificationTitleForReminder(reminder.title);
     final detail = _detailFromReminderTitle(reminder.title, type: type);
     final playlist = await _playlistForReminder(reminder.title);
@@ -199,6 +215,8 @@ class NotificationService {
       title: notificationTitle,
       body: detail,
       sound: sound,
+      scheduledAt: dueAt,
+      notificationId: notificationId,
       reminderId: reminder.id,
       taskId: reminder.taskId,
       playlistId: playlistId,
@@ -215,6 +233,10 @@ class NotificationService {
         sound: sound,
         bigText: detail,
         bigPicturePath: thumbnailPath,
+        fullScreenIntent:
+            fullScreen &&
+            (type == DimiNotificationType.reminder ||
+                type == DimiNotificationType.planner),
       ),
       payload: payload,
     );
@@ -408,6 +430,29 @@ class NotificationService {
     }
   }
 
+  Future<bool> isFullScreenModeEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_notificationModeKey) ==
+        DimiNotificationMode.fullScreen.name;
+  }
+
+  /// Persists the mode and reapplies it to already scheduled reminders so a
+  /// setting change takes effect without waiting for the next edit or reboot.
+  Future<void> setNotificationMode(DimiNotificationMode mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_notificationModeKey, mode.name);
+    if (mode == DimiNotificationMode.fullScreen && _ready) {
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.requestFullScreenIntentPermission();
+    }
+    if (_ready && _db != null) {
+      await rescheduleAll(await _db!.reminderDao.getAllEnabled());
+    }
+  }
+
   Future<void> setReminderSound(int id, String sound) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('dimi_reminder_sound_$id', sound);
@@ -506,6 +551,17 @@ class NotificationService {
     final data = response.payload == null
         ? const <String, dynamic>{}
         : jsonDecode(response.payload!) as Map<String, dynamic>;
+
+    final type = data[_Key.type] as String?;
+    if (actionId == null &&
+        await isFullScreenModeEnabled() &&
+        (type == DimiNotificationType.reminder.name ||
+            type == DimiNotificationType.planner.name)) {
+      final openFullScreen = onOpenFullScreenReminder;
+      if (openFullScreen != null) {
+        await openFullScreen(data);
+      }
+    }
 
     // Background actions run with a fresh database instance. Restore the
     // account carried by the reminder payload before using account-scoped DAOs.
@@ -706,6 +762,7 @@ class NotificationService {
     String sound = 'default',
     String? bigText,
     String? bigPicturePath,
+    bool fullScreenIntent = false,
   }) {
     final channelBase = switch (type) {
       DimiNotificationType.reminder => _Channel.reminderId,
@@ -761,9 +818,7 @@ class NotificationService {
       largeIcon: DrawableResourceAndroidBitmap(_largeIconFor(type)),
       sound: soundUri,
       category: AndroidNotificationCategory.reminder,
-      fullScreenIntent:
-          type == DimiNotificationType.reminder ||
-          type == DimiNotificationType.planner,
+      fullScreenIntent: fullScreenIntent,
       autoCancel: true,
       // Expanded big-text style for richer information when pulled down
       styleInformation: bigPicturePath != null
@@ -862,6 +917,8 @@ class NotificationService {
     required String title,
     required String body,
     String sound = 'default',
+    DateTime? scheduledAt,
+    int? notificationId,
     int? reminderId,
     int? taskId,
     int? playlistId,
@@ -873,6 +930,10 @@ class NotificationService {
       _Key.body: body,
       _Key.sound: sound,
     };
+    if (scheduledAt != null) {
+      map[_Key.timeMillis] = scheduledAt.millisecondsSinceEpoch;
+    }
+    if (notificationId != null) map[_Key.notificationId] = notificationId;
     if (reminderId != null) map[_Key.reminderId] = reminderId;
     if (taskId != null) map[_Key.taskId] = taskId;
     if (playlistId != null) map[_Key.playlistId] = playlistId;

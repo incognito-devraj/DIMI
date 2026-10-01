@@ -7,6 +7,7 @@ import '../screens/planner/planner_screen.dart';
 import '../screens/todos/todos_screen.dart';
 import '../screens/money/money_screen.dart';
 import '../screens/reminders/reminders_screen.dart';
+import '../screens/reminders/dimi_reminder_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../widgets/app_scaffold.dart';
@@ -33,6 +34,7 @@ abstract class AppRoutes {
   static const legacyMoney = '/money';
   static const reminders = '/reminders';
   static const settings = '/settings';
+  static const fullScreenReminder = '/notification-reminder';
   static const profile = '/profile';
   static const playlistDetails = '/youtube-playlist';
   static const videoDetails = '/youtube-playlist/video';
@@ -174,6 +176,27 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.settings,
       pageBuilder: (ctx, state) => _slide(state, const SettingsScreen()),
+    ),
+
+    GoRoute(
+      path: AppRoutes.fullScreenReminder,
+      pageBuilder: (ctx, state) {
+        final query = state.uri.queryParameters;
+        return _fade(
+          state,
+          DimiReminderScreen(
+            reminderId: int.tryParse(query['reminderId'] ?? '') ?? 0,
+            accountId: int.tryParse(query['accountId'] ?? '') ?? 0,
+            title: query['title'] ?? 'Reminder',
+            body: query['body'] ?? '',
+            scheduledTime: DateTime.fromMillisecondsSinceEpoch(
+              int.tryParse(query['timeMillis'] ?? '') ??
+                  DateTime.now().millisecondsSinceEpoch,
+            ),
+            notifId: int.tryParse(query['notifId'] ?? '') ?? 0,
+          ),
+        );
+      },
     ),
 
   ],
