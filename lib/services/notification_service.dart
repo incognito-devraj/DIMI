@@ -45,7 +45,6 @@ enum DimiNotificationType {
 
   /// Remind the user to watch/read a linked video or note.
   watch,
-
 }
 
 /// Controls whether reminder-class notifications are ordinary shade
@@ -123,6 +122,16 @@ class NotificationService {
   /// Opens the dedicated in-app full-screen reminder experience.
   Future<void> Function(Map<String, dynamic> data)? onOpenFullScreenReminder;
 
+  /// Navigates to the Planner screen, focused on [taskId]'s date.
+  Future<void> Function(Map<String, dynamic> data)? onOpenPlanner;
+
+  /// Navigates to the Reminders screen, highlighting [reminderId].
+  Future<void> Function(Map<String, dynamic> data)? onOpenReminder;
+
+  /// Notification tap payload queued while the UI closures are not yet wired
+  /// (e.g. the app was launched from a killed state via a body tap).
+  Map<String, dynamic>? _pendingTapData;
+
   void attachDatabase(AppDatabase db) => _db = db;
 
   static const _confirmationIdOffset = 200000;
@@ -149,10 +158,15 @@ class NotificationService {
     );
     final launchDetails = await _plugin.getNotificationAppLaunchDetails();
 
-    // Scheduled notifications persist across an APK update. Clear any
-    // payloads created with a previous icon name before main.dart reloads the
-    // enabled reminders using the current notification configuration.
-    await _plugin.cancelAll();
+    // One-time migration: clear payloads that referenced the old icon name.
+    // This must only run once — running cancelAll() on every launch wipes all
+    // pending AlarmManager entries and breaks background/reboot delivery.
+    final prefs = await SharedPreferences.getInstance();
+    const migrationKey = 'dimi_notif_icon_migrated_v3';
+    if (prefs.getBool(migrationKey) != true) {
+      await _plugin.cancelAll();
+      await prefs.setBool(migrationKey, true);
+    }
 
     _ready = true;
     if (launchDetails?.didNotificationLaunchApp == true &&
@@ -245,9 +259,8 @@ class NotificationService {
       for (var day = 1; day <= _dailyOccurrenceDays; day++) {
         await scheduleReminder(
           reminder,
-          notificationIdOverride: reminder.notificationId +
-              _dailyOccurrenceOffset +
-              day,
+          notificationIdOverride:
+              reminder.notificationId + _dailyOccurrenceOffset + day,
           dueAtOverride: nextDue,
         );
         nextDue = await _nextDailyDue(reminder, nextDue);
@@ -424,7 +437,9 @@ class NotificationService {
 
   Future<void> rescheduleAll(List<Reminder> reminders) async {
     if (!_ready) return;
-    await _plugin.cancelAll();
+    // Do NOT call cancelAll() here — it wipes all pending AlarmManager entries
+    // including ones for reminders that haven't fired yet. Individual
+    // scheduleReminder() calls replace existing alarms by notification ID.
     for (final r in reminders) {
       await scheduleReminder(r);
     }
@@ -485,7 +500,8 @@ class NotificationService {
 
   Future<DateTime> _nextDailyDue(Reminder reminder, DateTime from) async {
     final prefs = await SharedPreferences.getInstance();
-    final hour = prefs.getInt('dimi_daily_reminder_hour_${reminder.id}') ??
+    final hour =
+        prefs.getInt('dimi_daily_reminder_hour_${reminder.id}') ??
         reminder.dueAt.hour;
     final minute =
         prefs.getInt('dimi_daily_reminder_minute_${reminder.id}') ??
@@ -495,7 +511,8 @@ class NotificationService {
 
   Future<DateTime> _upcomingDailyDue(Reminder reminder, DateTime now) async {
     final prefs = await SharedPreferences.getInstance();
-    final hour = prefs.getInt('dimi_daily_reminder_hour_${reminder.id}') ??
+    final hour =
+        prefs.getInt('dimi_daily_reminder_hour_${reminder.id}') ??
         reminder.dueAt.hour;
     final minute =
         prefs.getInt('dimi_daily_reminder_minute_${reminder.id}') ??
@@ -553,21 +570,11 @@ class NotificationService {
         : jsonDecode(response.payload!) as Map<String, dynamic>;
 
     final type = data[_Key.type] as String?;
-    if (actionId == null &&
-        await isFullScreenModeEnabled() &&
-        (type == DimiNotificationType.reminder.name ||
-            type == DimiNotificationType.planner.name)) {
-      final openFullScreen = onOpenFullScreenReminder;
-      if (openFullScreen != null) {
-        await openFullScreen(data);
-      }
-    }
 
-    // Background actions run with a fresh database instance. Restore the
-    // account carried by the reminder payload before using account-scoped DAOs.
-    var accountId = data[_Key.accountId] as int?;
+    // ── Restore account context for background isolates ──────────────────
+    final accountId = data[_Key.accountId] as int?;
     if (accountId != null && accountId > 0) {
-      _db?.setActiveAccountId(accountId!);
+      _db?.setActiveAccountId(accountId);
     }
 
     switch (actionId) {
@@ -578,15 +585,35 @@ class NotificationService {
         // write would cancel the newly scheduled next occurrence instead.
         await _plugin.cancel(id);
         await _markDone(data);
+
+        // After committing the DB write, navigate to the relevant screen.
         final playlistId = data[_Key.playlistId] as int?;
-        final type = data[_Key.type] as String?;
         if (playlistId != null &&
             (type == DimiNotificationType.playlist.name ||
                 type == DimiNotificationType.watch.name)) {
-          // Start navigation after the local completion commit so the
-          // Unwatched section opens with the correct current contents.
+          // Navigate to the unwatched section of this specific playlist.
           final openPlaylist = onOpenPlaylistUnwatched;
-          if (openPlaylist != null) unawaited(openPlaylist(playlistId));
+          if (openPlaylist != null) {
+            unawaited(openPlaylist(playlistId));
+          } else {
+            _pendingTapData = {...data, '_action': _Action.markDone};
+          }
+        } else if (type == DimiNotificationType.planner.name) {
+          // Navigate to the planner focused on the event's date.
+          final openPlanner = onOpenPlanner;
+          if (openPlanner != null) {
+            unawaited(openPlanner(data));
+          } else {
+            _pendingTapData = {...data, '_action': _Action.markDone};
+          }
+        } else {
+          // Standard reminder — navigate to reminders screen.
+          final openReminder = onOpenReminder;
+          if (openReminder != null) {
+            unawaited(openReminder(data));
+          } else {
+            _pendingTapData = {...data, '_action': _Action.markDone};
+          }
         }
         break;
 
@@ -595,15 +622,109 @@ class NotificationService {
       case _Action.open:
         await _plugin.cancel(id);
         break;
-      // Deep-link handled by go_router — we just dismiss the notification.
-      // The notification tap (null actionId) also reaches here if the user
-      // taps the body; the router's initialLocation handles routing.
 
       case _Action.snooze:
         await _snoozeReminder(id, data);
         break;
 
+      // ── Body tap (null actionId) — navigate to the relevant screen ────────
+      default:
+        // Full-screen mode for reminder/planner types.
+        if (await isFullScreenModeEnabled() &&
+            (type == DimiNotificationType.reminder.name ||
+                type == DimiNotificationType.planner.name)) {
+          final openFullScreen = onOpenFullScreenReminder;
+          if (openFullScreen != null) {
+            await openFullScreen(data);
+            return;
+          }
+          // Queue for drain after widget mounts.
+          _pendingTapData = data;
+          return;
+        }
+        // Route body taps to the appropriate screen.
+        await _navigateForBodyTap(type, data);
+        break;
     }
+  }
+
+  /// Navigates to the screen appropriate for a notification body tap.
+  /// When UI closures are not yet wired (app launched from a killed state),
+  /// the payload is queued in [_pendingTapData] and replayed after
+  /// [drainPendingTap] is called from the widget tree.
+  Future<void> _navigateForBodyTap(
+    String? type,
+    Map<String, dynamic> data,
+  ) async {
+    if (type == DimiNotificationType.planner.name) {
+      final openPlanner = onOpenPlanner;
+      if (openPlanner != null) {
+        await openPlanner(data);
+      } else {
+        _pendingTapData = data;
+      }
+    } else if (type == DimiNotificationType.playlist.name ||
+        type == DimiNotificationType.watch.name) {
+      final playlistId = data[_Key.playlistId] as int?;
+      if (playlistId != null) {
+        final openPlaylist = onOpenPlaylistUnwatched;
+        if (openPlaylist != null) {
+          await openPlaylist(playlistId);
+        } else {
+          _pendingTapData = data;
+        }
+      }
+    } else {
+      // reminder (normal mode), todo, finance — reminders screen fallback
+      final openReminder = onOpenReminder;
+      if (openReminder != null) {
+        await openReminder(data);
+      } else {
+        _pendingTapData = data;
+      }
+    }
+  }
+
+  /// Replays a tap payload queued while the UI closures were not yet assigned.
+  /// Call this from [_DimiAppState.initState] immediately after wiring all
+  /// navigation closures (onOpenPlanner, onOpenReminder, etc.).
+  Future<void> drainPendingTap() async {
+    final pending = _pendingTapData;
+    if (pending == null) return;
+    _pendingTapData = null;
+
+    final type = pending[_Key.type] as String?;
+    final action = pending['_action'] as String?;
+
+    if (action == _Action.markDone) {
+      // Mark-done navigation replay.
+      final playlistId = pending[_Key.playlistId] as int?;
+      if (playlistId != null &&
+          (type == DimiNotificationType.playlist.name ||
+              type == DimiNotificationType.watch.name)) {
+        final openPlaylist = onOpenPlaylistUnwatched;
+        if (openPlaylist != null) await openPlaylist(playlistId);
+      } else if (type == DimiNotificationType.planner.name) {
+        final openPlanner = onOpenPlanner;
+        if (openPlanner != null) await openPlanner(pending);
+      } else {
+        final openReminder = onOpenReminder;
+        if (openReminder != null) await openReminder(pending);
+      }
+      return;
+    }
+
+    // Body-tap replay — check for full-screen first.
+    if (await isFullScreenModeEnabled() &&
+        (type == DimiNotificationType.reminder.name ||
+            type == DimiNotificationType.planner.name)) {
+      final openFullScreen = onOpenFullScreenReminder;
+      if (openFullScreen != null) {
+        await openFullScreen(pending);
+        return;
+      }
+    }
+    await _navigateForBodyTap(type, pending);
   }
 
   Future<void> _snoozeReminder(
@@ -850,31 +971,31 @@ class NotificationService {
   String _largeIconFor(DimiNotificationType type) => switch (type) {
     DimiNotificationType.planner => 'dimi_planner',
     DimiNotificationType.finance => 'dimi_finance',
-    DimiNotificationType.reminder || DimiNotificationType.todo =>
-      'dimi_reminder_large',
+    DimiNotificationType.reminder ||
+    DimiNotificationType.todo => 'dimi_reminder_large',
     DimiNotificationType.playlist || DimiNotificationType.watch => 'dimi_logo',
   };
 
   List<AndroidNotificationAction> _actionsFor(DimiNotificationType type) {
     return const [
-        AndroidNotificationAction(
-          _Action.markDone,
-          'Mark Done',
-          titleColor: const Color(0xFF1B1B1B),
-          // Run completion in the main app isolate so the live Drift streams
-          // emit immediately and Planner updates without waiting for sync.
-          showsUserInterface: true,
-          cancelNotification: true,
-        ),
-        AndroidNotificationAction(
-          _Action.snooze,
-          'Snooze 5 min',
-          titleColor: const Color(0xFF1B1B1B),
-          // Run in the foreground isolate so active Drift streams refresh
-          // immediately; sync remains fire-and-forget after local commit.
-          showsUserInterface: true,
-        ),
-      ];
+      AndroidNotificationAction(
+        _Action.markDone,
+        'Mark Done',
+        titleColor: const Color(0xFF1B1B1B),
+        // Run completion in the main app isolate so the live Drift streams
+        // emit immediately and Planner updates without waiting for sync.
+        showsUserInterface: true,
+        cancelNotification: true,
+      ),
+      AndroidNotificationAction(
+        _Action.snooze,
+        'Snooze 5 min',
+        titleColor: const Color(0xFF1B1B1B),
+        // Run in the foreground isolate so active Drift streams refresh
+        // immediately; sync remains fire-and-forget after local commit.
+        showsUserInterface: true,
+      ),
+    ];
   }
 
   // ── Schedule helper ───────────────────────────────────────────────────────
@@ -1002,8 +1123,7 @@ class NotificationService {
     const darkThreshold = 24;
     const uniformFraction = 0.9;
 
-    int luma(img.Pixel p) =>
-        (0.299 * p.r + 0.587 * p.g + 0.114 * p.b).round();
+    int luma(img.Pixel p) => (0.299 * p.r + 0.587 * p.g + 0.114 * p.b).round();
 
     bool rowIsBar(int y) {
       var dark = 0;
@@ -1084,10 +1204,7 @@ class NotificationService {
 
   // ── Utility ───────────────────────────────────────────────────────────────
 
-  String _detailFromReminderTitle(
-    String title, {
-    DimiNotificationType? type,
-  }) {
+  String _detailFromReminderTitle(String title, {DimiNotificationType? type}) {
     // If the title already has a detail hint ("Tick off:" / "Watch:") strip it.
     if (title.startsWith('Tick off: ')) {
       return 'Tick off your watched videos!\n${title.substring(10)}';
@@ -1140,7 +1257,6 @@ class NotificationService {
     DimiNotificationType.todo => '$title\n$detail',
     _ => '$title\n$detail\n\nDon\'t forget to be on time! ✨',
   };
-
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

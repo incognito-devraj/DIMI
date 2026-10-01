@@ -19,7 +19,11 @@ import '../../widgets_modals/add_reminder_sheet.dart';
 const _kTabs = ['All', 'Today', 'Upcoming'];
 
 class RemindersScreen extends ConsumerStatefulWidget {
-  const RemindersScreen({super.key});
+  /// When provided (from a notification deep-link), the list scrolls to and
+  /// visually highlights this reminder ID.
+  final int? highlightId;
+
+  const RemindersScreen({super.key, this.highlightId});
 
   @override
   ConsumerState<RemindersScreen> createState() => _RemindersScreenState();
@@ -29,15 +33,23 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
   int _tabIndex = 0;
   bool _showAddButton = true;
   Timer? _dayBoundaryTimer;
+  int? _highlightId;
 
   @override
   void initState() {
     super.initState();
+    _highlightId = widget.highlightId;
     // Refresh the date boundary while this screen stays open so yesterday's
     // reminders disappear without requiring navigation or an app restart.
     _dayBoundaryTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
     });
+    if (_highlightId != null) {
+      // Clear the highlight after 3 seconds so it doesn't persist forever.
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _highlightId = null);
+      });
+    }
   }
 
   @override
@@ -107,67 +119,71 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
                   return false;
                 },
                 child: AnimatedSwitcher(
-                duration: DimiMotion.normal,
-                switchInCurve: DimiMotion.curve,
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, .015),
-                      end: Offset.zero,
-                    ).animate(animation),
-                    child: child,
-                ),
-                ),
-                child: KeyedSubtree(
-                  key: ValueKey(_tabIndex),
-                  child: remindersAsync.when(
-                    data: (reminders) {
-                      final today = DateTime.now();
-                      final startOfToday = DateTime(
-                        today.year,
-                        today.month,
-                        today.day,
-                      );
-                      final visibleReminders = reminders.where((reminder) {
-                        final dueDate = DateTime(
-                          reminder.dueAt.year,
-                          reminder.dueAt.month,
-                          reminder.dueAt.day,
-                        );
-                        return !dueDate.isBefore(startOfToday);
-                      }).toList();
-
-                      if (visibleReminders.isEmpty) {
-                        return const EmptyState(
-                          icon: Icons.notifications_outlined,
-                          title: 'No reminders',
-                          subtitle: 'Tap + to set a reminder.',
-                          asset: 'assets/illustrations/Reminder.png',
-                        );
-                      }
-                      return ListView.separated(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.screenHorizontal,
-                          vertical: 4,
-                        ),
-                        itemCount: visibleReminders.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(height: AppSpacing.cardGap),
-                        itemBuilder: (context, i) =>
-                            _ReminderCard(reminder: visibleReminders[i]),
-                      );
-                    },
-                    loading: () => const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.accent,
-                      ),
+                  duration: DimiMotion.normal,
+                  switchInCurve: DimiMotion.curve,
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, .015),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
                     ),
-                    error: (e, _) => Center(child: Text('Error: $e')),
+                  ),
+                  child: KeyedSubtree(
+                    key: ValueKey(_tabIndex),
+                    child: remindersAsync.when(
+                      data: (reminders) {
+                        final today = DateTime.now();
+                        final startOfToday = DateTime(
+                          today.year,
+                          today.month,
+                          today.day,
+                        );
+                        final visibleReminders = reminders.where((reminder) {
+                          final dueDate = DateTime(
+                            reminder.dueAt.year,
+                            reminder.dueAt.month,
+                            reminder.dueAt.day,
+                          );
+                          return !dueDate.isBefore(startOfToday);
+                        }).toList();
+
+                        if (visibleReminders.isEmpty) {
+                          return const EmptyState(
+                            icon: Icons.notifications_outlined,
+                            title: 'No reminders',
+                            subtitle: 'Tap + to set a reminder.',
+                            asset: 'assets/illustrations/Reminder.png',
+                          );
+                        }
+                        return ListView.separated(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.screenHorizontal,
+                            vertical: 4,
+                          ),
+                          itemCount: visibleReminders.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: AppSpacing.cardGap),
+                          itemBuilder: (context, i) => _ReminderCard(
+                            reminder: visibleReminders[i],
+                            highlighted:
+                                _highlightId != null &&
+                                visibleReminders[i].id == _highlightId,
+                          ),
+                        );
+                      },
+                      loading: () => const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.accent,
+                        ),
+                      ),
+                      error: (e, _) => Center(child: Text('Error: $e')),
+                    ),
                   ),
                 ),
               ),
-            ),
             ),
           ],
         ),
@@ -197,8 +213,9 @@ class _RemindersScreenState extends ConsumerState<RemindersScreen> {
 // ── Reminder card ─────────────────────────────────────────────────────────────
 
 class _ReminderCard extends ConsumerWidget {
-  const _ReminderCard({required this.reminder});
+  const _ReminderCard({required this.reminder, this.highlighted = false});
   final Reminder reminder;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -209,15 +226,20 @@ class _ReminderCard extends ConsumerWidget {
 
     return GestureDetector(
       onLongPress: () => _showActions(context, dao),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: highlighted ? AppColors.accentSoft : AppColors.surface,
           borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
           border: Border.all(
-            color: isOverdue
+            color: highlighted
+                ? AppColors.accent
+                : isOverdue
                 ? AppColors.danger.withAlpha(80)
                 : AppColors.divider,
+            width: highlighted ? 2 : 1,
           ),
         ),
         child: Row(
@@ -252,9 +274,9 @@ class _ReminderCard extends ConsumerWidget {
                     reminder.title,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       fontWeight: FontWeight.w600,
-                  color: reminder.isEnabled
-                      ? AppColors.textPrimary
-                      : AppColors.textSecondary,
+                      color: reminder.isEnabled
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary,
                       decoration: reminder.isEnabled
                           ? TextDecoration.none
                           : TextDecoration.lineThrough,
@@ -339,7 +361,11 @@ class _ReminderCard extends ConsumerWidget {
       title: 'Edit or delete reminder?',
       message: 'Choose an action for this reminder.',
       actions: const [
-        DimiDialogAction(label: 'Edit', value: 'edit', icon: Icons.edit_outlined),
+        DimiDialogAction(
+          label: 'Edit',
+          value: 'edit',
+          icon: Icons.edit_outlined,
+        ),
         DimiDialogAction(
           label: 'Delete',
           value: 'delete',
