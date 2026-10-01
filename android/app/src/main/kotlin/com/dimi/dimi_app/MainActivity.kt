@@ -26,7 +26,6 @@ class MainActivity : FlutterActivity() {
     }
 
     private companion object {
-        const val NOTIFICATION_SELECT_ACTION =
-            "SELECT_NOTIFICATION"
+        const val NOTIFICATION_SELECT_ACTION = "SELECT_NOTIFICATION"
     }
 }
