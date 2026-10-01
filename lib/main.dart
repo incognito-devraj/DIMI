@@ -8,6 +8,10 @@ import 'data/database.dart';
 import 'providers/database_provider.dart';
 import 'providers/task_providers.dart';
 import 'providers/reminder_providers.dart';
+import 'providers/money_providers.dart';
+import 'providers/profile_providers.dart';
+import 'providers/note_providers.dart';
+import 'features/youtube_playlist/providers.dart';
 import 'routing/app_router.dart';
 import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
@@ -60,7 +64,7 @@ Future<void> _finishStartup(AppDatabase db) async {
   if (restoredUser != null) {
     await AuthService.instance.synchronizeAuthState(db, restoredUser);
     try {
-      await SyncService(db).syncNow();
+      await SyncService(db).syncNow(forceFullPull: true);
     } catch (error, stackTrace) {
       // A remote/RLS outage must not prevent the local-first UI from opening.
       // SyncService has already logged the detailed remote error; preserve
@@ -113,10 +117,15 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
           authState.event != AuthChangeEvent.signedOut) {
         return;
       }
+      final hydrateAccount =
+          authState.event == AuthChangeEvent.initialSession ||
+          authState.event == AuthChangeEvent.signedIn;
       unawaited(
         AuthService.instance
             .synchronizeAuthState(db, authState.session?.user)
-            .then((_) => _syncService.syncNow()),
+            .then(
+              (_) => _syncAndRefresh(forceFullPull: hydrateAccount),
+            ),
       );
     });
   }
@@ -158,11 +167,22 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
       );
     }
     try {
-      await _syncService.syncNow();
+      await _syncAndRefresh(forceFullPull: true);
     } catch (error, stackTrace) {
       // Resume must remain local-first when the network/session is transient.
       debugPrint('[DIMI sync] resume sync failed; keeping local data: $error');
       debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  Future<void> _syncAndRefresh({bool forceFullPull = false}) async {
+    try {
+      await _syncService.syncNow(forceFullPull: forceFullPull);
+    } finally {
+      // Home is kept alive by the shell while other pages are opened. Refresh
+      // all local-data providers after hydration so its cards cannot retain
+      // the pre-sync empty state.
+      _refreshLocalNotificationState();
     }
   }
 
@@ -178,6 +198,12 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
     ref.invalidate(allTodosProvider);
     ref.invalidate(homeTodosProvider);
     ref.invalidate(allTasksProvider);
+    ref.invalidate(allTransactionsProvider);
+    ref.invalidate(thisWeeksTransactionsProvider);
+    ref.invalidate(transactionsByTypeProvider);
+    ref.invalidate(profileProvider);
+    ref.invalidate(allNotesProvider);
+    ref.invalidate(youtubePlaylistsProvider);
   }
 
   Future<void> _openPlaylistUnwatched(int playlistId) async {
@@ -220,7 +246,7 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
     _syncTimer?.cancel();
     _syncTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       unawaited(_expirePastReminders());
-      unawaited(_syncService.syncNow());
+      unawaited(_syncAndRefresh());
     });
   }
 
