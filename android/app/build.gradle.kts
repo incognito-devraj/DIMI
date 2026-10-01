@@ -34,6 +34,10 @@ android {
         release {
             // Replace the debug key with the Play/App Store release keystore before publishing.
             signingConfig = signingConfigs.getByName("debug")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

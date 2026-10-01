@@ -29,15 +29,15 @@ class SyncService {
   final ({int localAccountId, String authUserId, int generation})? _testContext;
   Future<void>? _running;
 
-  Future<void> syncNow() {
+  Future<void> syncNow({bool forceFullPull = false}) {
     final current = _running;
     if (current != null) return current;
-    final run = _run();
+    final run = _run(forceFullPull: forceFullPull);
     _running = run;
     return run.whenComplete(() => _running = null);
   }
 
-  Future<void> _run() async {
+  Future<void> _run({required bool forceFullPull}) async {
     final context =
         _testContext ??
         await AuthService.instance.awaitAuthenticatedContext(db);
@@ -58,7 +58,7 @@ class SyncService {
     _log('start account=${context.localAccountId} user=${context.authUserId}');
     try {
       await _push(client, context);
-      await _pull(client, prefs, context);
+      await _pull(client, prefs, context, forceFullPull: forceFullPull);
       await db.syncOutboxDao.removeCompleted(
         localAccountId: context.localAccountId,
       );
@@ -261,12 +261,15 @@ class SyncService {
     SyncRemoteApi remote,
     SharedPreferences prefs,
     ({int localAccountId, String authUserId, int generation}) context,
+    {
+      required bool forceFullPull,
+    }
   ) async {
     for (final spec in _pullOrder) {
       _ensureContext(context);
       final key =
           'dimi_sync_cursor_${context.localAccountId}_${spec.remoteTable}';
-      final cursor = _date(prefs.getString(key));
+      final cursor = forceFullPull ? null : _date(prefs.getString(key));
       final rows = await remote.pullRows(
         spec.remoteTable,
         context.authUserId,
@@ -579,6 +582,7 @@ class SyncService {
           ? {db.youtubeVideos}
           : null,
     );
+    if (changed > 0) _notifyLocalTableChanged(spec.localTable);
     return changed > 0;
   }
 
@@ -657,6 +661,13 @@ class SyncService {
     if (spec.ownerColumn != null) values[spec.ownerColumn!] = accountId;
     if (existing.isEmpty && spec.localTable == 'profile_data')
       values['local_account_id'] = accountId;
+    if (existing.isEmpty && spec.localTable == 'reminders') {
+      // notification_id is intentionally local-only and UNIQUE. Remote rows
+      // do not carry it, so allowing Drift's default 0 would make the first
+      // imported reminder succeed and every subsequent reminder fail the
+      // entire pull with a unique-constraint error.
+      values['notification_id'] = await _nextReminderNotificationId();
+    }
     if (existing.isEmpty) {
       final columns = values.keys.toList();
       final vars = columns.map((column) => _variable(values[column])).toList();
@@ -664,6 +675,7 @@ class SyncService {
         'INSERT OR IGNORE INTO ${spec.localTable} (${columns.join(',')}) VALUES (${List.filled(columns.length, '?').join(',')})',
         vars.map((v) => v.value).toList(),
       );
+      _notifyLocalTableChanged(spec.localTable);
     } else {
       final ownerCol = spec.ownerColumn;
       final columns = values.keys
@@ -688,7 +700,43 @@ class SyncService {
         'UPDATE ${spec.localTable} SET ${columns.map((c) => '$c = ?').join(', ')} WHERE ${whereParts.join(' AND ')}',
         vars.map((v) => v.value).toList(),
       );
+      _notifyLocalTableChanged(spec.localTable);
     }
+  }
+
+  /// Raw SQL is intentionally used here because sync metadata and nullable
+  /// remote values do not map cleanly to every Drift companion. Unlike Drift
+  /// generated writes, customStatement does not infer affected tables, so
+  /// explicitly notify all local streams that can be backed by this entity.
+  void _notifyLocalTableChanged(String table) {
+    switch (table) {
+      case 'local_accounts':
+        db.markTablesUpdated({db.localAccounts});
+      case 'profile_data':
+        db.markTablesUpdated({db.profileData});
+      case 'tasks':
+        db.markTablesUpdated({db.tasks});
+      case 'reminders':
+        db.markTablesUpdated({db.reminders});
+      case 'notes':
+        db.markTablesUpdated({db.notes});
+      case 'money_transactions':
+        db.markTablesUpdated({db.moneyTransactions});
+      case 'youtube_playlists':
+        db.markTablesUpdated({db.youtubePlaylists});
+      case 'youtube_videos':
+        db.markTablesUpdated({db.youtubeVideos});
+    }
+  }
+
+  Future<int> _nextReminderNotificationId() async {
+    final row = await db
+        .customSelect(
+          'SELECT COALESCE(MAX(notification_id), 0) + 1 AS next_id '
+          'FROM reminders',
+        )
+        .getSingle();
+    return row.read<int>('next_id');
   }
 
   Future<int?> _localId(String table, String serverId, int accountId) async {

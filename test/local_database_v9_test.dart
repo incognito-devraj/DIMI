@@ -1,10 +1,13 @@
 import 'package:drift/native.dart';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:dimi_app/data/database.dart';
 import 'package:dimi_app/data/daos/note_dao.dart';
 import 'package:dimi_app/data/daos/sync_outbox_dao.dart';
+import 'package:dimi_app/providers/database_provider.dart';
+import 'package:dimi_app/providers/money_providers.dart';
 
 import 'dart:io';
 
@@ -267,6 +270,63 @@ void main() {
       );
     },
   );
+
+  test('finance insert is immediately local and queued for sync', () async {
+    final container = ProviderContainer(
+      overrides: [databaseProvider.overrideWithValue(db)],
+    );
+    addTearDown(container.dispose);
+    expect(await container.read(allTransactionsProvider.future), isEmpty);
+
+    final pendingRows = db.moneyDao.watchAllTransactions().skip(1).first;
+    final id = await db.moneyDao.insertTransaction(
+      MoneyTransactionsCompanion.insert(
+        type: 'expense',
+        amount: 4500,
+        category: 'Food',
+        date: DateTime.now(),
+      ),
+    );
+
+    final visible = await pendingRows;
+    expect(visible.single.id, id);
+    expect(visible.single.localAccountId, db.activeAccountId);
+    expect(
+      await db.syncOutboxDao.pendingCount(db.activeAccountId),
+      1,
+    );
+    expect(
+      (await container.read(allTransactionsProvider.future)).single.id,
+      id,
+    );
+    expect(
+      (await container.read(thisWeeksTransactionsProvider.future)).single.id,
+      id,
+    );
+  });
+
+  test('finance streams remain isolated by active account', () async {
+    final accountA = db.activeAccountId;
+    await db.moneyDao.insertTransaction(
+      MoneyTransactionsCompanion.insert(
+        type: 'expense',
+        amount: 100,
+        category: 'A',
+        date: DateTime.now(),
+      ),
+    );
+    final accountB = await db.into(db.localAccounts).insert(
+      LocalAccountsCompanion.insert(
+        authProvider: 'offline-test',
+        displayName: const Value('B'),
+        createdAt: DateTime.now(),
+      ),
+    );
+    await db.localAccountDao.activate(accountB);
+    expect(await db.moneyDao.watchAllTransactions().first, isEmpty);
+    await db.localAccountDao.activate(accountA);
+    expect(await db.moneyDao.watchAllTransactions().first, hasLength(1));
+  });
 
   test('note update returns bool and ignores tombstoned rows', () async {
     final noteDao = NoteDao(db);
