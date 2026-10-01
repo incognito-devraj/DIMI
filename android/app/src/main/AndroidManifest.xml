@@ -44,6 +44,26 @@
             </intent-filter>
         </activity>
 
+        <!-- Full-screen reminder activity shown on the lock screen when a
+             reminder fires with the screen off. Declared separately so the
+             OS can launch it directly without going through MainActivity. -->
+        <activity
+            android:name=".DimiReminderActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true">
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+        </activity>
+
         <!-- Receivers required by flutter_local_notifications -->
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"

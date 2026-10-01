@@ -28,7 +28,11 @@ DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 class PlannerScreen extends ConsumerStatefulWidget {
-  const PlannerScreen({super.key});
+  /// When provided (from a notification deep-link), the planner jumps to this
+  /// date and stays in Day view so the event is immediately visible.
+  final DateTime? focusDate;
+
+  const PlannerScreen({super.key, this.focusDate});
 
   @override
   ConsumerState<PlannerScreen> createState() => _PlannerScreenState();
@@ -45,8 +49,15 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
   @override
   void initState() {
     super.initState();
-    _selected = _lastSelected ?? DateTime.now();
-    _view = _lastView;
+    if (widget.focusDate != null) {
+      // Notification deep-link: go straight to Day view on the event date.
+      _selected = widget.focusDate!;
+      _view = 0;
+      _rememberPlannerPosition();
+    } else {
+      _selected = _lastSelected ?? DateTime.now();
+      _view = _lastView;
+    }
   }
 
   void _rememberPlannerPosition() {
@@ -296,10 +307,7 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                           _rememberPlannerPosition();
                         }),
                       ),
-                      _ => _DayView(
-                        date: _selected,
-                        fabVisible: showDayFab,
-                      ),
+                      _ => _DayView(date: _selected, fabVisible: showDayFab),
                     },
                   ),
                 ),
@@ -448,7 +456,7 @@ class _ReferenceTaskRow extends ConsumerWidget {
           ? null
           : () => ref.read(taskDaoProvider).toggleCompleted(task.id, !done),
       child: Container(
-      height: 112,
+        height: 112,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: const BoxDecoration(
           border: Border(bottom: BorderSide(color: AppColors.divider)),
@@ -526,8 +534,8 @@ class _ReferenceTaskRow extends ConsumerWidget {
               onTap: isFuture || isPast
                   ? null
                   : () => ref
-                      .read(taskDaoProvider)
-                      .toggleCompleted(task.id, !done),
+                        .read(taskDaoProvider)
+                        .toggleCompleted(task.id, !done),
               child: Container(
                 width: 28,
                 height: 28,
@@ -841,7 +849,9 @@ class _PremiumMonthViewState extends ConsumerState<_PremiumMonthView> {
             ),
             const SizedBox(height: 8),
             const Padding(
-              padding: EdgeInsets.symmetric(horizontal: AppSpacing.screenHorizontal),
+              padding: EdgeInsets.symmetric(
+                horizontal: AppSpacing.screenHorizontal,
+              ),
               child: Text(
                 'Tap a date to view its tasks. To plan a future event, switch to Day and choose the date above; Add Event will appear there.',
                 textAlign: TextAlign.center,
@@ -1673,17 +1683,18 @@ class _CompletionHeatmap extends StatelessWidget {
                         : '${DateFormat('d MMM').format(day)} · $done/$total complete',
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: heatmapColors[ratio <= 0
-                            ? 0
-                            : ratio < .25
-                            ? 1
-                            : ratio < .5
-                            ? 2
-                            : ratio < .75
-                            ? 3
-                            : ratio < 1
-                            ? 4
-                            : 5],
+                        color:
+                            heatmapColors[ratio <= 0
+                                ? 0
+                                : ratio < .25
+                                ? 1
+                                : ratio < .5
+                                ? 2
+                                : ratio < .75
+                                ? 3
+                                : ratio < 1
+                                ? 4
+                                : 5],
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),
@@ -1710,17 +1721,18 @@ class _CompletionHeatmap extends StatelessWidget {
                       width: 9,
                       height: 9,
                       decoration: BoxDecoration(
-                        color: heatmapColors[ratio <= 0
-                            ? 0
-                            : ratio < .25
-                            ? 1
-                            : ratio < .5
-                            ? 2
-                            : ratio < .75
-                            ? 3
-                            : ratio < 1
-                            ? 4
-                            : 5],
+                        color:
+                            heatmapColors[ratio <= 0
+                                ? 0
+                                : ratio < .25
+                                ? 1
+                                : ratio < .5
+                                ? 2
+                                : ratio < .75
+                                ? 3
+                                : ratio < 1
+                                ? 4
+                                : 5],
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -1742,7 +1754,6 @@ class _CompletionHeatmap extends StatelessWidget {
       ),
     );
   }
-
 }
 
 // ─── Task tile ────────────────────────────────────────────────────────────────
@@ -1920,11 +1931,7 @@ class _TaskTile extends ConsumerWidget {
     final dao = ref.read(taskDaoProvider);
     switch (action) {
       case 'edit':
-        await showAddTaskSheet(
-          context,
-          existingTask: task,
-          plannerEntry: true,
-        );
+        await showAddTaskSheet(context, existingTask: task, plannerEntry: true);
         break;
       case 'delete':
         final ok = await showDimiActionDialog<bool>(
@@ -1992,18 +1999,18 @@ class _TaskTile extends ConsumerWidget {
               onTap: () => Navigator.pop(ctx, 'edit'),
             ),
             ListTile(
-                leading: Icon(
-                  task.isCompleted
-                      ? Icons.radio_button_unchecked
-                      : Icons.check_circle_outline,
-                  color: AppColors.accent,
-                ),
-                title: Text(
-                  task.isCompleted ? 'Mark incomplete' : 'Mark complete',
-                  style: const TextStyle(fontFamily: 'Poppins', fontSize: 14),
-                ),
-                onTap: () => Navigator.pop(ctx, 'toggle'),
+              leading: Icon(
+                task.isCompleted
+                    ? Icons.radio_button_unchecked
+                    : Icons.check_circle_outline,
+                color: AppColors.accent,
               ),
+              title: Text(
+                task.isCompleted ? 'Mark incomplete' : 'Mark complete',
+                style: const TextStyle(fontFamily: 'Poppins', fontSize: 14),
+              ),
+              onTap: () => Navigator.pop(ctx, 'toggle'),
+            ),
             ListTile(
               leading: const Icon(
                 Icons.delete_outline,
@@ -2030,11 +2037,7 @@ class _TaskTile extends ConsumerWidget {
 
     switch (action) {
       case 'edit':
-        await showAddTaskSheet(
-          context,
-          existingTask: task,
-          plannerEntry: true,
-        );
+        await showAddTaskSheet(context, existingTask: task, plannerEntry: true);
         break;
       case 'toggle':
         await dao.toggleCompleted(task.id, !task.isCompleted);

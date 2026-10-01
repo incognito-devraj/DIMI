@@ -60,6 +60,19 @@ Future<void> _finishStartup(AppDatabase db) async {
   // Initialise notifications before anything else.
   await NotificationService.instance.init();
 
+  // Re-register all enabled alarms immediately after init — before any
+  // network work — so that the window without live AlarmManager entries is
+  // as short as possible. This also covers the post-reboot case where the
+  // ScheduledNotificationBootReceiver has already restored alarms but the
+  // Drift DB may have reminders that were added after the last boot.
+  await db.reminderDao.repairNotificationIds();
+  final expiredReminderIds = await db.reminderDao.expirePastStandardReminders();
+  for (final id in expiredReminderIds) {
+    await NotificationService.instance.cancelReminder(id);
+  }
+  final reminders = await db.reminderDao.getAllEnabled();
+  await NotificationService.instance.rescheduleAll(reminders);
+
   final restoredUser = SupabaseBootstrap.client?.auth.currentUser;
   if (restoredUser != null) {
     await AuthService.instance.synchronizeAuthState(db, restoredUser);
@@ -75,14 +88,6 @@ Future<void> _finishStartup(AppDatabase db) async {
   } else {
     await db.localAccountDao.ensureOfflineAccount();
   }
-  await db.reminderDao.repairNotificationIds();
-  final expiredReminderIds = await db.reminderDao.expirePastStandardReminders();
-  for (final id in expiredReminderIds) {
-    await NotificationService.instance.cancelReminder(id);
-  }
-  // Reschedule all enabled future reminders (handles post-reboot case too).
-  final reminders = await db.reminderDao.getAllEnabled();
-  await NotificationService.instance.rescheduleAll(reminders);
 }
 
 class DimiApp extends ConsumerStatefulWidget {
@@ -107,6 +112,13 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
         _openPlaylistUnwatched;
     NotificationService.instance.onOpenFullScreenReminder =
         _openFullScreenReminder;
+    NotificationService.instance.onOpenPlanner = _openPlanner;
+    NotificationService.instance.onOpenReminder = _openReminder;
+    // Drain any tap that arrived while the app was launching from a killed
+    // state (before these closures were assigned).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(NotificationService.instance.drainPendingTap());
+    });
     _startForegroundSync();
     _authSubscription = SupabaseBootstrap.authChanges.listen((authState) {
       final db = ref.read(databaseProvider);
@@ -125,9 +137,7 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
       unawaited(
         AuthService.instance
             .synchronizeAuthState(db, authState.session?.user)
-            .then(
-              (_) => _syncAndRefresh(forceFullPull: hydrateAccount),
-            ),
+            .then((_) => _syncAndRefresh(forceFullPull: hydrateAccount)),
       );
     });
   }
@@ -138,6 +148,8 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
     NotificationService.instance.onLocalActionCommitted = null;
     NotificationService.instance.onOpenPlaylistUnwatched = null;
     NotificationService.instance.onOpenFullScreenReminder = null;
+    NotificationService.instance.onOpenPlanner = null;
+    NotificationService.instance.onOpenReminder = null;
     _syncTimer?.cancel();
     _authSubscription?.cancel();
     super.dispose();
@@ -254,15 +266,56 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
     final notificationId = data['notification_id'];
     if (reminderId is! int || title is! String || body is! String) return;
 
-    final query = Uri(queryParameters: {
-      'reminderId': '$reminderId',
-      'accountId': '${accountId is int ? accountId : 0}',
-      'title': title,
-      'body': body,
-      'timeMillis': '${timeMillis is int ? timeMillis : DateTime.now().millisecondsSinceEpoch}',
-      'notifId': '${notificationId is int ? notificationId : 0}',
-    }).query;
+    final query = Uri(
+      queryParameters: {
+        'reminderId': '$reminderId',
+        'accountId': '${accountId is int ? accountId : 0}',
+        'title': title,
+        'body': body,
+        'timeMillis':
+            '${timeMillis is int ? timeMillis : DateTime.now().millisecondsSinceEpoch}',
+        'notifId': '${notificationId is int ? notificationId : 0}',
+      },
+    ).query;
     appRouter.go('${AppRoutes.fullScreenReminder}?$query');
+  }
+
+  /// Navigates to the Planner screen in Day view, focused on the event's date.
+  /// Called for both notification body-taps and Mark Done on planner events.
+  Future<void> _openPlanner(Map<String, dynamic> data) async {
+    if (!mounted) return;
+    int? focusMs;
+    // Resolve the event date from the linked task row (most accurate).
+    final taskId = data['task_id'] as int?;
+    if (taskId != null) {
+      final db = ref.read(databaseProvider);
+      final task = await db.taskDao.getById(taskId);
+      final dueDate = task?.dueDate;
+      if (dueDate != null) {
+        focusMs = dueDate.millisecondsSinceEpoch;
+      }
+    }
+    // Fall back to the scheduled notification time baked into the payload.
+    if (focusMs == null) {
+      final timeMillis = data['time_millis'];
+      focusMs = timeMillis is int
+          ? timeMillis
+          : DateTime.now().millisecondsSinceEpoch;
+    }
+    if (!mounted) return;
+    appRouter.go('${AppRoutes.planner}?focusDateMs=$focusMs');
+  }
+
+  /// Navigates to the Reminders screen and highlights the specific reminder.
+  /// Called for both notification body-taps and Mark Done on standard reminders.
+  Future<void> _openReminder(Map<String, dynamic> data) async {
+    if (!mounted) return;
+    final reminderId = data['reminder_id'];
+    if (reminderId is int) {
+      appRouter.go('${AppRoutes.reminders}?highlightId=$reminderId');
+    } else {
+      appRouter.go(AppRoutes.reminders);
+    }
   }
 
   void _startForegroundSync() {

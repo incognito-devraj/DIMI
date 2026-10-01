@@ -124,7 +124,15 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: AppRoutes.planner,
-          pageBuilder: (ctx, state) => _fade(state, const PlannerScreen()),
+          pageBuilder: (ctx, state) {
+            final ms = int.tryParse(
+              state.uri.queryParameters['focusDateMs'] ?? '',
+            );
+            final focusDate = ms != null
+                ? DateTime.fromMillisecondsSinceEpoch(ms)
+                : null;
+            return _fade(state, PlannerScreen(focusDate: focusDate));
+          },
         ),
         GoRoute(
           path: AppRoutes.money,
@@ -136,7 +144,12 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: AppRoutes.reminders,
-          pageBuilder: (ctx, state) => _fade(state, const RemindersScreen()),
+          pageBuilder: (ctx, state) {
+            final highlightId = int.tryParse(
+              state.uri.queryParameters['highlightId'] ?? '',
+            );
+            return _fade(state, RemindersScreen(highlightId: highlightId));
+          },
         ),
       ],
     ),
@@ -198,7 +211,6 @@ final GoRouter appRouter = GoRouter(
         );
       },
     ),
-
   ],
 );
 
