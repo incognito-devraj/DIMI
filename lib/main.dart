@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'data/database.dart';
 import 'providers/database_provider.dart';
@@ -24,6 +25,10 @@ Future<void> main() async {
   // window while Supabase, notifications, sync, and rescheduling initialize.
   final db = AppDatabase();
   NotificationService.instance.attachDatabase(db);
+
+  // Establish a real local account before the first frame. Account-scoped
+  // writes must never be allowed to observe the sentinel account id 0.
+  await db.localAccountDao.ensureOfflineAccount();
 
   runApp(
     ProviderScope(
@@ -100,6 +105,14 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
     _authSubscription = SupabaseBootstrap.authChanges.listen((authState) {
       final db = ref.read(databaseProvider);
       SupabaseBootstrap.offlineMode = false;
+      // Supabase can emit a transient null session while restoring persisted
+      // auth during process/background resume. Do not switch the UI to the
+      // offline account for that transient event; an explicit sign-out still
+      // clears the local active context below.
+      if (authState.session == null &&
+          authState.event != AuthChangeEvent.signedOut) {
+        return;
+      }
       unawaited(
         AuthService.instance
             .synchronizeAuthState(db, authState.session?.user)
@@ -125,14 +138,31 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
       // isolate's SQLite connection while the app was paused. Re-read the
       // local Drift rows before starting any remote sync so Planner reflects
       // the local completion immediately.
-      _refreshLocalNotificationState();
-      unawaited(_expirePastReminders());
-      unawaited(_syncService.syncNow());
+      unawaited(_restoreAccountThenSync());
       _startForegroundSync();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
       _syncTimer?.cancel();
       _syncTimer = null;
+    }
+  }
+
+  Future<void> _restoreAccountThenSync() async {
+    _refreshLocalNotificationState();
+    await _expirePastReminders();
+    final user = AuthService.instance.currentUser;
+    if (user != null) {
+      await AuthService.instance.synchronizeAuthState(
+        ref.read(databaseProvider),
+        user,
+      );
+    }
+    try {
+      await _syncService.syncNow();
+    } catch (error, stackTrace) {
+      // Resume must remain local-first when the network/session is transient.
+      debugPrint('[DIMI sync] resume sync failed; keeping local data: $error');
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 
@@ -145,6 +175,9 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
     ref.invalidate(allRemindersProvider);
     ref.invalidate(todaysRemindersProvider);
     ref.invalidate(upcomingRemindersProvider);
+    ref.invalidate(allTodosProvider);
+    ref.invalidate(homeTodosProvider);
+    ref.invalidate(allTasksProvider);
   }
 
   Future<void> _openPlaylistUnwatched(int playlistId) async {
