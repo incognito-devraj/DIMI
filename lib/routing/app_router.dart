@@ -131,7 +131,16 @@ final GoRouter appRouter = GoRouter(
             final focusDate = ms != null
                 ? DateTime.fromMillisecondsSinceEpoch(ms)
                 : null;
-            return _fade(state, PlannerScreen(focusDate: focusDate));
+            final highlightTaskId = int.tryParse(
+              state.uri.queryParameters['highlightTaskId'] ?? '',
+            );
+            return _fade(
+              state,
+              PlannerScreen(
+                focusDate: focusDate,
+                highlightTaskId: highlightTaskId,
+              ),
+            );
           },
         ),
         GoRoute(

@@ -285,6 +285,7 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
   Future<void> _openPlanner(Map<String, dynamic> data) async {
     if (!mounted) return;
     int? focusMs;
+    int? highlightTaskId;
     // Resolve the event date from the linked task row (most accurate).
     final taskId = data['task_id'] as int?;
     if (taskId != null) {
@@ -293,6 +294,7 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
       final dueDate = task?.dueDate;
       if (dueDate != null) {
         focusMs = dueDate.millisecondsSinceEpoch;
+        highlightTaskId = taskId;
       }
     }
     // Fall back to the scheduled notification time baked into the payload.
@@ -303,7 +305,10 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
           : DateTime.now().millisecondsSinceEpoch;
     }
     if (!mounted) return;
-    appRouter.go('${AppRoutes.planner}?focusDateMs=$focusMs');
+    final query = highlightTaskId != null
+        ? 'focusDateMs=$focusMs&highlightTaskId=$highlightTaskId'
+        : 'focusDateMs=$focusMs';
+    appRouter.go('${AppRoutes.planner}?$query');
   }
 
   /// Navigates to the Reminders screen and highlights the specific reminder.

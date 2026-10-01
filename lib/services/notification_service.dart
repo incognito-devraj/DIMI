@@ -990,9 +990,7 @@ class NotificationService {
         _Action.snooze,
         'Snooze 5 min',
         titleColor: const Color(0xFF1B1B1B),
-        // Run in the foreground isolate so active Drift streams refresh
-        // immediately; sync remains fire-and-forget after local commit.
-        showsUserInterface: true,
+        showsUserInterface: false,
       ),
     ];
   }
