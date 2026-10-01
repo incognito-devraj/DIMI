@@ -32,7 +32,11 @@ class PlannerScreen extends ConsumerStatefulWidget {
   /// date and stays in Day view so the event is immediately visible.
   final DateTime? focusDate;
 
-  const PlannerScreen({super.key, this.focusDate});
+  /// When provided alongside [focusDate], the matching task row is briefly
+  /// highlighted so the user can immediately see which event fired.
+  final int? highlightTaskId;
+
+  const PlannerScreen({super.key, this.focusDate, this.highlightTaskId});
 
   @override
   ConsumerState<PlannerScreen> createState() => _PlannerScreenState();
@@ -307,7 +311,11 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                           _rememberPlannerPosition();
                         }),
                       ),
-                      _ => _DayView(date: _selected, fabVisible: showDayFab),
+                      _ => _DayView(
+                        date: _selected,
+                        fabVisible: showDayFab,
+                        highlightTaskId: widget.highlightTaskId,
+                      ),
                     },
                   ),
                 ),
@@ -344,9 +352,14 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
 // ─── Day View ─────────────────────────────────────────────────────────────────
 
 class _DayView extends ConsumerStatefulWidget {
-  const _DayView({required this.date, required this.fabVisible});
+  const _DayView({
+    required this.date,
+    required this.fabVisible,
+    this.highlightTaskId,
+  });
   final DateTime date;
   final bool fabVisible;
+  final int? highlightTaskId;
 
   @override
   ConsumerState<_DayView> createState() => _DayViewState();
@@ -383,6 +396,7 @@ class _DayViewState extends ConsumerState<_DayView> {
             : _ReferenceDaySchedule(
                 tasks: sorted,
                 bottomPadding: widget.fabVisible ? 96 : 0,
+                highlightTaskId: widget.highlightTaskId,
               );
       },
     );
@@ -393,9 +407,11 @@ class _ReferenceDaySchedule extends ConsumerWidget {
   const _ReferenceDaySchedule({
     required this.tasks,
     required this.bottomPadding,
+    this.highlightTaskId,
   });
   final List<Task> tasks;
   final double bottomPadding;
+  final int? highlightTaskId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -414,7 +430,11 @@ class _ReferenceDaySchedule extends ConsumerWidget {
           itemCount: tasks.length,
           itemBuilder: (context, index) {
             final task = tasks[index];
-            return _ReferenceTaskRow(task: task);
+            return _ReferenceTaskRow(
+              task: task,
+              highlighted:
+                  highlightTaskId != null && task.id == highlightTaskId,
+            );
           },
         ),
       ),
@@ -423,8 +443,9 @@ class _ReferenceDaySchedule extends ConsumerWidget {
 }
 
 class _ReferenceTaskRow extends ConsumerWidget {
-  const _ReferenceTaskRow({required this.task});
+  const _ReferenceTaskRow({required this.task, this.highlighted = false});
   final Task task;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -455,11 +476,14 @@ class _ReferenceTaskRow extends ConsumerWidget {
       onTap: isFuture || isPast
           ? null
           : () => ref.read(taskDaoProvider).toggleCompleted(task.id, !done),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
         height: 112,
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: AppColors.divider)),
+        decoration: BoxDecoration(
+          color: highlighted ? AppColors.accentSoft : null,
+          border: const Border(bottom: BorderSide(color: AppColors.divider)),
         ),
         child: Row(
           children: [
