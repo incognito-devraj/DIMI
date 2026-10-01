@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../config/supabase_config.dart';
 import '../../routing/app_router.dart';
 import '../../services/auth_service.dart';
+import '../../services/notification_service.dart';
 import '../../providers/database_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/dimi_hero.dart';
@@ -34,6 +35,16 @@ class SettingsScreen extends ConsumerWidget {
             ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 5)),
+            _SectionHeader(title: 'Notifications'),
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: AppSpacing.screenHorizontal,
+                ),
+                child: _NotificationModeTile(),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
             // ── Data & Sync ───────────────────────────────────────────────
             _SectionHeader(title: 'Data & Sync'),
             _SectionCard(
@@ -184,6 +195,70 @@ class SettingsScreen extends ConsumerWidget {
 }
 
 // ── Account section (needs StatefulWidget for async logout) ──────────────────
+
+class _NotificationModeTile extends StatefulWidget {
+  const _NotificationModeTile();
+
+  @override
+  State<_NotificationModeTile> createState() => _NotificationModeTileState();
+}
+
+class _NotificationModeTileState extends State<_NotificationModeTile> {
+  late Future<bool> _mode;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = NotificationService.instance.isFullScreenModeEnabled();
+  }
+
+  Future<void> _choose(bool fullScreen) async {
+    await NotificationService.instance.setNotificationMode(
+      fullScreen
+          ? DimiNotificationMode.fullScreen
+          : DimiNotificationMode.normal,
+    );
+    if (!mounted) return;
+    setState(() => _mode = Future.value(fullScreen));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _mode,
+      builder: (context, snapshot) {
+        final fullScreen = snapshot.data ?? false;
+        return _SettingsTile(
+          icon: Icons.notifications_active_outlined,
+          iconColor: AppColors.accent,
+          label: 'Notification Type',
+          subtitle: fullScreen
+              ? 'Full Screen Notification'
+              : 'Normal Notification',
+          onTap: () async {
+            final selected = await showDialog<bool>(
+              context: context,
+              builder: (context) => SimpleDialog(
+                title: const Text('Notification Type'),
+                children: [
+                  SimpleDialogOption(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Normal Notification'),
+                  ),
+                  SimpleDialogOption(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Full Screen Notification'),
+                  ),
+                ],
+              ),
+            );
+            if (selected != null) await _choose(selected);
+          },
+        );
+      },
+    );
+  }
+}
 
 class _AccountSection extends StatefulWidget {
   const _AccountSection();

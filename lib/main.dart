@@ -105,6 +105,8 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
         _refreshLocalNotificationState;
     NotificationService.instance.onOpenPlaylistUnwatched =
         _openPlaylistUnwatched;
+    NotificationService.instance.onOpenFullScreenReminder =
+        _openFullScreenReminder;
     _startForegroundSync();
     _authSubscription = SupabaseBootstrap.authChanges.listen((authState) {
       final db = ref.read(databaseProvider);
@@ -135,6 +137,7 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     NotificationService.instance.onLocalActionCommitted = null;
     NotificationService.instance.onOpenPlaylistUnwatched = null;
+    NotificationService.instance.onOpenFullScreenReminder = null;
     _syncTimer?.cancel();
     _authSubscription?.cancel();
     super.dispose();
@@ -240,6 +243,26 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
             .toList(),
       ),
     );
+  }
+
+  Future<void> _openFullScreenReminder(Map<String, dynamic> data) async {
+    final reminderId = data['reminder_id'];
+    final accountId = data['account_id'];
+    final title = data['title'];
+    final body = data['body'];
+    final timeMillis = data['time_millis'];
+    final notificationId = data['notification_id'];
+    if (reminderId is! int || title is! String || body is! String) return;
+
+    final query = Uri(queryParameters: {
+      'reminderId': '$reminderId',
+      'accountId': '${accountId is int ? accountId : 0}',
+      'title': title,
+      'body': body,
+      'timeMillis': '${timeMillis is int ? timeMillis : DateTime.now().millisecondsSinceEpoch}',
+      'notifId': '${notificationId is int ? notificationId : 0}',
+    }).query;
+    appRouter.go('${AppRoutes.fullScreenReminder}?$query');
   }
 
   void _startForegroundSync() {
