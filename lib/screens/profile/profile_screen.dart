@@ -4,12 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../../config/supabase_config.dart';
 import '../../data/database.dart';
 import '../../providers/profile_providers.dart';
 import '../../providers/task_providers.dart';
 import '../../routing/app_router.dart';
-import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/dimi_hero.dart';
 
@@ -25,13 +23,12 @@ class ProfileScreen extends ConsumerWidget {
       body: SafeArea(
         child: profileAsync.when(
           data: (profile) {
-            // Show the sign-in card when the user is in offline mode,
-            // regardless of whether a local profile row exists.
-            if (SupabaseBootstrap.offlineMode) {
-              return const _NoProfileState();
-            }
+            // Show the normal profile body whenever a profile row exists,
+            // regardless of whether the user is online or offline.
+            // If no profile row exists yet, show a simple empty-state
+            // (no sync/sign-in card — that option lives in Settings).
             return profile == null
-                ? const _NoProfileState()
+                ? const _EmptyProfileState()
                 : _ProfileBody(profile: profile);
           },
           loading: () => const Center(
@@ -44,204 +41,81 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
-// ── Logout ────────────────────────────────────────────────────────────────────
+// ── Empty profile state — shown when no profile row exists yet ────────────────
+//
+// Does NOT show any sign-in / sync content.  Google sign-in lives in Settings.
 
-// ── No profile state — shown in offline mode, offers sign-in ─────────────────
-
-class _NoProfileState extends ConsumerStatefulWidget {
-  const _NoProfileState();
-
-  @override
-  ConsumerState<_NoProfileState> createState() => _NoProfileStateState();
-}
-
-class _NoProfileStateState extends ConsumerState<_NoProfileState> {
-  bool _loading = false;
-  String? _error;
-
-  Future<void> _signIn() async {
-    if (!SupabaseConfig.isConfigured) {
-      setState(
-        () => _error = 'Google sign-in is unavailable in this build. Supabase is not configured.',
-      );
-      return;
-    }
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      await SupabaseBootstrap.clearOfflineMode();
-      await AuthService.instance.signInWithGoogle();
-      // The auth listener in main.dart handles the session and navigation.
-      await Future.delayed(const Duration(seconds: 12));
-      if (mounted && _loading) {
-        setState(() {
-          _loading = false;
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = 'Sign-in failed. Please try again.';
-      });
-    }
-  }
+class _EmptyProfileState extends StatelessWidget {
+  const _EmptyProfileState();
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.screenHorizontal),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 12),
-            // Header
-            Row(
+    return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        SliverToBoxAdapter(
+          child: DimiHero(
+            title: 'Profile',
+            subtitle: 'Good to see you!',
+            height: 200,
+            leading: DimiHeroCircleButton(
+              icon: Icons.arrow_back_ios_new_rounded,
+              onTap: () => Navigator.of(context).maybePop(),
+            ),
+            trailing: DimiHeroCircleButton(
+              icon: Icons.settings_outlined,
+              onTap: () => context.push(AppRoutes.settings),
+            ),
+          ),
+        ),
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.screenHorizontal,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                DimiHeroCircleButton(
-                  icon: Icons.arrow_back_ios_new_rounded,
-                  onTap: () => Navigator.of(context).maybePop(),
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withAlpha(25),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.person_outline_rounded,
+                    size: 36,
+                    color: AppColors.accent,
+                  ),
                 ),
-                const SizedBox(width: 12),
-                Text(
-                  'Profile',
-                  style: Theme.of(context).textTheme.displayMedium,
+                const SizedBox(height: 16),
+                const Text(
+                  'No profile yet',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Your profile will appear here once it is set up.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                    height: 1.5,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 32),
-            // Sign-in card
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-                border: Border.all(color: AppColors.divider),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x0A1C1C1E),
-                    blurRadius: 12,
-                    offset: Offset(0, 3),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: AppColors.accent.withAlpha(25),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.cloud_sync_outlined,
-                      size: 32,
-                      color: AppColors.accent,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Back up and sync your data',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Sign in with Google to sync your tasks, reminders, and notes across devices.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 13,
-                      color: AppColors.textSecondary,
-                      height: 1.5,
-                    ),
-                  ),
-                  if (_error != null) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.danger.withAlpha(20),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        _error!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 12,
-                          color: AppColors.danger,
-                        ),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: _loading ? null : _signIn,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.surfaceDark,
-                        foregroundColor: AppColors.surface,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            AppSpacing.buttonRadius,
-                          ),
-                        ),
-                      ),
-                      child: _loading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.surface,
-                              ),
-                            )
-                          : const Text(
-                              'Sign in with Google',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Center(
-              child: Text(
-                'Your local data is always safe.\nSign-in only adds sync.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                  height: 1.5,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

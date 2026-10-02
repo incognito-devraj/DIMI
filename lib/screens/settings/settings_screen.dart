@@ -367,7 +367,43 @@ class _AccountSection extends StatefulWidget {
 }
 
 class _AccountSectionState extends State<_AccountSection> {
-  bool _loggingOut = false;
+  bool _loading = false;
+  String? _error;
+
+  // ── Google sign-in (offline → authenticated) ──────────────────────────────
+
+  Future<void> _signInWithGoogle() async {
+    if (!SupabaseConfig.isConfigured) {
+      setState(
+        () => _error = 'Google sign-in is unavailable in this build. Supabase is not configured.',
+      );
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      // Clear the offline flag so the router allows the auth callback to land.
+      await SupabaseBootstrap.clearOfflineMode();
+      await AuthService.instance.signInWithGoogle();
+      // The auth listener in main.dart handles session confirmation and
+      // navigation — nothing else to do here.
+      await Future.delayed(const Duration(seconds: 12));
+      if (mounted && _loading) setState(() => _loading = false);
+    } catch (e) {
+      if (!mounted) return;
+      // Restore offline mode so the user is not stuck in a broken state.
+      await SupabaseBootstrap.persistOfflineMode();
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Sign-in failed. Please try again.';
+      });
+    }
+  }
+
+  // ── Logout (Google → login screen) ────────────────────────────────────────
 
   Future<void> _confirmLogout() async {
     final ok = await showDialog<bool>(
@@ -402,40 +438,68 @@ class _AccountSectionState extends State<_AccountSection> {
     if (ok != true) return;
     if (!mounted) return;
 
-    setState(() => _loggingOut = true);
+    setState(() => _loading = true);
 
-    // Clear offline mode flag and its persisted preference regardless of
-    // auth method, so the next launch shows the login screen.
+    // Capture the container before any await (BuildContext cannot be used
+    // across async gaps).
+    final container = ProviderScope.containerOf(context, listen: false);
+
+    // Clear offline flag and sign out from Supabase. This is only reachable
+    // when the user has an active Google session, so clearing offline mode
+    // is correct — we want the next launch to show the login screen.
     await SupabaseBootstrap.clearOfflineMode();
-
-    // Sign out from Supabase if an active session exists.
-    if (SupabaseBootstrap.client?.auth.currentSession != null) {
-      try {
-        await AuthService.instance.signOut(
-          ProviderScope.containerOf(
-            context,
-            listen: false,
-          ).read(databaseProvider),
-        );
-      } catch (_) {
-        // Ignore errors — we still navigate to login.
-      }
+    try {
+      await AuthService.instance.signOut(container.read(databaseProvider));
+    } catch (_) {
+      // Ignore errors — navigate to login regardless.
     }
     if (!mounted) return;
-    setState(() => _loggingOut = false);
+    setState(() => _loading = false);
     context.go(AppRoutes.login);
   }
 
   @override
   Widget build(BuildContext context) {
-    return _SettingsTile(
-      icon: Icons.logout_rounded,
-      iconColor: AppColors.danger,
-      label: _loggingOut ? 'Signing out…' : 'Log Out',
-      subtitle: 'Sign out from your account',
-      labelColor: AppColors.danger,
-      onTap: _loggingOut ? null : _confirmLogout,
-      showChevron: false,
+    final isGoogleUser = SupabaseBootstrap.client?.auth.currentSession != null;
+
+    if (isGoogleUser) {
+      // ── Authenticated: show Log Out ──────────────────────────────────────
+      return _SettingsTile(
+        icon: Icons.logout_rounded,
+        iconColor: AppColors.danger,
+        label: _loading ? 'Signing out…' : 'Log Out',
+        subtitle: 'Sign out from your account',
+        labelColor: AppColors.danger,
+        onTap: _loading ? null : _confirmLogout,
+        showChevron: false,
+      );
+    }
+
+    // ── Offline user: show Sign in with Google ─────────────────────────────
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SettingsTile(
+          icon: Icons.login_rounded,
+          iconColor: AppColors.accent,
+          label: _loading ? 'Opening Google…' : 'Sign in with Google',
+          subtitle: 'Back up and sync your data across devices',
+          onTap: _loading ? null : _signInWithGoogle,
+          showChevron: !_loading,
+        ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Text(
+              _error!,
+              style: const TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 12,
+                color: AppColors.danger,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
