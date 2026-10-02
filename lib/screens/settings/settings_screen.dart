@@ -271,7 +271,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'Digital Interface For Monitoring and Improvement',
+                      'Digital Interface for Monitoring and Improvement',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontFamily: 'Inter',
