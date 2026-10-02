@@ -30,10 +30,9 @@ Future<void> main() async {
   final db = AppDatabase();
   NotificationService.instance.attachDatabase(db);
 
-  // Establish a real local account before the first frame. Account-scoped
-  // writes must never be allowed to observe the sentinel account id 0.
-  await db.localAccountDao.ensureOfflineAccount();
-
+  // Run the app immediately — no awaits before runApp so Flutter draws its
+  // first frame (the splash screen) as fast as possible. Account setup and
+  // all other heavy init runs in the background via _finishStartup.
   runApp(
     ProviderScope(
       overrides: [databaseProvider.overrideWithValue(db)],
@@ -55,6 +54,11 @@ Future<void> main() async {
 }
 
 Future<void> _finishStartup(AppDatabase db) async {
+  // Establish a real local account before any account-scoped work.
+  // Moved here from main() so runApp() is never blocked — the splash screen
+  // draws immediately while this runs in the background.
+  await db.localAccountDao.ensureOfflineAccount();
+
   await SupabaseBootstrap.initialize();
 
   // Initialise notifications before anything else.
