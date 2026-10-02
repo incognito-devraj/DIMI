@@ -317,12 +317,9 @@ class _NotificationModeTileState extends State<_NotificationModeTile> {
     _mode = NotificationService.instance.isFullScreenModeEnabled();
   }
 
-  Future<void> _choose(bool fullScreen) async {
-    await NotificationService.instance.setNotificationMode(
-      fullScreen
-          ? DimiNotificationMode.fullScreen
-          : DimiNotificationMode.normal,
-    );
+  // Called by the sheet AFTER it has already persisted the mode.
+  // Only update local display state — do NOT call setNotificationMode again.
+  void _onModeSaved(bool fullScreen) {
     if (!mounted) return;
     setState(() => _mode = Future.value(fullScreen));
   }
@@ -350,7 +347,7 @@ class _NotificationModeTileState extends State<_NotificationModeTile> {
               backgroundColor: Colors.transparent,
               builder: (_) => NotificationTypeSheet(
                 initialFullScreen: isFS,
-                onSaved: (fs) => _choose(fs),
+                onSaved: _onModeSaved,
               ),
             );
           },
