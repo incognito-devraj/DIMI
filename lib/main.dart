@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -23,6 +24,9 @@ import 'features/youtube_playlist/models/youtube_video.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Lock the app to portrait-up — DIMI is a vertical-only experience.
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
   // Restore the offline-mode preference BEFORE runApp so the router's first
   // redirect decision is already correct — no login flash for returning

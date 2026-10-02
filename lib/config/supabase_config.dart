@@ -109,10 +109,14 @@ abstract final class SupabaseBootstrap {
     await _authForwarder?.cancel();
     _authForwarder = _client!.auth.onAuthStateChange.listen(_authEvents.add);
 
-    // If already authenticated from a previous session, clear offline mode.
+    // If the user has an active Google session, clear offline mode so they
+    // land on Home as a signed-in user, not as an offline user.
+    // Do NOT clear it here if there's no session — that would wipe a valid
+    // "Continue offline" choice made on a previous launch.
     if (_client?.auth.currentSession != null) {
       offlineMode = false;
-      await clearOfflineMode();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kOfflineModeKey);
     }
   }
 
