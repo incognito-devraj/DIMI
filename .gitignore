@@ -25,7 +25,20 @@ migrate_working_dir/
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
 # is commented out by default.
-#.vscode/
+.vscode/
+
+# Kiro IDE agent files (specs, steering, hooks — local to the dev machine)
+.kiro/
+
+# Kiro workflow agent task output (generated per-run, never committed)
+.agents/
+
+# Flutter DevTools config
+devtools_options.yaml
+
+# Scratch / analysis output files at repo root
+analyze_output.txt
+/*.png
 
 # Flutter/Dart/Pub related
 **/doc/api/
