@@ -1,6 +1,7 @@
 # DIMI — Plan · Track · Improve
 
 A local-first student productivity app for Android.  
+**Platform: Android (arm64)**  
 Manage your tasks, classes, study sessions, notes, expenses, reminders, and documents — all in one place, all offline.
 
 **Created by [incognito-devraj](https://github.com/incognito-devraj)**
