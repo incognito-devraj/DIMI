@@ -1,7 +1,7 @@
 # DIMI Style Guide (extracted from mockups)
 
 These are approximate values read off the design — treat as the starting
-point, adjust by eye against `assets/screens/*.png` while building.
+point, adjust by eye against reference screenshots in `docs/screenshots/` while building.
 
 ## Colors
 | Token | Hex | Usage |

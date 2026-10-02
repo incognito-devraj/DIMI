@@ -54,3 +54,11 @@ Google sign-in is optional and uses Supabase for authentication only.
 ## License
 
 [MIT](LICENSE) © 2026 incognito-devraj
+
+---
+
+## For developers
+
+- **Build guide:** [`docs/BUILD_RELEASE.md`](docs/BUILD_RELEASE.md)
+- **Database schema:** [`supabase/remote_schema.sql`](supabase/remote_schema.sql)
+- **Design tokens:** [`docs/design/style-guide.md`](docs/design/style-guide.md)
