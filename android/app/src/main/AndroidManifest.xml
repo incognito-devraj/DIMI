@@ -19,7 +19,7 @@
     <application
         android:label="DIMI"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@drawable/dimi_app_logo">
 
         <activity
             android:name=".MainActivity"
