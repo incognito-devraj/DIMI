@@ -9,6 +9,12 @@ import '../screens/money/money_screen.dart';
 import '../screens/reminders/reminders_screen.dart';
 import '../screens/reminders/dimi_reminder_screen.dart';
 import '../screens/settings/settings_screen.dart';
+import '../screens/settings/update_screen.dart';
+import '../screens/settings/help_support_screen.dart';
+import '../screens/settings/feedback_screen.dart';
+import '../screens/settings/privacy_policy_screen.dart';
+import '../screens/settings/terms_screen.dart';
+import '../screens/settings/about_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../widgets/app_scaffold.dart';
 import '../core/motion/dimi_motion.dart';
@@ -34,6 +40,12 @@ abstract class AppRoutes {
   static const legacyMoney = '/money';
   static const reminders = '/reminders';
   static const settings = '/settings';
+  static const updates = '/settings/updates';
+  static const helpSupport = '/settings/help';
+  static const feedback = '/settings/feedback';
+  static const privacyPolicy = '/settings/privacy';
+  static const terms = '/settings/terms';
+  static const about = '/settings/about';
   static const fullScreenReminder = '/notification-reminder';
   static const profile = '/profile';
   static const playlistDetails = '/youtube-playlist';
@@ -198,6 +210,32 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.settings,
       pageBuilder: (ctx, state) => _slide(state, const SettingsScreen()),
+    ),
+
+    // ── Settings sub-screens ──────────────────────────────────────────────
+    GoRoute(
+      path: AppRoutes.updates,
+      pageBuilder: (ctx, state) => _slide(state, const UpdateScreen()),
+    ),
+    GoRoute(
+      path: AppRoutes.helpSupport,
+      pageBuilder: (ctx, state) => _slide(state, const HelpSupportScreen()),
+    ),
+    GoRoute(
+      path: AppRoutes.feedback,
+      pageBuilder: (ctx, state) => _slide(state, const FeedbackScreen()),
+    ),
+    GoRoute(
+      path: AppRoutes.privacyPolicy,
+      pageBuilder: (ctx, state) => _slide(state, const PrivacyPolicyScreen()),
+    ),
+    GoRoute(
+      path: AppRoutes.terms,
+      pageBuilder: (ctx, state) => _slide(state, const TermsScreen()),
+    ),
+    GoRoute(
+      path: AppRoutes.about,
+      pageBuilder: (ctx, state) => _slide(state, const AboutScreen()),
     ),
 
     GoRoute(
