@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseAuthRefreshNotifier extends ChangeNotifier {
@@ -48,9 +49,33 @@ abstract final class SupabaseBootstrap {
       StreamController<AuthState>.broadcast();
   static StreamSubscription<AuthState>? _authForwarder;
 
-  /// Retained for compatibility with existing callers; it is not an auth
-  /// state and must not be used to enter protected routes.
+  // ── Offline mode ──────────────────────────────────────────────────────────
+  // In-memory flag (used by the router during the session).
   static bool offlineMode = false;
+
+  // SharedPreferences key for persisting the offline choice across launches.
+  static const _kOfflineModeKey = 'dimi_offline_mode';
+
+  /// Call once during startup (before runApp) to restore the persisted choice.
+  static Future<void> loadOfflineMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    offlineMode = prefs.getBool(_kOfflineModeKey) ?? false;
+  }
+
+  /// Persist "Continue offline" so the choice survives app restarts.
+  static Future<void> persistOfflineMode() async {
+    offlineMode = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kOfflineModeKey, true);
+  }
+
+  /// Clear the persisted choice on sign-out or when the user signs in.
+  static Future<void> clearOfflineMode() async {
+    offlineMode = false;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kOfflineModeKey);
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   static SupabaseClient? get client => _client;
 
@@ -87,6 +112,7 @@ abstract final class SupabaseBootstrap {
     // If already authenticated from a previous session, clear offline mode.
     if (_client?.auth.currentSession != null) {
       offlineMode = false;
+      await clearOfflineMode();
     }
   }
 

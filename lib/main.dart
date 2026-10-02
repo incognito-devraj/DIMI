@@ -24,6 +24,11 @@ import 'features/youtube_playlist/models/youtube_video.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Restore the offline-mode preference BEFORE runApp so the router's first
+  // redirect decision is already correct — no login flash for returning
+  // offline users.
+  await SupabaseBootstrap.loadOfflineMode();
+
   // Create and expose the local database before the first frame. All other
   // startup work continues in the background so Android never shows a blank
   // window while Supabase, notifications, sync, and rescheduling initialize.
