@@ -16,100 +16,103 @@ void main() {
     await db.close();
   });
 
-  test('remote task and finance rows hydrate Drift and notify streams', () async {
-    SharedPreferences.setMockInitialValues({});
-    final db = AppDatabase.forTesting(NativeDatabase.memory());
-    await db.localAccountDao.ensureOfflineAccount();
-    final accountId = db.activeAccountId;
-    final changedTask = db.taskDao.watchAllTodos().skip(1).first;
-    final changedFinance = db.moneyDao.watchAllTransactions().skip(1).first;
+  test(
+    'remote task and finance rows hydrate Drift and notify streams',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+      await db.localAccountDao.ensureOfflineAccount();
+      final accountId = db.activeAccountId;
+      final changedTask = db.taskDao.watchAllTodos().skip(1).first;
+      final changedFinance = db.moneyDao.watchAllTransactions().skip(1).first;
 
-    final now = '2026-01-01T00:00:00.000Z';
-    final service = SyncService(
-      db,
-      _remote: _HydrationRemote({
-        'dim_tasks': [
-          {
-            'id': 'remote-task-1',
-            'user_id': 'user-1',
-            'title': 'Hydrated task',
-            'description': null,
-            'category': 'Personal',
-            'is_planner_entry': false,
-            'local_date': '2026-01-02',
-            'due_time_hhmm': null,
-            'is_completed': false,
-            'completed_at': null,
-            'created_at': now,
-            'updated_at': now,
-            'deleted_at': null,
-          },
-        ],
-        'dim_money_transactions': [
-          {
-            'id': 'remote-money-1',
-            'user_id': 'user-1',
-            'type': 'expense',
-            'amount_minor': 2500,
-            'currency': 'INR',
-            'category': 'Food',
-            'note': null,
-            'counterparty': null,
-            'occurred_on': '2026-01-01',
-            'source': 'manual',
-            'created_at': now,
-            'updated_at': now,
-            'deleted_at': null,
-          },
-        ],
-        'dim_reminders': [
-          {
-            'id': 'remote-reminder-1',
-            'user_id': 'user-1',
-            'task_id': null,
-            'title': 'Remote reminder one',
-            'due_at': now,
-            'is_enabled': true,
-            'created_at': now,
-            'updated_at': now,
-            'deleted_at': null,
-          },
-          {
-            'id': 'remote-reminder-2',
-            'user_id': 'user-1',
-            'task_id': null,
-            'title': 'Remote reminder two',
-            'due_at': now,
-            'is_enabled': true,
-            'created_at': now,
-            'updated_at': now,
-            'deleted_at': null,
-          },
-        ],
-      }),
-      preferences: await SharedPreferences.getInstance(),
-      testContext: (
-        localAccountId: accountId,
-        authUserId: 'user-1',
-        generation: 0,
-      ),
-    );
+      final now = '2026-01-01T00:00:00.000Z';
+      final service = SyncService(
+        db,
+        remote: _HydrationRemote({
+          'dim_tasks': [
+            {
+              'id': 'remote-task-1',
+              'user_id': 'user-1',
+              'title': 'Hydrated task',
+              'description': null,
+              'category': 'Personal',
+              'is_planner_entry': false,
+              'local_date': '2026-01-02',
+              'due_time_hhmm': null,
+              'is_completed': false,
+              'completed_at': null,
+              'created_at': now,
+              'updated_at': now,
+              'deleted_at': null,
+            },
+          ],
+          'dim_money_transactions': [
+            {
+              'id': 'remote-money-1',
+              'user_id': 'user-1',
+              'type': 'expense',
+              'amount_minor': 2500,
+              'currency': 'INR',
+              'category': 'Food',
+              'note': null,
+              'counterparty': null,
+              'occurred_on': '2026-01-01',
+              'source': 'manual',
+              'created_at': now,
+              'updated_at': now,
+              'deleted_at': null,
+            },
+          ],
+          'dim_reminders': [
+            {
+              'id': 'remote-reminder-1',
+              'user_id': 'user-1',
+              'task_id': null,
+              'title': 'Remote reminder one',
+              'due_at': now,
+              'is_enabled': true,
+              'created_at': now,
+              'updated_at': now,
+              'deleted_at': null,
+            },
+            {
+              'id': 'remote-reminder-2',
+              'user_id': 'user-1',
+              'task_id': null,
+              'title': 'Remote reminder two',
+              'due_at': now,
+              'is_enabled': true,
+              'created_at': now,
+              'updated_at': now,
+              'deleted_at': null,
+            },
+          ],
+        }),
+        preferences: await SharedPreferences.getInstance(),
+        testContext: (
+          localAccountId: accountId,
+          authUserId: 'user-1',
+          generation: 0,
+        ),
+      );
 
-    await service.syncNow();
+      await service.syncNow();
 
-    expect((await changedTask).single.title, 'Hydrated task');
-    expect((await changedFinance).single.amount, 2500);
-    expect(await db.select(db.reminders).get(), hasLength(2));
-    expect(
-      (await db.taskDao.watchAllTodos().first).single.localAccountId,
-      accountId,
-    );
-    expect(
-      (await db.moneyDao.watchAllTransactions().first).single.localAccountId,
-      accountId,
-    );
-    await db.close();
-  });
+      expect((await changedTask).single.title, 'Hydrated task');
+      expect((await changedFinance).single.amount, 2500);
+      expect(await db.select(db.reminders).get(), hasLength(2));
+      expect(
+        (await db.taskDao.watchAllTodos().first).single.localAccountId,
+        accountId,
+      );
+      expect(
+        (await db.moneyDao.watchAllTransactions().first).single.localAccountId,
+        accountId,
+      );
+      await db.close();
+    },
+  );
 }
 
 class _HydrationRemote implements SyncRemoteApi {
@@ -125,8 +128,7 @@ class _HydrationRemote implements SyncRemoteApi {
   Future<Map<String, dynamic>> insertRow(
     String table,
     Map<String, dynamic> payload,
-  ) async =>
-      throw UnimplementedError();
+  ) async => throw UnimplementedError();
 
   @override
   Future<Map<String, dynamic>?> updateRow(
@@ -134,14 +136,12 @@ class _HydrationRemote implements SyncRemoteApi {
     String serverId,
     DateTime expectedUpdatedAt,
     Map<String, dynamic> payload,
-  ) async =>
-      throw UnimplementedError();
+  ) async => throw UnimplementedError();
 
   @override
   Future<List<Map<String, dynamic>>> pullRows(
     String table,
     String userId,
     DateTime? after,
-  ) async =>
-      rowsByTable[table] ?? const [];
+  ) async => rowsByTable[table] ?? const [];
 }
