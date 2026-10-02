@@ -272,7 +272,7 @@ class _SplashContent extends StatelessWidget {
                 child: const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 32),
                   child: Text(
-                    'Digital Interface For Monitoring and Improvement',
+                    'Digital Interface for Monitoring and Improvement',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: 'Poppins',

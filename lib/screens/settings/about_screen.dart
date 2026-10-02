@@ -96,7 +96,7 @@ class _AboutScreenState extends State<AboutScreen> {
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        'Digital Interface For Monitoring and Improvement',
+                        'Digital Interface for Monitoring and Improvement',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontFamily: 'Inter',
@@ -171,33 +171,12 @@ class _AboutScreenState extends State<AboutScreen> {
                       ),
                     ],
                   ),
-                  child: Column(
-                    children: [
-                      _AboutTile(
-                        icon: Icons.code_rounded,
-                        iconColor: AppColors.textSecondary,
-                        label: 'View on GitHub',
-                        subtitle: 'Source code and releases',
-                        onTap: () =>
-                            _launch(Uri.parse(AppConfig.githubRepoUrl)),
-                      ),
-                      const Divider(
-                        height: 1,
-                        indent: 54,
-                        color: AppColors.divider,
-                      ),
-                      _AboutTile(
-                        icon: Icons.article_outlined,
-                        iconColor: AppColors.textSecondary,
-                        label: 'Open Source Licences',
-                        subtitle: 'Third-party libraries used by DIMI',
-                        onTap: () => showLicensePage(
-                          context: context,
-                          applicationName: 'DIMI',
-                          applicationVersion: _version,
-                        ),
-                      ),
-                    ],
+                  child: _AboutTile(
+                    icon: Icons.code_rounded,
+                    iconColor: AppColors.textSecondary,
+                    label: 'View on GitHub',
+                    subtitle: 'Source code and releases',
+                    onTap: () => _launch(Uri.parse(AppConfig.githubRepoUrl)),
                   ),
                 ),
               ),
