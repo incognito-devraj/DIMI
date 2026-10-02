@@ -24,9 +24,16 @@ class ProfileScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: profileAsync.when(
-          data: (profile) => profile == null
-              ? const _NoProfileState()
-              : _ProfileBody(profile: profile),
+          data: (profile) {
+            // Show the sign-in card when the user is in offline mode,
+            // regardless of whether a local profile row exists.
+            if (SupabaseBootstrap.offlineMode) {
+              return const _NoProfileState();
+            }
+            return profile == null
+                ? const _NoProfileState()
+                : _ProfileBody(profile: profile);
+          },
           loading: () => const Center(
             child: CircularProgressIndicator(color: AppColors.accent),
           ),
