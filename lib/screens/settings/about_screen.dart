@@ -15,7 +15,7 @@ class AboutScreen extends StatefulWidget {
 }
 
 class _AboutScreenState extends State<AboutScreen> {
-  String _version = 'v1.0.0';
+  String _version = '';
 
   @override
   void initState() {
@@ -63,8 +63,7 @@ class _AboutScreenState extends State<AboutScreen> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: AppColors.surface,
-                    borderRadius:
-                        BorderRadius.circular(AppSpacing.cardRadius),
+                    borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
                     border: Border.all(color: AppColors.divider),
                     boxShadow: const [
                       BoxShadow(
@@ -107,7 +106,7 @@ class _AboutScreenState extends State<AboutScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        _version,
+                        _version.isEmpty ? '...' : _version,
                         style: const TextStyle(
                           fontFamily: 'Inter',
                           fontSize: 14,
@@ -162,8 +161,7 @@ class _AboutScreenState extends State<AboutScreen> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: AppColors.surface,
-                    borderRadius:
-                        BorderRadius.circular(AppSpacing.cardRadius),
+                    borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
                     border: Border.all(color: AppColors.divider),
                     boxShadow: const [
                       BoxShadow(
