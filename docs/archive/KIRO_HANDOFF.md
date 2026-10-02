@@ -46,7 +46,7 @@ assets/
    plausible-looking mess.
 7. **At the start of each screen-building task**, explicitly point Kiro at
    its reference image, e.g.: *"Build the Tasks screen per
-   assets/screens/tasks.png and requirements.md section 4."* Kiro can read
+   `docs/screenshots/<name>.png` and requirements.md section 4."* Kiro can read
    image files directly — give it the path.
 8. **After each phase**, run the app (`flutter run`) yourself and actually
    look at it next to the matching PNG before telling Kiro to continue.
@@ -58,7 +58,7 @@ assets/
 
 ## If you get stuck
 - If a screen comes out visually wrong, don't describe the fix in words —
-  say *"compare your output to assets/screens/<name>.png and fix the
+  say *"compare your output to `docs/screenshots/<name>.png` and fix the
   differences"*. Agents are much more accurate correcting against an image
   than against a text description of what's wrong.
 - If Kiro suggests a different package or architecture than `tech.md`
