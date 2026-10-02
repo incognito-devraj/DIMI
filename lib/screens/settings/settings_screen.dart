@@ -404,8 +404,9 @@ class _AccountSectionState extends State<_AccountSection> {
 
     setState(() => _loggingOut = true);
 
-    // Clear offline mode flag regardless of auth method.
-    SupabaseBootstrap.offlineMode = false;
+    // Clear offline mode flag and its persisted preference regardless of
+    // auth method, so the next launch shows the login screen.
+    await SupabaseBootstrap.clearOfflineMode();
 
     // Sign out from Supabase if an active session exists.
     if (SupabaseBootstrap.client?.auth.currentSession != null) {

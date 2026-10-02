@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../config/supabase_config.dart';
 import '../../routing/app_router.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/dimi_blob_background.dart';
@@ -128,7 +129,14 @@ class _SplashScreenState extends State<SplashScreen>
 
   void _onSeqStatus(AnimationStatus status) {
     if (status == AnimationStatus.completed && mounted) {
-      context.go(AppRoutes.login);
+      // If the user already has a session or previously chose offline mode,
+      // skip the login screen entirely — no login flash on relaunch.
+      final hasSession = SupabaseBootstrap.client?.auth.currentSession != null;
+      if (hasSession || SupabaseBootstrap.offlineMode) {
+        context.go(AppRoutes.home);
+      } else {
+        context.go(AppRoutes.login);
+      }
     }
   }
 
@@ -147,7 +155,14 @@ class _SplashScreenState extends State<SplashScreen>
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     if (reducedMotion && !_seq.isAnimating) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) context.go(AppRoutes.login);
+        if (!mounted) return;
+        final hasSession =
+            SupabaseBootstrap.client?.auth.currentSession != null;
+        if (hasSession || SupabaseBootstrap.offlineMode) {
+          context.go(AppRoutes.home);
+        } else {
+          context.go(AppRoutes.login);
+        }
       });
     }
 

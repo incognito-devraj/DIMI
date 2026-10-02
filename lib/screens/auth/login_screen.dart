@@ -79,7 +79,9 @@ class _DimiWelcomeScreenState extends State<DimiWelcomeScreen>
       _error = null;
     });
     try {
-      SupabaseBootstrap.offlineMode = false;
+      // Clear any previously persisted offline choice when the user explicitly
+      // chooses to sign in with Google.
+      await SupabaseBootstrap.clearOfflineMode();
       await AuthService.instance.signInWithGoogle();
       if (mounted) setState(() => _awaitingOAuthReturn = true);
     } catch (_) {
@@ -92,8 +94,9 @@ class _DimiWelcomeScreenState extends State<DimiWelcomeScreen>
     }
   }
 
-  void _handleOffline() {
-    SupabaseBootstrap.offlineMode = true;
+  Future<void> _handleOffline() async {
+    // Persist the choice so the app goes straight to Home on next launch.
+    await SupabaseBootstrap.persistOfflineMode();
     if (mounted) context.go(AppRoutes.home);
   }
 
@@ -436,7 +439,7 @@ class _ButtonsArea extends StatelessWidget {
   final bool loading;
   final String? error;
   final Future<void> Function() onGoogle;
-  final VoidCallback onOffline;
+  final Future<void> Function() onOffline;
 
   @override
   Widget build(BuildContext context) {
@@ -765,7 +768,7 @@ class AuthenticationActions extends StatelessWidget {
   final bool loading;
   final String? error;
   final Future<void> Function() onGoogle;
-  final VoidCallback onOffline;
+  final Future<void> Function() onOffline;
 
   @override
   Widget build(BuildContext context) => const SizedBox.shrink();
