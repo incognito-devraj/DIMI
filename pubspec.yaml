@@ -1,5 +1,7 @@
 name: dimi_app
-description: "DIMI — Plan · Track · Improve. A local-first student productivity app."
+description: "DIMI, created by incognito-devraj"
+homepage: https://github.com/incognito-devraj/DIMI
+repository: https://github.com/incognito-devraj/DIMI
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -42,6 +44,8 @@ dependencies:
   flutter_local_notifications: ^18.0.1
   timezone: ^0.9.4
   url_launcher: ^6.3.2
+  http: ^1.2.2
+  package_info_plus: ^8.3.0
 
   # Icons
   lucide_flutter: ^1.0.0
