@@ -145,14 +145,7 @@ class SettingsScreen extends ConsumerWidget {
 
             const SliverToBoxAdapter(child: SizedBox(height: 5)),
             _SectionHeader(title: 'Notifications'),
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenHorizontal,
-                ),
-                child: _NotificationModeTile(),
-              ),
-            ),
+            _SectionCard(items: [const _NotificationModeTile()]),
             const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
             // ── Data & Sync ───────────────────────────────────────────────
