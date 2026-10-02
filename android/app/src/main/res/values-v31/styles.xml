@@ -17,7 +17,7 @@
         <!-- Use the DIMI logo as the Android 12 splash screen icon.
              android:windowSplashScreenAnimatedIcon is the correct attribute.
              If the mipmap/ic_launcher is not the right asset, change this. -->
-        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/dimi_app_logo</item>
     </style>
 
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
