@@ -13,8 +13,6 @@ dependencies:
   flutter:
     sdk: flutter
 
-  cupertino_icons: ^1.0.8
-
   # Local database
   drift: ^2.23.1
   sqlite3_flutter_libs: ^0.5.28
@@ -66,7 +64,6 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/profile/devraj.png
     - assets/google_g_logo.svg
     - assets/Greeting/
     - assets/illustrations/

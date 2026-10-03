@@ -42,8 +42,9 @@ class _AddYouTubePlaylistSheetState
       final playlist = await ref
           .read(youtubePlaylistRepositoryProvider)
           .fetchPlaylist(_controller.text);
-      if (playlist.videos.isEmpty)
+      if (playlist.videos.isEmpty) {
         throw const YouTubePlaylistException('empty');
+      }
       final now = DateTime.now();
       final userId = AuthService.instance.currentUser?.id ?? 'local';
       final dao = ref.read(databaseProvider).youtubePlaylistDao;
@@ -55,7 +56,7 @@ class _AddYouTubePlaylistSheetState
       context.pop();
       context.push(AppRoutes.playlistDetails, extra: playlist);
     } on YouTubePlaylistException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _error = switch (e.message) {
@@ -70,12 +71,14 @@ class _AddYouTubePlaylistSheetState
             _ => 'Something went wrong. Please try again.',
           };
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _error = 'Something went wrong. Please try again.';
         });
+      }
     } finally {
       _requestInFlight = false;
     }

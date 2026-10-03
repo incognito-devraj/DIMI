@@ -127,7 +127,7 @@ void main() {
         title: 'Planner event $index',
         category: 'Study',
         dueDate: eventDate,
-        dueTime: Value('0${index}:00'),
+        dueTime: Value('0$index:00'),
         isPlannerEntry: const Value(true),
         createdAt: DateTime(2026, 9, 20, 9 + index),
       )));

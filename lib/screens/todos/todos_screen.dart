@@ -693,8 +693,9 @@ Future<void> _showNoteViewer(
                           );
                           if (!confirmed) return;
                           await ref.read(noteDaoProvider).deleteNote(note.id);
-                          if (dialogContext.mounted)
+                          if (dialogContext.mounted) {
                             Navigator.pop(dialogContext);
+                          }
                         },
                         child: const Text('Delete'),
                       ),
@@ -803,8 +804,9 @@ class _NoteEditorSheetState extends State<_NoteEditorSheet> {
     if (!mounted) return;
     setState(() => _saved = true);
     await Future<void>.delayed(const Duration(milliseconds: 500));
-    if (mounted && (ModalRoute.of(context)?.isCurrent ?? false))
+    if (mounted && (ModalRoute.of(context)?.isCurrent ?? false)) {
       Navigator.of(context).pop(true);
+    }
   }
 
   @override

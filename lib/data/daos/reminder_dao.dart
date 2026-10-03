@@ -163,7 +163,9 @@ class ReminderDao extends DatabaseAccessor<AppDatabase>
       }
       for (final row in invalid) {
         var replacement = row.id;
-        while (used.contains(replacement)) replacement++;
+        while (used.contains(replacement)) {
+          replacement++;
+        }
         used.add(replacement);
         await (update(reminders)..where((r) => r.id.equals(row.id))).write(
           RemindersCompanion(notificationId: Value(replacement)),
@@ -210,7 +212,7 @@ class ReminderDao extends DatabaseAccessor<AppDatabase>
           ),
         );
     final updated = await getById(reminder.id);
-    if (updated != null)
+    if (updated != null) {
       await db.syncOutboxDao.enqueue(
         localAccountId: db.activeAccountId,
         entityType: OutboxEntity.reminder,
@@ -221,6 +223,7 @@ class ReminderDao extends DatabaseAccessor<AppDatabase>
         localMutationAt: updated.updatedAt,
         dependencyRank: OutboxDependencyRank.reminder,
       );
+    }
     return updated;
   }
 
@@ -348,7 +351,7 @@ class ReminderDao extends DatabaseAccessor<AppDatabase>
                 updatedAt: Value(DateTime.now()),
               ),
             );
-    if (changed > 0)
+    if (changed > 0) {
       await db.syncOutboxDao.enqueue(
         localAccountId: db.activeAccountId,
         entityType: OutboxEntity.reminder,
@@ -359,6 +362,7 @@ class ReminderDao extends DatabaseAccessor<AppDatabase>
         localMutationAt: DateTime.now(),
         dependencyRank: OutboxDependencyRank.reminder,
       );
+    }
     return changed;
   }
 

@@ -23,7 +23,7 @@ Future<void> showAddReminderSheet(BuildContext context) async {
     transitionDuration: const Duration(milliseconds: 250),
     pageBuilder: (_, _, _) =>
         _FixedReminderDialog(child: const _AddReminderSheet()),
-    transitionBuilder: (_, animation, __, child) {
+    transitionBuilder: (_, animation, _, child) {
       final curvedAnimation = CurvedAnimation(
         parent: animation,
         curve: Curves.easeOutCubic,
@@ -61,7 +61,7 @@ Future<void> showEditReminderSheet(
     transitionDuration: const Duration(milliseconds: 250),
     pageBuilder: (_, _, _) =>
         _FixedReminderDialog(child: _AddReminderSheet(existing: reminder)),
-    transitionBuilder: (_, animation, __, child) {
+    transitionBuilder: (_, animation, _, child) {
       final curvedAnimation = CurvedAnimation(
         parent: animation,
         curve: Curves.easeOutCubic,
