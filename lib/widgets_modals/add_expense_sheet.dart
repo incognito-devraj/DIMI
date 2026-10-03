@@ -18,7 +18,7 @@ Future<void> showAddExpenseSheet(BuildContext context) async {
     transitionDuration: const Duration(milliseconds: 250),
     pageBuilder: (_, _, _) =>
         const DimiFixedDialog(height: 410, child: _AddExpenseSheet()),
-    transitionBuilder: (_, animation, __, child) {
+    transitionBuilder: (_, animation, _, child) {
       final curvedAnimation = CurvedAnimation(
         parent: animation,
         curve: Curves.easeOutCubic,

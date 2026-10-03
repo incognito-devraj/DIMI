@@ -44,7 +44,7 @@ class PlaylistDetailsScreen extends ConsumerWidget {
         videos: playlist.videos,
         initialFilter: initialFilter,
       ),
-      error: (_, __) =>
+      error: (_, _) =>
           _PlaylistPage(
             playlist: playlist,
             videos: playlist.videos,
@@ -74,7 +74,7 @@ final _videosProvider =
                   .map((items) => items.map(_toVideo).toList());
             },
             loading: () => Stream.value(playlist.videos),
-            error: (_, __) => Stream.value(playlist.videos),
+            error: (_, _) => Stream.value(playlist.videos),
           );
     });
 
@@ -1205,7 +1205,7 @@ class _PlaylistReminderSectionState
       onSaved(id);
     }
 
-    final reminder = reminderId == null ? null : await dao.getById(reminderId!);
+    final reminder = reminderId == null ? null : await dao.getById(reminderId);
     if (reminder == null) return;
     if (!enabled) {
       await NotificationService.instance.cancelReminder(reminder.notificationId);

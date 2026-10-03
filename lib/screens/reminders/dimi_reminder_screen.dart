@@ -11,7 +11,6 @@ import '../../data/database.dart';
 import '../../providers/database_provider.dart';
 import '../../services/notification_service.dart';
 import '../../services/sync_service.dart';
-import '../../theme/app_theme.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DimiReminderScreen
@@ -150,11 +149,12 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen>
         if (mounted) _closeActivity();
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _busy = false;
           _feedback = 'Could not mark done.';
         });
+      }
     }
   }
 
@@ -190,11 +190,12 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen>
         if (mounted) _closeActivity();
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _busy = false;
           _feedback = 'Could not snooze.';
         });
+      }
     }
   }
 
@@ -432,7 +433,7 @@ class _DimiLogoLabel extends StatelessWidget {
               height: 56,
               fit: BoxFit.contain,
               // Graceful fallback if asset is missing
-              errorBuilder: (_, __, ___) => const Icon(
+              errorBuilder: (_, _, _) => const Icon(
                 Icons.notifications_active_rounded,
                 color: Color(0xFFF5A623),
                 size: 28,

@@ -455,7 +455,7 @@ class _ProfileAvatar extends StatelessWidget {
       ),
       child: ClipOval(
         child: hasAvatar
-            ? Image.network(avatarUrl!, fit: BoxFit.cover)
+            ? Image.network(avatarUrl, fit: BoxFit.cover)
             : Container(
                 color: AppColors.accent,
                 alignment: Alignment.center,
@@ -1249,7 +1249,7 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                     const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
-                      value: _educationType,
+                      initialValue: _educationType,
                       decoration: InputDecoration(
                         labelText: 'Education',
                         prefixIcon: const Icon(Icons.school_outlined, size: 20),
@@ -1284,8 +1284,9 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                         ),
                       ],
                       onChanged: (value) {
-                        if (value != null)
+                        if (value != null) {
                           setState(() => _educationType = value);
+                        }
                       },
                     ),
 
@@ -1356,11 +1357,10 @@ class _Field extends StatelessWidget {
     this.hint = '',
     this.keyboard = TextInputType.text,
     this.caps = TextCapitalization.none,
-    this.maxLines = 1,
     this.readOnly = false,
     this.suffixIcon,
     this.validator,
-  });
+  }) : maxLines = 1;
 
   final String label;
   final TextEditingController controller;

@@ -956,52 +956,6 @@ class _PlaylistPageItemState
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Thumbnail fallback widget
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ThumbnailImage extends StatelessWidget {
-  const _ThumbnailImage({
-    required this.url,
-  });
-
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    if (url.startsWith('http')) {
-      return Image.network(
-        url,
-        fit: BoxFit.cover,
-        alignment: Alignment.centerRight,
-        errorBuilder: (
-          context,
-          error,
-          stackTrace,
-        ) {
-          return _placeholder();
-        },
-      );
-    }
-
-    return _placeholder();
-  }
-
-  Widget _placeholder() {
-    return Container(
-      color: const Color(0xFF1E3F6A),
-
-      child: const Center(
-        child: Icon(
-          Icons.play_circle_outline_rounded,
-          color: Colors.white54,
-          size: 28,
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Pagination dots
 // ─────────────────────────────────────────────────────────────────────────────
 

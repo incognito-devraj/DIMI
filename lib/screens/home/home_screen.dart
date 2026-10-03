@@ -921,7 +921,7 @@ class _GreetingHero extends StatelessWidget {
                       backgroundColor: AppColors.surfaceDark,
                       backgroundImage: avatarUrl == null
                           ? null
-                          : NetworkImage(avatarUrl!),
+                          : NetworkImage(avatarUrl),
                       child: Text(
                         avatarUrl == null ? initials : '',
                         style: const TextStyle(
@@ -1186,7 +1186,7 @@ Future<void> _showHomeQuickTaskComposer(
     barrierLabel: 'Add a new task',
     barrierColor: Colors.transparent,
     transitionDuration: const Duration(milliseconds: 70),
-    pageBuilder: (_, __, ___) => _HomeQuickTaskComposer(ref: ref),
+    pageBuilder: (_, _, _) => _HomeQuickTaskComposer(ref: ref),
     transitionBuilder: (context, animation, secondaryAnimation, child) {
       final curved = CurvedAnimation(
         parent: animation,
@@ -1900,7 +1900,7 @@ class _PlannerPreviewCard extends StatelessWidget {
 }
 
 class _BalanceCard extends StatelessWidget {
-  const _BalanceCard({required this.transactions, this.compact = false});
+  const _BalanceCard({required this.transactions}) : compact = false;
   final List<MoneyTransaction> transactions;
   final bool compact;
 
@@ -2059,7 +2059,7 @@ class _BalanceMetric extends StatelessWidget {
 }
 
 class _SpendingCard extends StatelessWidget {
-  const _SpendingCard({required this.transactions, this.compact = false});
+  const _SpendingCard({required this.transactions}) : compact = false;
   final List<MoneyTransaction> transactions;
   final bool compact;
 

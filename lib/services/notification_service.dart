@@ -18,9 +18,10 @@ import '../data/database.dart';
 
 // ─── Notification icon ───────────────────────────────────────────────────────
 // Small status-bar icon must be a monochrome (white/transparent) PNG.
-// We reference the drawable we copied from assets/logos/notification.png.
-// If that drawable is not yet a valid monochrome asset, Android silently
-// replaces it — this constant makes it easy to change in one place.
+// We reference the native drawable copied from the monochrome Android resource.
+// The full-colour artwork is intentionally separate; Android masks/tints the
+// small icon and cannot use a normal colour logo in this slot.
+// Use the requested monochrome notification drawable for item 1.
 const _kNotifIcon = 'dimi_small_status_icon';
 const _thumbnailCacheVersion = 2;
 
@@ -980,7 +981,7 @@ class NotificationService {
       AndroidNotificationAction(
         _Action.markDone,
         'Mark Done',
-        titleColor: const Color(0xFF1B1B1B),
+        titleColor: Color(0xFF1B1B1B),
         // Run completion in the main app isolate so the live Drift streams
         // emit immediately and Planner updates without waiting for sync.
         showsUserInterface: true,
@@ -989,7 +990,7 @@ class NotificationService {
       AndroidNotificationAction(
         _Action.snooze,
         'Snooze 5 min',
-        titleColor: const Color(0xFF1B1B1B),
+        titleColor: Color(0xFF1B1B1B),
         showsUserInterface: false,
       ),
     ];
@@ -1017,14 +1018,16 @@ class NotificationService {
             UILocalNotificationDateInterpretation.absoluteTime,
         payload: payload,
       );
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
           '[NotificationService] scheduled #$id "$title" at $scheduled',
         );
+      }
     } catch (e, st) {
       // Never let a notification failure block the UI or DB write.
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint('[NotificationService] schedule failed #$id: $e\n$st');
+      }
     }
   }
 
@@ -1139,7 +1142,9 @@ class NotificationService {
     }
 
     var top = 0;
-    while (top < image.height ~/ 3 && rowIsBar(top)) top++;
+    while (top < image.height ~/ 3 && rowIsBar(top)) {
+      top++;
+    }
 
     var bottom = image.height - 1;
     while (bottom > image.height * 2 ~/ 3 && rowIsBar(bottom)) {
@@ -1147,7 +1152,9 @@ class NotificationService {
     }
 
     var left = 0;
-    while (left < image.width ~/ 3 && colIsBar(left)) left++;
+    while (left < image.width ~/ 3 && colIsBar(left)) {
+      left++;
+    }
 
     var right = image.width - 1;
     while (right > image.width * 2 ~/ 3 && colIsBar(right)) {
@@ -1245,15 +1252,6 @@ class NotificationService {
     return title;
   }
 
-  String _bigTextForReminder({
-    required DimiNotificationType type,
-    required String title,
-    required String detail,
-  }) => switch (type) {
-    DimiNotificationType.watch => '$detail\n\nTap Mark done when you finish.',
-    DimiNotificationType.todo => '$title\n$detail',
-    _ => '$title\n$detail\n\nDon\'t forget to be on time! ✨',
-  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

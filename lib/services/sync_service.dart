@@ -19,8 +19,8 @@ class SyncService {
     this.db, {
     this._remote,
     this._preferences,
-    ({int localAccountId, String authUserId, int generation})? testContext,
-  }) : _testContext = testContext;
+    this._testContext,
+  });
 
   final AppDatabase db;
   final SyncRemoteApi? _remote;
@@ -129,17 +129,19 @@ class SyncService {
     ({int localAccountId, String authUserId, int generation}) context,
   ) async {
     final spec = _specs[item.entityType];
-    if (spec == null)
+    if (spec == null) {
       throw StateError('Unsupported sync entity ${item.entityType}');
+    }
     final local = await _readLocal(
       spec,
       item.localRowId,
       context.localAccountId,
     );
-    if (local == null)
+    if (local == null) {
       throw StateError(
         'Missing local row ${item.entityType}:${item.localRowId}',
       );
+    }
     // Create-then-delete before the first push: the Drift tombstone is kept
     // for history, but there is no remote identity to delete or create.
     if (item.operation == OutboxOperation.delete &&
@@ -279,8 +281,9 @@ class SyncService {
       for (final remoteRow in rows) {
         _ensureContext(context);
         final version = _date(remoteRow['updated_at']);
-        if (version != null && (newest == null || version.isAfter(newest)))
+        if (version != null && (newest == null || version.isAfter(newest))) {
           newest = version;
+        }
         final serverId = remoteRow['id'] as String?;
         if (serverId == null) continue;
         final remoteVersion = _date(remoteRow['updated_at']);
@@ -367,8 +370,9 @@ class SyncService {
           );
         }
       }
-      if (newest != null)
+      if (newest != null) {
         await prefs.setString(key, newest.toUtc().toIso8601String());
+      }
     }
   }
 
@@ -637,10 +641,12 @@ class SyncService {
       // they will be correct on Supabase after a successful push.
       if (isUpdate && field.preserveOnRemoteApply) continue;
       var value = remote[field.remote];
-      if (field.remote == 'task_id' && value is String)
+      if (field.remote == 'task_id' && value is String) {
         value = await _localId('tasks', value, accountId);
-      if (field.remote == 'playlist_id' && value is String)
+      }
+      if (field.remote == 'playlist_id' && value is String) {
         value = await _localId('youtube_playlists', value, accountId);
+      }
       if (field.dateOnly) {
         // Supabase `date` values are calendar dates, not instants. Parsing
         // them as UTC timestamps makes Planner range queries depend on the
@@ -659,8 +665,9 @@ class SyncService {
     }
     // Only set the ownerColumn value when the table has a direct one.
     if (spec.ownerColumn != null) values[spec.ownerColumn!] = accountId;
-    if (existing.isEmpty && spec.localTable == 'profile_data')
+    if (existing.isEmpty && spec.localTable == 'profile_data') {
       values['local_account_id'] = accountId;
+    }
     if (existing.isEmpty && spec.localTable == 'reminders') {
       // notification_id is intentionally local-only and UNIQUE. Remote rows
       // do not carry it, so allowing Drift's default 0 would make the first
@@ -795,8 +802,9 @@ class SyncService {
       context.generation,
       context.localAccountId,
       db,
-    ))
+    )) {
       throw _ContextChanged();
+    }
   }
 
   void _log(String message) {

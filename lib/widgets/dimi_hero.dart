@@ -62,7 +62,7 @@ class DimiHero extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        if (leading != null) leading!,
+                        ?leading,
                         if (leading != null) const SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -74,7 +74,7 @@ class DimiHero extends StatelessWidget {
                                 ),
                           ),
                         ),
-                        if (trailing != null) trailing!,
+                        ?trailing,
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -192,7 +192,7 @@ class DimiSurface extends StatelessWidget {
 }
 
 class DimiHeroCircleButton extends StatelessWidget {
-  const DimiHeroCircleButton({required this.icon, required this.onTap});
+  const DimiHeroCircleButton({super.key, required this.icon, required this.onTap});
 
   final IconData icon;
   final VoidCallback onTap;

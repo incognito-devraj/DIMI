@@ -25,10 +25,14 @@
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="28"/>
 
+    <!-- The notification header on some Android skins uses the application
+         icon rather than the notification largeIcon. Keep it monochrome
+         so it cannot fall back to Android's default robot icon. -->
     <application
         android:label="DIMI"
         android:name="${applicationName}"
-        android:icon="@drawable/dimi_app_logo">
+        android:icon="@drawable/dimi_app_logo"
+        android:roundIcon="@drawable/dimi_app_logo">
 
         <activity
             android:name=".MainActivity"

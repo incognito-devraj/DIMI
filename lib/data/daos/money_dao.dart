@@ -136,7 +136,7 @@ class MoneyDao extends DatabaseAccessor<AppDatabase> with _$MoneyDaoMixin {
                 updatedAt: Value(DateTime.now()),
               ),
             );
-    if (changed > 0)
+    if (changed > 0) {
       await db.syncOutboxDao.enqueue(
         localAccountId: db.activeAccountId,
         entityType: OutboxEntity.moneyTransaction,
@@ -149,6 +149,7 @@ class MoneyDao extends DatabaseAccessor<AppDatabase> with _$MoneyDaoMixin {
         )..where((t) => t.id.equals(id))).getSingle()).updatedAt,
         dependencyRank: OutboxDependencyRank.moneyTransaction,
       );
+    }
     return changed;
   }
 
