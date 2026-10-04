@@ -18,9 +18,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     tools:keep="@drawable/dimi_small_status_icon,
                 @drawable/dimi_reminder_large,
-                @drawable/dimi_logo,
                 @drawable/dimi_planner,
                 @drawable/dimi_finance,
-                @drawable/dimi_notification,
                 @drawable/dimi_reminder,
                 @drawable/dimi_splash_status_icon" />

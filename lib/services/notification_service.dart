@@ -869,7 +869,6 @@ class NotificationService {
           priority: Priority.defaultPriority,
           icon: _kNotifIcon,
           color: const Color(0xFFF5A623),
-          largeIcon: const DrawableResourceAndroidBitmap('dimi_logo'),
           autoCancel: true,
         ),
       ),
@@ -919,6 +918,7 @@ class NotificationService {
     };
 
     final actions = _actionsFor(type);
+    final largeIconName = _largeIconFor(type);
 
     return AndroidNotificationDetails(
       channelId,
@@ -936,7 +936,9 @@ class NotificationService {
         DimiNotificationType.watch => const Color(0xFF7E57C2),
         _ => const Color(0xFFF5A623),
       },
-      largeIcon: DrawableResourceAndroidBitmap(_largeIconFor(type)),
+      largeIcon: largeIconName == null
+          ? null
+          : DrawableResourceAndroidBitmap(largeIconName),
       sound: soundUri,
       category: AndroidNotificationCategory.reminder,
       fullScreenIntent: fullScreenIntent,
@@ -968,12 +970,15 @@ class NotificationService {
     return value.toRadixString(36);
   }
 
-  String _largeIconFor(DimiNotificationType type) => switch (type) {
+  String? _largeIconFor(DimiNotificationType type) => switch (type) {
     DimiNotificationType.planner => 'dimi_planner',
     DimiNotificationType.finance => 'dimi_finance',
     DimiNotificationType.reminder ||
     DimiNotificationType.todo => 'dimi_reminder_large',
-    DimiNotificationType.playlist || DimiNotificationType.watch => 'dimi_logo',
+    // Playlist/watch notifications have no notification-specific large
+    // illustration. Leave largeIcon unset so Android/OEM can supply the
+    // application's identity icon where supported.
+    DimiNotificationType.playlist || DimiNotificationType.watch => null,
   };
 
   List<AndroidNotificationAction> _actionsFor(DimiNotificationType type) {
