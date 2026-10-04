@@ -36,6 +36,10 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     // ─── Signing ────────────────────────────────────────────────────────────
@@ -60,6 +64,22 @@ android {
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
+            )
+        }
+    }
+
+    applicationVariants.all {
+        outputs.all {
+            (this as com.android.build.gradle.api.ApkVariantOutput).outputFileName = "DIMI.apk"
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            excludes += listOf(
+                "**/armeabi-v7a/**",
+                "**/x86/**",
+                "**/x86_64/**",
             )
         }
     }
