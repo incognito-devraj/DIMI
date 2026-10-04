@@ -8,7 +8,10 @@ abstract final class AppConfig {
   static const String githubRepo = 'DIMI';
   static const String githubReleasesApiUrl =
       'https://api.github.com/repos/incognito-devraj/DIMI/releases/latest';
-  static const String githubRepoUrl = 'https://github.com/incognito-devraj/DIMI';
+  static const String githubLatestApkUrl =
+      'https://github.com/incognito-devraj/DIMI/releases/latest/download/DIMI.apk';
+  static const String githubRepoUrl =
+      'https://github.com/incognito-devraj/DIMI';
   static const String githubIssuesUrl =
       'https://github.com/incognito-devraj/DIMI/issues';
   static const String githubDiscussionsUrl =
@@ -16,6 +19,5 @@ abstract final class AppConfig {
   static const String supportEmail = 'devrajmukherjee.om@gmail.com';
 
   /// Expected filename of the Android release APK attached to a GitHub Release.
-  /// Primary match: exact name. Fallback: any asset ending with '.apk'.
-  static const String apkAssetName = 'dimi-arm64.apk';
+  static const String apkAssetName = 'DIMI.apk';
 }
