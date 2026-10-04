@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as path;
@@ -62,29 +63,18 @@ class GitHubRelease {
     final releaseNotes = (json['body'] as String? ?? '').trim();
     final htmlUrl = (json['html_url'] as String? ?? '').trim();
 
-    // APK asset selection:
-    // 1. First asset whose name exactly matches AppConfig.apkAssetName.
-    // 2. Fallback: first asset whose name ends with '.apk'.
-    // 3. Fallback: null (no APK attached).
+    // Only offer in-app installation when the expected production APK is
+    // attached to the release. The download itself uses the stable latest URL.
     String? apkAssetUrl;
     final assets = json['assets'];
     if (assets is List) {
-      Map<String, dynamic>? exactMatch;
-      Map<String, dynamic>? fallbackMatch;
       for (final raw in assets) {
         if (raw is! Map<String, dynamic>) continue;
         final name = (raw['name'] as String? ?? '');
         if (name == AppConfig.apkAssetName) {
-          exactMatch = raw;
+          apkAssetUrl = raw['browser_download_url'] as String?;
           break;
         }
-        if (fallbackMatch == null && name.endsWith('.apk')) {
-          fallbackMatch = raw;
-        }
-      }
-      final chosen = exactMatch ?? fallbackMatch;
-      if (chosen != null) {
-        apkAssetUrl = chosen['browser_download_url'] as String?;
       }
     }
 
@@ -100,24 +90,57 @@ class GitHubRelease {
 
 // ─── Semver comparison ────────────────────────────────────────────────────────
 
-/// Returns `true` if [remote] is strictly newer than [local].
-/// Compares numeric parts only; strips non-digit chars from each segment.
-bool _isNewer(String local, String remote) {
-  List<int> parse(String v) => v
-      .split('.')
-      .map((p) => int.tryParse(p.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0)
-      .toList();
+/// A SemVer 2.0.0 value used for release comparison.
+class SemanticVersion implements Comparable<SemanticVersion> {
+  SemanticVersion._(this.core, this.prerelease);
 
-  final l = parse(local);
-  final r = parse(remote);
-  final len = l.length > r.length ? l.length : r.length;
-  for (var i = 0; i < len; i++) {
-    final lv = i < l.length ? l[i] : 0;
-    final rv = i < r.length ? r[i] : 0;
-    if (rv > lv) return true;
-    if (rv < lv) return false;
+  final List<int> core;
+  final List<String> prerelease;
+
+  static SemanticVersion? tryParse(String raw) {
+    final value = raw.trim().replaceFirst(RegExp(r'^[vV]'), '');
+    final match = RegExp(
+      r'^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)'
+      r'(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?'
+      r'(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$',
+    ).firstMatch(value);
+    if (match == null) return null;
+
+    final prereleaseValue = match.group(4);
+    return SemanticVersion._([
+      int.parse(match.group(1)!),
+      int.parse(match.group(2)!),
+      int.parse(match.group(3)!),
+    ], prereleaseValue == null ? const [] : prereleaseValue.split('.'));
   }
-  return false;
+
+  @override
+  int compareTo(SemanticVersion other) {
+    for (var i = 0; i < core.length; i++) {
+      final result = core[i].compareTo(other.core[i]);
+      if (result != 0) return result;
+    }
+    if (prerelease.isEmpty && other.prerelease.isNotEmpty) return 1;
+    if (prerelease.isNotEmpty && other.prerelease.isEmpty) return -1;
+    for (var i = 0; i < prerelease.length && i < other.prerelease.length; i++) {
+      final left = prerelease[i];
+      final right = other.prerelease[i];
+      final leftNumber = int.tryParse(left);
+      final rightNumber = int.tryParse(right);
+      if (leftNumber != null && rightNumber != null) {
+        final result = leftNumber.compareTo(rightNumber);
+        if (result != 0) return result;
+      } else if (leftNumber != null) {
+        return -1;
+      } else if (rightNumber != null) {
+        return 1;
+      } else {
+        final result = left.compareTo(right);
+        if (result != 0) return result;
+      }
+    }
+    return prerelease.length.compareTo(other.prerelease.length);
+  }
 }
 
 // ─── UpdateService ────────────────────────────────────────────────────────────
@@ -135,7 +158,9 @@ class UpdateService {
     try {
       info = await PackageInfo.fromPlatform();
     } catch (_) {
-      return UpdateResultError(message: 'Could not read the installed app version.');
+      return UpdateResultError(
+        message: 'Could not read the installed app version.',
+      );
     }
     final localVersion = info.version;
 
@@ -150,17 +175,13 @@ class UpdateService {
           .timeout(const Duration(seconds: 10));
     } on SocketException {
       return UpdateResultError(
-        message:
-            'Could not connect to GitHub. Check your internet connection.',
+        message: 'Could not connect to GitHub. Check your internet connection.',
       );
     } on TimeoutException {
-      return UpdateResultError(
-        message: 'Request timed out. Please try again.',
-      );
+      return UpdateResultError(message: 'Request timed out. Please try again.');
     } catch (_) {
       return UpdateResultError(
-        message:
-            'Could not reach GitHub. Check your internet connection.',
+        message: 'Could not reach GitHub. Check your internet connection.',
       );
     }
 
@@ -194,12 +215,19 @@ class UpdateService {
 
     // 5. Build model.
     final release = GitHubRelease.fromJson(json);
-    if (release.version.isEmpty) {
-      return UpdateResultError(message: 'Release has no version tag.');
+    final localSemVer = SemanticVersion.tryParse(localVersion);
+    final latestSemVer = SemanticVersion.tryParse(release.version);
+    if (localSemVer == null || latestSemVer == null) {
+      return UpdateResultError(
+        message: 'The installed or released version is invalid.',
+      );
+    }
+    if (release.version.isEmpty || release.htmlUrl.isEmpty) {
+      return UpdateResultError(message: 'Release information is incomplete.');
     }
 
     // 6. Compare versions.
-    if (_isNewer(localVersion, release.version)) {
+    if (latestSemVer.compareTo(localSemVer) > 0) {
       return UpdateResultAvailable(
         currentVersion: localVersion,
         latestVersion: release.version,
@@ -228,8 +256,7 @@ class UpdateService {
   /// FileProvider. Falls back to [getApplicationDocumentsDirectory].
   ///
   /// Returns the saved [File] on success.
-  Future<File> downloadApk(
-    String apkUrl, {
+  Future<File> downloadApk({
     required void Function(double progress) onProgress,
     bool Function()? isCancelled,
   }) async {
@@ -242,12 +269,22 @@ class UpdateService {
     }
     dir ??= await getApplicationDocumentsDirectory();
 
-    final dest = File(path.join(dir.path, 'dimi_update.apk'));
+    final updateDir = Directory(path.join(dir.path, 'updates'));
+    await updateDir.create(recursive: true);
+    final dest = File(path.join(updateDir.path, 'dimi_update.apk'));
 
     final client = http.Client();
     try {
-      final request = http.Request('GET', Uri.parse(apkUrl));
+      final request = http.Request(
+        'GET',
+        Uri.parse(AppConfig.githubLatestApkUrl),
+      );
       final response = await client.send(request);
+      if (response.statusCode != HttpStatus.ok) {
+        throw HttpException(
+          'Update download failed (HTTP ${response.statusCode}).',
+        );
+      }
 
       final total = response.contentLength ?? -1;
       var received = 0;
@@ -256,7 +293,7 @@ class UpdateService {
       try {
         await for (final chunk in response.stream) {
           if (isCancelled != null && isCancelled()) {
-            throw Exception('Download cancelled.');
+            throw const UpdateDownloadCancelledException();
           }
           sink.add(chunk);
           received += chunk.length;
@@ -270,10 +307,30 @@ class UpdateService {
         await sink.flush();
         await sink.close();
       }
+    } catch (_) {
+      if (await dest.exists()) {
+        await dest.delete();
+      }
+      rethrow;
     } finally {
       client.close();
     }
 
     return dest;
   }
+
+  Future<void> installApk(File apk) async {
+    try {
+      await const MethodChannel('com.dimi.dimi_app/update_installer')
+          .invokeMethod<void>('installApk', {'path': apk.path});
+    } on PlatformException catch (error) {
+      throw Exception(
+        error.message ?? 'Could not open the Android package installer.',
+      );
+    }
+  }
+}
+
+class UpdateDownloadCancelledException implements Exception {
+  const UpdateDownloadCancelledException();
 }

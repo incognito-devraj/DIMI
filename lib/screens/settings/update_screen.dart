@@ -87,7 +87,6 @@ class _UpdateScreenState extends State<UpdateScreen> {
 
     try {
       final file = await UpdateService.instance.downloadApk(
-        release.apkAssetUrl!,
         onProgress: (p) {
           if (mounted) setState(() => _downloadProgress = p);
         },
@@ -98,23 +97,14 @@ class _UpdateScreenState extends State<UpdateScreen> {
       // Trigger the Android package installer.
       // Files on getExternalStorageDirectory() are accessible directly without
       // a FileProvider — REQUEST_INSTALL_PACKAGES permission handles the rest.
-      final uri = Uri.file(file.path);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-        // Return to updateAvailable so user can retry if installer is dismissed.
-        if (mounted) setState(() => _state = _UpdateState.updateAvailable);
-      } else {
-        if (mounted) {
-          setState(() {
-            _errorMessage =
-                'Could not launch the installer. APK saved at: ${file.path}';
-            _state = _UpdateState.error;
-          });
-        }
+      await UpdateService.instance.installApk(file);
+      // Return to updateAvailable so user can retry if installer is dismissed.
+      if (mounted) {
+        setState(() => _state = _UpdateState.updateAvailable);
       }
     } catch (e) {
       if (!mounted) return;
-      if (_cancelDownload) {
+      if (_cancelDownload || e is UpdateDownloadCancelledException) {
         setState(() => _state = _UpdateState.updateAvailable);
       } else {
         setState(() {
