@@ -168,6 +168,9 @@ class _HomeHeatmapCard extends StatelessWidget {
       tasks: tasks,
       title: 'Completion rhythm',
       subtitle: 'Activity over the last year',
+      onViewDetails: (date) => context.go(
+        '${AppRoutes.planner}?focusDateMs=${date.millisecondsSinceEpoch}',
+      ),
     );
     /*
         children: [
@@ -1370,7 +1373,24 @@ class _TodayTasksCard extends ConsumerWidget {
     final done = tasks.where((t) => t.isCompleted).length;
     // Completed items remain visible through the current day; the DAO removes
     // them from this stream after the day changes.
-    final visibleTasks = tasks;
+    final orderedTasks = tasks.asMap().entries.toList();
+    orderedTasks.sort((a, b) {
+        final status = (a.value.isCompleted ? 1 : 0).compareTo(
+          b.value.isCompleted ? 1 : 0,
+        );
+        if (status != 0) return status;
+        // Active tasks keep the stream's order. Completed tasks are ordered
+        // by completion time so the task just ticked always becomes the last
+        // item in the list.
+        if (a.value.isCompleted) {
+          final aCompleted = a.value.completedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final bCompleted = b.value.completedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final completedOrder = aCompleted.compareTo(bCompleted);
+          if (completedOrder != 0) return completedOrder;
+        }
+        return a.key.compareTo(b.key);
+    });
+    final visibleTasks = orderedTasks.map((entry) => entry.value).toList();
 
     return SectionCard(
       padding: EdgeInsets.all(compact ? 8 : AppSpacing.cardPadding),
@@ -1404,9 +1424,7 @@ class _TodayTasksCard extends ConsumerWidget {
             ),
           ] else ...[
             const SizedBox(height: 10),
-            ...visibleTasks.map(
-              (t) => _MiniTaskRow(task: t, dao: dao, compact: compact),
-            ),
+            _FlipTaskList(tasks: visibleTasks, dao: dao, compact: compact),
           ],
           const SizedBox(height: 3),
           GestureDetector(
@@ -1444,6 +1462,142 @@ class _TodayTasksCard extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+/// Keeps the list's layout stable while applying a FLIP-style positional move.
+/// Rows are laid out at their final positions; only their Y offset is animated.
+class _FlipTaskList extends StatefulWidget {
+  const _FlipTaskList({required this.tasks, required this.dao, required this.compact});
+  final List<Task> tasks;
+  final dynamic dao;
+  final bool compact;
+
+  @override
+  State<_FlipTaskList> createState() => _FlipTaskListState();
+}
+
+class _FlipTaskListState extends State<_FlipTaskList>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+  );
+  final Map<int, double> _heights = {};
+  Map<int, double> _from = {};
+  Map<int, double> _to = {};
+  List<int> _lastIds = const [];
+
+  Map<int, double> _tops(List<Task> tasks, Map<int, double> heights) {
+    var top = 0.0;
+    final result = <int, double>{};
+    for (final task in tasks) {
+      result[task.id] = top;
+      top += heights[task.id] ?? (widget.compact ? 44.0 : 50.0);
+    }
+    return result;
+  }
+
+  @override
+  void didUpdateWidget(covariant _FlipTaskList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final ids = widget.tasks.map((task) => task.id).toList();
+    if (ids.join(',') == _lastIds.join(',')) return;
+    final oldTasks = <Task>[];
+    for (final id in _lastIds) {
+      for (final task in oldWidget.tasks) {
+        if (task.id == id) {
+          oldTasks.add(task);
+          break;
+        }
+      }
+    }
+    final oldTops = _tops(oldTasks, _heights);
+    _to = _tops(widget.tasks, _heights);
+    _from = {for (final id in ids) id: oldTops[id] ?? _to[id]!};
+    _lastIds = ids;
+    _controller.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_lastIds.isEmpty) {
+      _lastIds = widget.tasks.map((task) => task.id).toList();
+      _to = _tops(widget.tasks, _heights);
+    }
+    final totalHeight = widget.tasks.fold<double>(0, (sum, task) => sum + (_heights[task.id] ?? (widget.compact ? 44.0 : 50.0)));
+    return SizedBox(
+      height: totalHeight,
+      child: AnimatedBuilder(
+        animation: CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+        builder: (context, child) {
+          final value = _controller.value;
+          return Stack(
+            clipBehavior: Clip.none,
+            children: widget.tasks.map((task) {
+              final target = _to[task.id] ?? 0;
+              final start = _from[task.id] ?? target;
+              final top = start + (target - start) * value;
+              return Positioned(
+                top: top,
+                left: 0,
+                right: 0,
+                child: _MeasuredTaskRow(
+                  onSize: (height) {
+                    if (_heights[task.id] != height && mounted) {
+                      _heights[task.id] = height;
+                      _to = _tops(widget.tasks, _heights);
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) setState(() {});
+                      });
+                    }
+                  },
+                  child: _MiniTaskRow(task: task, dao: widget.dao, compact: widget.compact),
+                ),
+              );
+            }).toList(),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MeasuredTaskRow extends StatelessWidget {
+  const _MeasuredTaskRow({required this.child, required this.onSize});
+  final Widget child;
+  final ValueChanged<double> onSize;
+
+  @override
+  Widget build(BuildContext context) => _MeasureSize(onChange: onSize, child: child);
+}
+
+class _MeasureSize extends SingleChildRenderObjectWidget {
+  const _MeasureSize({required this.onChange, required super.child});
+  final ValueChanged<double> onChange;
+  @override
+  RenderObject createRenderObject(BuildContext context) => _MeasureSizeRenderObject(onChange);
+  @override
+  void updateRenderObject(BuildContext context, covariant _MeasureSizeRenderObject renderObject) => renderObject.onChange = onChange;
+}
+
+class _MeasureSizeRenderObject extends RenderProxyBox {
+  _MeasureSizeRenderObject(this.onChange);
+  ValueChanged<double> onChange;
+  Size? _oldSize;
+  @override
+  void performLayout() {
+    super.performLayout();
+    if (child != null && _oldSize != child!.size) {
+      _oldSize = child!.size;
+      WidgetsBinding.instance.addPostFrameCallback((_) => onChange(_oldSize!.height));
+    }
   }
 }
 
@@ -1503,12 +1657,6 @@ class _MiniTaskRow extends StatelessWidget {
                   ),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: AnimatedSwitcher(
-                  duration: DimiMotion.fast,
-                  transitionBuilder: (child, animation) => ScaleTransition(
-                    scale: animation,
-                    child: FadeTransition(opacity: animation, child: child),
-                  ),
                   child: task.isCompleted
                       ? const Icon(
                           Icons.check_rounded,
@@ -1517,7 +1665,6 @@ class _MiniTaskRow extends StatelessWidget {
                           color: AppColors.surface,
                         )
                       : const SizedBox(key: ValueKey('home-mini-pending')),
-                ),
                   ),
                 ),
               ),

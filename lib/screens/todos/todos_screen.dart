@@ -203,7 +203,7 @@ class _TodosTaskList extends ConsumerWidget {
               subtitle: 'Add a task to keep it for later.',
             )
           else
-            ...items.map((task) => _TodoRow(task: task)),
+            ..._completedLast(items).map((task) => _TodoRow(task: task)),
         ],
       ),
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -211,6 +211,24 @@ class _TodosTaskList extends ConsumerWidget {
           Center(child: Text('Could not load To-Do\'s: $error')),
     );
   }
+}
+
+List<Task> _completedLast(List<Task> tasks) {
+  final ordered = tasks.asMap().entries.toList()
+    ..sort((a, b) {
+      final status = (a.value.isCompleted ? 1 : 0).compareTo(
+        b.value.isCompleted ? 1 : 0,
+      );
+      if (status != 0) return status;
+      if (a.value.isCompleted) {
+        final aCompleted = a.value.completedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bCompleted = b.value.completedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final completedOrder = aCompleted.compareTo(bCompleted);
+        if (completedOrder != 0) return completedOrder;
+      }
+      return a.key.compareTo(b.key);
+    });
+  return ordered.map((entry) => entry.value).toList();
 }
 
 class _TodoRow extends ConsumerWidget {
