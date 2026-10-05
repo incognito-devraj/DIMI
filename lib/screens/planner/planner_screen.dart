@@ -824,14 +824,6 @@ class _PremiumMonthViewState extends ConsumerState<_PremiumMonthView> {
         return ListView(
           padding: EdgeInsets.only(bottom: widget.fabVisible ? 96 : 0),
           children: [
-            RepaintBoundary(
-              child: DimiActivityHeatmap(
-                tasks: tasks,
-                title: 'Completion heatmap',
-                subtitle: 'Activity over the last year',
-              ),
-            ),
-            const SizedBox(height: 12),
             _MonthStats(
               plannedDays: plannedDays,
               completedDays: completedDays,
@@ -1419,7 +1411,7 @@ class _CalendarCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: isToday
                       ? AppColors.accent
-                      : _HeatmapCard._heatColor(plan, future).withAlpha(45),
+                      : _HeatmapCard._heatColor(plan, future).withAlpha(115),
                   borderRadius: BorderRadius.circular(11),
                   border: isSelected && !isToday
                       ? Border.all(color: AppColors.accent)
