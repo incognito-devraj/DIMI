@@ -1,6 +1,7 @@
 package com.dimi.dimi_app
 
 import android.content.Intent
+import android.content.ClipData
 import androidx.core.content.FileProvider
 import android.os.Bundle
 import android.view.WindowManager
@@ -45,11 +46,12 @@ class MainActivity : FlutterActivity() {
                     }
                     val apkUri = FileProvider.getUriForFile(
                         this,
-                        "com.dimi.dimi_app.fileprovider",
+                        "${applicationContext.packageName}.fileprovider",
                         apk,
                     )
                     val installerIntent = Intent(Intent.ACTION_VIEW).apply {
                         setDataAndType(apkUri, "application/vnd.android.package-archive")
+                        clipData = ClipData.newRawUri("DIMI APK", apkUri)
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
