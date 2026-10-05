@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -47,22 +49,35 @@ class _DimiActivityHeatmapState extends State<DimiActivityHeatmap> {
   final _heatmapKey = GlobalKey();
   _HeatmapSelection? _selection;
   Offset? _cellOffset;
+  Timer? _popupTimer;
 
-  static const _popupWidth = 224.0;
-  static const _popupHeight = 104.0;
+  static const _popupWidth = 218.0;
+  static const _popupHeight = 72.0;
   static const _popupGap = 9.0;
 
   void _selectCell(BuildContext cellContext, DateTime date, int completed, int total) {
     final cell = cellContext.findRenderObject()! as RenderBox;
     final host = _heatmapKey.currentContext!.findRenderObject()! as RenderBox;
+    _popupTimer?.cancel();
     setState(() {
       _selection = _HeatmapSelection(date, completed, total);
-      _cellOffset = host.globalToLocal(cell.localToGlobal(Offset.zero));
+      _cellOffset = host.globalToLocal(
+        cell.localToGlobal(cell.size.center(Offset.zero)),
+      );
     });
+    _popupTimer = Timer(const Duration(seconds: 3), _dismissPopup);
   }
 
   void _dismissPopup() {
+    _popupTimer?.cancel();
+    _popupTimer = null;
     if (mounted && _selection != null) setState(() => _selection = null);
+  }
+
+  @override
+  void dispose() {
+    _popupTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -216,22 +231,44 @@ class _DimiActivityHeatmapState extends State<DimiActivityHeatmap> {
   Widget _buildPopup(BuildContext context, Offset cell, _HeatmapSelection selection) {
     final host = _heatmapKey.currentContext!.findRenderObject()! as RenderBox;
     final bounds = Offset.zero & host.size;
-    final cellCenter = Offset(cell.dx + DimiActivityHeatmap._cellSize / 2, cell.dy + DimiActivityHeatmap._cellSize / 2);
+    final cellCenter = cell;
     final canLeft = cellCenter.dx - _popupGap - _popupWidth >= bounds.left;
     final canRight = cellCenter.dx + _popupGap + _popupWidth <= bounds.right;
     late final double left;
+    late final double top;
     late final _PopupSide side;
     if (canLeft) {
       left = cellCenter.dx - _popupGap - _popupWidth;
       side = _PopupSide.right;
+      top = (cellCenter.dy - _popupHeight / 2).clamp(
+        bounds.top,
+        bounds.bottom - _popupHeight,
+      ).toDouble();
     } else if (canRight) {
       left = cellCenter.dx + _popupGap;
       side = _PopupSide.left;
+      top = (cellCenter.dy - _popupHeight / 2).clamp(
+        bounds.top,
+        bounds.bottom - _popupHeight,
+      ).toDouble();
     } else {
       left = (cellCenter.dx - _popupWidth / 2).clamp(bounds.left, bounds.right - _popupWidth).toDouble();
-      side = cellCenter.dy > bounds.center.dy ? _PopupSide.bottom : _PopupSide.top;
+      final roomAbove = cellCenter.dy - bounds.top - _popupGap;
+      final roomBelow = bounds.bottom - cellCenter.dy - _popupGap;
+      if (roomAbove >= _popupHeight) {
+        top = cellCenter.dy - _popupGap - _popupHeight;
+        side = _PopupSide.bottom;
+      } else if (roomBelow >= _popupHeight) {
+        top = cellCenter.dy + _popupGap;
+        side = _PopupSide.top;
+      } else {
+        top = (cellCenter.dy - _popupHeight / 2).clamp(
+          bounds.top,
+          bounds.bottom - _popupHeight,
+        ).toDouble();
+        side = top < cellCenter.dy ? _PopupSide.bottom : _PopupSide.top;
+      }
     }
-    final top = (cellCenter.dy - _popupHeight / 2).clamp(bounds.top, bounds.bottom - _popupHeight).toDouble();
     final arrow = side == _PopupSide.left || side == _PopupSide.right
         ? (cellCenter.dy - top).clamp(16.0, _popupHeight - 16.0).toDouble()
         : (cellCenter.dx - left).clamp(18.0, _popupWidth - 18.0).toDouble();
@@ -283,15 +320,56 @@ class _HeatmapPopup extends StatelessWidget {
       child: CustomPaint(
         painter: _HeatmapPopupPainter(side, arrowOffset),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 9, 12, 8),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(DateFormat('EEEE, MMMM d, yyyy').format(date), maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontFamily: 'Poppins', fontSize: 10, color: AppColors.textPrimary)),
-            const SizedBox(height: 5),
-            Text('$completed / $total tasks completed', style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-            const Spacer(),
-            Align(alignment: Alignment.centerLeft, child: TextButton(onPressed: onViewDetails, style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 20), tapTargetSize: MaterialTapTargetSize.shrinkWrap), child: const Text('View details', style: TextStyle(fontFamily: 'Poppins', fontSize: 10, color: AppColors.accent)))),
-          ]),
+          padding: const EdgeInsets.fromLTRB(12, 8, 8, 7),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                DateFormat('EEEE, MMMM d, yyyy').format(date),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 10,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '$completed / $total tasks completed',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: onViewDetails,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      minimumSize: const Size(0, 22),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'View details',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 10,
+                        color: AppColors.accent,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
