@@ -94,9 +94,7 @@ class _UpdateScreenState extends State<UpdateScreen> {
       );
       if (!mounted) return;
 
-      // Trigger the Android package installer.
-      // Files on getExternalStorageDirectory() are accessible directly without
-      // a FileProvider — REQUEST_INSTALL_PACKAGES permission handles the rest.
+      // Trigger the Android package installer through the native FileProvider.
       await UpdateService.instance.installApk(file);
       // Return to updateAvailable so user can retry if installer is dismissed.
       if (mounted) {

@@ -251,9 +251,9 @@ class UpdateService {
   /// [isCancelled] is polled between chunk writes. If it returns `true`,
   /// the download is aborted and an [Exception] is thrown.
   ///
-  /// Prefers [getExternalStorageDirectory] for the save location — files
-  /// there are accessible to the Android package installer without a
-  /// FileProvider. Falls back to [getApplicationDocumentsDirectory].
+  /// Prefers [getExternalStorageDirectory] for the save location. The native
+  /// installer exposes the update through the restricted FileProvider paths.
+  /// Falls back to [getApplicationDocumentsDirectory].
   ///
   /// Returns the saved [File] on success.
   Future<File> downloadApk({
