@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -46,38 +47,148 @@ class DimiActivityHeatmap extends StatefulWidget {
 }
 
 class _DimiActivityHeatmapState extends State<DimiActivityHeatmap> {
-  final _heatmapKey = GlobalKey();
+  // Used only to decide whether the naturally-sized popover fits above the
+  // selected cell. The card itself has no fixed height.
+  static const _estimatedTooltipHeight = 100.0;
+  static const _screenPadding = 16.0;
+  static const _tooltipGap = 8.0;
+
+  final Map<DateTime, LayerLink> _cellLinks = {};
   _HeatmapSelection? _selection;
-  Offset? _cellOffset;
+  _HeatmapPlacement? _placement;
+  OverlayEntry? _overlayEntry;
   Timer? _popupTimer;
 
-  static const _popupWidth = 218.0;
-  static const _popupHeight = 72.0;
-  static const _popupGap = 9.0;
+  LayerLink _linkFor(DateTime date) =>
+      _cellLinks.putIfAbsent(date, LayerLink.new);
 
-  void _selectCell(BuildContext cellContext, DateTime date, int completed, int total) {
-    final cell = cellContext.findRenderObject()! as RenderBox;
-    final host = _heatmapKey.currentContext!.findRenderObject()! as RenderBox;
+  void _selectCell(
+    BuildContext cellContext,
+    DateTime date,
+    int completed,
+    int total,
+  ) {
+    final box = cellContext.findRenderObject()! as RenderBox;
+    final cellTopLeft = box.localToGlobal(Offset.zero);
+    final cellRect = cellTopLeft & box.size;
+    final screen = MediaQuery.sizeOf(context);
+    final dateStyle = AppTextStyles.caption(context).copyWith(fontSize: 12);
+    final mainStyle = AppTextStyles.cardTitle(context)
+        .copyWith(fontSize: 12, fontWeight: FontWeight.w600);
+    final buttonStyle = AppTextStyles.body(context)
+        .copyWith(fontSize: 12, fontWeight: FontWeight.w600);
+    final dateWidth = _measureText(
+      DateFormat('EEE, MMM d').format(date),
+      dateStyle,
+    );
+    final mainWidth = _measureText(
+      '$completed / $total tasks completed',
+      mainStyle,
+    );
+    final buttonWidth = _measureText('View details', buttonStyle);
+    final contentWidth = <double>[
+      dateWidth + 18,
+      mainWidth + 24,
+      buttonWidth + 24 + 14 + 6,
+    ].reduce(math.max);
+    final width = math.min(
+      contentWidth + 24,
+      screen.width - _screenPadding * 2,
+    );
+    final centerX = cellRect.center.dx;
+    final left = (centerX - width / 2).clamp(
+      _screenPadding,
+      screen.width - _screenPadding - width,
+    );
+    final aboveFits =
+        cellRect.top - _tooltipGap - _estimatedTooltipHeight >= _screenPadding;
+    final vertical = aboveFits
+        ? _TooltipVertical.above
+        : _TooltipVertical.below;
+
     _popupTimer?.cancel();
     setState(() {
       _selection = _HeatmapSelection(date, completed, total);
-      _cellOffset = host.globalToLocal(
-        cell.localToGlobal(cell.size.center(Offset.zero)),
+      _placement = _HeatmapPlacement(
+        vertical: vertical,
+        width: width,
+        offsetX: left - (centerX - width / 2),
+        arrowX: centerX - left,
+        cellHeight: cellRect.height,
       );
     });
-    _popupTimer = Timer(const Duration(seconds: 3), _dismissPopup);
+    if (_overlayEntry == null) {
+      _overlayEntry = OverlayEntry(builder: (_) => _buildOverlay());
+      Overlay.of(context, rootOverlay: true).insert(_overlayEntry!);
+    } else {
+      _overlayEntry!.markNeedsBuild();
+    }
+    _popupTimer = Timer(const Duration(seconds: 2), _dismissPopup);
+  }
+
+  double _measureText(String text, TextStyle style) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: Directionality.of(context),
+      maxLines: 1,
+    )..layout();
+    return painter.width;
   }
 
   void _dismissPopup() {
     _popupTimer?.cancel();
     _popupTimer = null;
-    if (mounted && _selection != null) setState(() => _selection = null);
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    if (mounted) {
+      setState(() {
+        _selection = null;
+        _placement = null;
+      });
+    }
   }
 
   @override
   void dispose() {
     _popupTimer?.cancel();
+    _overlayEntry?.remove();
     super.dispose();
+  }
+
+  Widget _buildOverlay() {
+    final selection = _selection;
+    final placement = _placement;
+    if (selection == null || placement == null) return const SizedBox.shrink();
+    return Positioned.fill(
+      child: Stack(
+        clipBehavior: Clip.none,
+        fit: StackFit.loose,
+        children: [
+          CompositedTransformFollower(
+            link: _linkFor(selection.date),
+            showWhenUnlinked: false,
+            targetAnchor: placement.targetAnchor,
+            followerAnchor: placement.followerAnchor,
+            offset: placement.offset,
+            child: TapRegion(
+              onTapOutside: (_) => _dismissPopup(),
+              child: _HeatmapTooltip(
+                selection: selection,
+                placement: placement,
+                onViewDetails: widget.onViewDetails == null
+                    ? null
+                    : () {
+                        final callback = widget.onViewDetails!;
+                        final date = selection.date;
+                        _dismissPopup();
+                        callback(date);
+                      },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -129,7 +240,8 @@ class _DimiActivityHeatmapState extends State<DimiActivityHeatmap> {
           ),
         if (widget.title.isNotEmpty) const SizedBox(height: 10),
         SizedBox(
-          height: 7 * DimiActivityHeatmap._cellSize +
+          height:
+              7 * DimiActivityHeatmap._cellSize +
               6 * DimiActivityHeatmap._gap +
               16,
           child: Row(
@@ -163,11 +275,15 @@ class _DimiActivityHeatmapState extends State<DimiActivityHeatmap> {
                           today: today,
                           totals: totals,
                           completed: completed,
-                          onTap: (cell, day) => _selectCell(cell, day, completed[day] ?? 0, totals[day] ?? 0),
+                          linkFor: _linkFor,
+                          onTap: (cellContext, day) => _selectCell(
+                            cellContext,
+                            day,
+                            completed[day] ?? 0,
+                            totals[day] ?? 0,
+                          ),
                         ),
-                        const SizedBox(
-                          width: DimiActivityHeatmap._monthGap,
-                        ),
+                        const SizedBox(width: DimiActivityHeatmap._monthGap),
                       ],
                     ],
                   ),
@@ -213,88 +329,13 @@ class _DimiActivityHeatmapState extends State<DimiActivityHeatmap> {
         borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
         border: Border.all(color: AppColors.divider),
       ),
-      child: TapRegion(
-        onTapOutside: (_) => _dismissPopup(),
-        child: Stack(
-          key: _heatmapKey,
-          clipBehavior: Clip.hardEdge,
-          children: [
-            content,
-            if (_selection != null && _cellOffset != null)
-              _buildPopup(context, _cellOffset!, _selection!),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPopup(BuildContext context, Offset cell, _HeatmapSelection selection) {
-    final host = _heatmapKey.currentContext!.findRenderObject()! as RenderBox;
-    final bounds = Offset.zero & host.size;
-    final cellCenter = cell;
-    final canLeft = cellCenter.dx - _popupGap - _popupWidth >= bounds.left;
-    final canRight = cellCenter.dx + _popupGap + _popupWidth <= bounds.right;
-    late final double left;
-    late final double top;
-    late final _PopupSide side;
-    if (canLeft) {
-      left = cellCenter.dx - _popupGap - _popupWidth;
-      side = _PopupSide.right;
-      top = (cellCenter.dy - _popupHeight / 2).clamp(
-        bounds.top,
-        bounds.bottom - _popupHeight,
-      ).toDouble();
-    } else if (canRight) {
-      left = cellCenter.dx + _popupGap;
-      side = _PopupSide.left;
-      top = (cellCenter.dy - _popupHeight / 2).clamp(
-        bounds.top,
-        bounds.bottom - _popupHeight,
-      ).toDouble();
-    } else {
-      left = (cellCenter.dx - _popupWidth / 2).clamp(bounds.left, bounds.right - _popupWidth).toDouble();
-      final roomAbove = cellCenter.dy - bounds.top - _popupGap;
-      final roomBelow = bounds.bottom - cellCenter.dy - _popupGap;
-      if (roomAbove >= _popupHeight) {
-        top = cellCenter.dy - _popupGap - _popupHeight;
-        side = _PopupSide.bottom;
-      } else if (roomBelow >= _popupHeight) {
-        top = cellCenter.dy + _popupGap;
-        side = _PopupSide.top;
-      } else {
-        top = (cellCenter.dy - _popupHeight / 2).clamp(
-          bounds.top,
-          bounds.bottom - _popupHeight,
-        ).toDouble();
-        side = top < cellCenter.dy ? _PopupSide.bottom : _PopupSide.top;
-      }
-    }
-    final arrow = side == _PopupSide.left || side == _PopupSide.right
-        ? (cellCenter.dy - top).clamp(16.0, _popupHeight - 16.0).toDouble()
-        : (cellCenter.dx - left).clamp(18.0, _popupWidth - 18.0).toDouble();
-    return AnimatedPositioned(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      left: left, top: top, width: _popupWidth, height: _popupHeight,
-      child: _HeatmapPopup(
-        date: selection.date, completed: selection.completed, total: selection.total,
-        side: side, arrowOffset: arrow,
-        onDismiss: _dismissPopup,
-        onViewDetails: widget.onViewDetails == null ? null : () {
-          final callback = widget.onViewDetails!;
-          _dismissPopup();
-          callback(selection.date);
-        },
-      ),
+      child: content,
     );
   }
 
   static DateTime _dateOnly(DateTime date) =>
       DateTime(date.year, date.month, date.day);
-
 }
-
-enum _PopupSide { left, right, top, bottom }
 
 class _HeatmapSelection {
   const _HeatmapSelection(this.date, this.completed, this.total);
@@ -303,105 +344,183 @@ class _HeatmapSelection {
   final int total;
 }
 
-class _HeatmapPopup extends StatelessWidget {
-  const _HeatmapPopup({required this.date, required this.completed, required this.total, required this.side, required this.arrowOffset, required this.onDismiss, this.onViewDetails});
-  final DateTime date;
-  final int completed;
-  final int total;
-  final _PopupSide side;
-  final double arrowOffset;
-  final VoidCallback onDismiss;
+enum _TooltipVertical { above, below }
+
+class _HeatmapPlacement {
+  const _HeatmapPlacement({
+    required this.vertical,
+    required this.width,
+    required this.offsetX,
+    required this.arrowX,
+    required this.cellHeight,
+  });
+
+  final _TooltipVertical vertical;
+  final double width;
+  final double offsetX;
+  final double arrowX;
+  final double cellHeight;
+
+  Alignment get targetAnchor => vertical == _TooltipVertical.below
+      ? Alignment.bottomCenter
+      : Alignment.topCenter;
+
+  Alignment get followerAnchor => vertical == _TooltipVertical.below
+      ? Alignment.topCenter
+      : Alignment.bottomCenter;
+
+  Offset get offset => Offset(
+    offsetX,
+    vertical == _TooltipVertical.above ? cellHeight / 2 : -cellHeight / 2,
+  );
+}
+
+class _HeatmapTooltip extends StatelessWidget {
+  const _HeatmapTooltip({
+    required this.selection,
+    required this.placement,
+    this.onViewDetails,
+  });
+
+  final _HeatmapSelection selection;
+  final _HeatmapPlacement placement;
   final VoidCallback? onViewDetails;
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {},
-      child: CustomPaint(
-        painter: _HeatmapPopupPainter(side, arrowOffset),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 8, 7),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                DateFormat('EEEE, MMMM d, yyyy').format(date),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 10,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const Spacer(),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '$completed / $total tasks completed',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: .96, end: 1),
+    duration: const Duration(milliseconds: 180),
+    curve: Curves.easeOutCubic,
+    builder: (context, scale, child) => Opacity(
+      opacity: (scale - .96) / .04,
+      child: Transform.scale(scale: scale, child: child),
+    ),
+    child: CustomPaint(
+      painter: _HeatmapTooltipPainter(
+        vertical: placement.vertical,
+        arrowX: placement.arrowX,
+      ),
+      child: Container(
+        width: placement.width,
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: EdgeInsets.zero,
+                  child: Text(
+                    DateFormat('EEE, MMM d').format(selection.date),
+                    style: AppTextStyles.caption(context).copyWith(
+                      fontSize: 12,
+                      height: 16 / 12,
+                      decoration: TextDecoration.none,
                     ),
                   ),
-                  TextButton(
-                    onPressed: onViewDetails,
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      minimumSize: const Size(0, 22),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text(
-                      'View details',
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 10,
-                        color: AppColors.accent,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${selection.completed} / ${selection.total} tasks completed',
+                  maxLines: 1,
+                  softWrap: false,
+                  style: AppTextStyles.cardTitle(context).copyWith(
+                    fontSize: 12,
+                    height: 18 / 14,
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+                if (onViewDetails != null) ...[
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onViewDetails,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.accentSoft,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 14,
+                            color: AppColors.textPrimary,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'View details',
+                            style: AppTextStyles.body(context).copyWith(
+                              fontSize: 12,
+                              height: 1,
+                              fontWeight: FontWeight.w600,
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ],
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
-class _HeatmapPopupPainter extends CustomPainter {
-  const _HeatmapPopupPainter(this.side, this.arrowOffset);
-  final _PopupSide side;
-  final double arrowOffset;
+class _HeatmapTooltipPainter extends CustomPainter {
+  const _HeatmapTooltipPainter({required this.vertical, required this.arrowX});
+  final _TooltipVertical vertical;
+  final double arrowX;
+
   @override
   void paint(Canvas canvas, Size size) {
-    const arrow = 7.0;
-    final rect = side == _PopupSide.left ? Rect.fromLTWH(arrow, 0, size.width - arrow, size.height)
-        : side == _PopupSide.right ? Rect.fromLTWH(0, 0, size.width - arrow, size.height)
-        : side == _PopupSide.top ? Rect.fromLTWH(0, 0, size.width, size.height - arrow)
-        : Rect.fromLTWH(0, arrow, size.width, size.height - arrow);
-    final path = Path()..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(12)));
-    if (side == _PopupSide.left) {
-      path.moveTo(arrow, arrowOffset - 7); path.lineTo(0, arrowOffset); path.lineTo(arrow, arrowOffset + 7);
-    } else if (side == _PopupSide.right) {
-      path.moveTo(size.width - arrow, arrowOffset - 7); path.lineTo(size.width, arrowOffset); path.lineTo(size.width - arrow, arrowOffset + 7);
-    } else if (side == _PopupSide.top) {
-      path.moveTo(arrowOffset - 7, size.height - arrow); path.lineTo(arrowOffset, size.height); path.lineTo(arrowOffset + 7, size.height - arrow);
+    const arrowWidth = 12.0;
+    const arrowHeight = 7.0;
+    final top = vertical == _TooltipVertical.below ? arrowHeight : 0.0;
+    final bottom = vertical == _TooltipVertical.above
+        ? size.height - arrowHeight
+        : size.height;
+    final rect = Rect.fromLTRB(0, top, size.width, bottom);
+    final path = Path()
+      ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(16)));
+    final clampedArrow = arrowX.clamp(14.0, size.width - 14.0).toDouble();
+    if (vertical == _TooltipVertical.below) {
+      path.moveTo(clampedArrow - arrowWidth / 2, arrowHeight);
+      path.lineTo(clampedArrow, 0);
+      path.lineTo(clampedArrow + arrowWidth / 2, arrowHeight);
     } else {
-      path.moveTo(arrowOffset - 7, arrow); path.lineTo(arrowOffset, 0); path.lineTo(arrowOffset + 7, arrow);
+      path.moveTo(clampedArrow - arrowWidth / 2, size.height - arrowHeight);
+      path.lineTo(clampedArrow, size.height);
+      path.lineTo(clampedArrow + arrowWidth / 2, size.height - arrowHeight);
     }
+    canvas.drawShadow(path, const Color(0x40000000), 8, false);
     canvas.drawPath(path, Paint()..color = AppColors.surface);
-    canvas.drawPath(path, Paint()..color = AppColors.divider..style = PaintingStyle.stroke..strokeWidth = 1.2);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = AppColors.divider
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
   }
+
   @override
-  bool shouldRepaint(covariant _HeatmapPopupPainter old) => old.arrowOffset != arrowOffset || old.side != side;
+  bool shouldRepaint(covariant _HeatmapTooltipPainter old) =>
+      old.vertical != vertical || old.arrowX != arrowX;
 }
 
 class _ActivityMonthGroup extends StatelessWidget {
@@ -410,6 +529,7 @@ class _ActivityMonthGroup extends StatelessWidget {
     required this.today,
     required this.totals,
     required this.completed,
+    required this.linkFor,
     required this.onTap,
   });
 
@@ -417,19 +537,20 @@ class _ActivityMonthGroup extends StatelessWidget {
   final DateTime today;
   final Map<DateTime, int> totals;
   final Map<DateTime, int> completed;
+  final LayerLink Function(DateTime) linkFor;
   final void Function(BuildContext, DateTime) onTap;
 
   @override
   Widget build(BuildContext context) {
     final monthEnd = DateTime(month.year, month.month + 1, 0);
     final groupStart = month.subtract(Duration(days: month.weekday % 7));
-    final groupEnd = monthEnd.add(
-      Duration(days: 6 - (monthEnd.weekday % 7)),
-    );
+    final groupEnd = monthEnd.add(Duration(days: 6 - (monthEnd.weekday % 7)));
     final weekCount = (groupEnd.difference(groupStart).inDays ~/ 7) + 1;
 
     return SizedBox(
-      width: weekCount * (DimiActivityHeatmap._cellSize + DimiActivityHeatmap._gap) -
+      width:
+          weekCount *
+              (DimiActivityHeatmap._cellSize + DimiActivityHeatmap._gap) -
           DimiActivityHeatmap._gap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -456,19 +577,18 @@ class _ActivityMonthGroup extends StatelessWidget {
               final weekStart = groupStart.add(Duration(days: week * 7));
               return Padding(
                 padding: EdgeInsets.only(
-                  right: week == weekCount - 1
-                      ? 0
-                      : DimiActivityHeatmap._gap,
+                  right: week == weekCount - 1 ? 0 : DimiActivityHeatmap._gap,
                 ),
                 child: Column(
                   children: List.generate(7, (row) {
                     final day = weekStart.add(Duration(days: row));
-                    final inMonth = day.month == month.month &&
-                        day.year == month.year;
+                    final inMonth =
+                        day.month == month.month && day.year == month.year;
                     if (!inMonth) {
                       return SizedBox(
                         width: DimiActivityHeatmap._cellSize,
-                        height: DimiActivityHeatmap._cellSize +
+                        height:
+                            DimiActivityHeatmap._cellSize +
                             (row == 6 ? 0 : DimiActivityHeatmap._gap),
                       );
                     }
@@ -482,24 +602,30 @@ class _ActivityMonthGroup extends StatelessWidget {
                       padding: EdgeInsets.only(
                         bottom: row == 6 ? 0 : DimiActivityHeatmap._gap,
                       ),
-                      child: Builder(builder: (cellContext) => GestureDetector(
-                        onTap: () => onTap(cellContext, day),
-                        child: Semantics(
-                          label:
-                            '${DateFormat('MMMM d, yyyy').format(day)}: $total ${total == 1 ? 'activity' : 'activities'}',
-                          button: true,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: color,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                            child: const SizedBox(
-                              width: DimiActivityHeatmap._cellSize,
-                              height: DimiActivityHeatmap._cellSize,
+                      child: Builder(
+                        builder: (cellContext) => CompositedTransformTarget(
+                          link: linkFor(day),
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => onTap(cellContext, day),
+                            child: Semantics(
+                              label:
+                                  '${DateFormat('MMMM d, yyyy').format(day)}: $total ${total == 1 ? 'activity' : 'activities'}',
+                              button: true,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                                child: const SizedBox(
+                                  width: DimiActivityHeatmap._cellSize,
+                                  height: DimiActivityHeatmap._cellSize,
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      )),
+                      ),
                     );
                   }),
                 ),
@@ -528,9 +654,9 @@ class _DayLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        height: 12 + (last ? 0 : 3),
-        child: Text(label, style: _dayLabelStyle),
-      );
+    height: 12 + (last ? 0 : 3),
+    child: Text(label, style: _dayLabelStyle),
+  );
 }
 
 const _dayLabelStyle = TextStyle(
