@@ -172,6 +172,15 @@ class _PlaylistPageState extends ConsumerState<_PlaylistPage> {
     final id = video.localId!;
     final current = _effectiveState(video);
     final desired = !current;
+    final confirmed = await _showPlaylistConfirmationSheet(
+      context,
+      title: desired ? 'Mark as watched?' : 'Mark as unwatched?',
+      message: desired
+          ? 'Mark "${video.title}" as watched?'
+          : 'Mark "${video.title}" as unwatched?',
+      confirmLabel: desired ? 'Mark as watched' : 'Mark as unwatched',
+    );
+    if (confirmed != true || !mounted) return;
     debugPrint(
       '[DIMI youtube completion] UI playlist tap '
       'localId=$id videoId=${video.videoId} current=$current desired=$desired',
@@ -321,24 +330,12 @@ class _PlaylistPageState extends ConsumerState<_PlaylistPage> {
   }
 
   Future<void> _removePlaylist() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Remove playlist?'),
-        content: Text(
-          'Remove "${widget.playlist.title}" and its local progress?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
+    final confirmed = await _showPlaylistConfirmationSheet(
+      context,
+      title: 'Remove playlist?',
+      message:
+          'Remove "${widget.playlist.title}" and all of its local progress?',
+      confirmLabel: 'Remove',
     );
     if (confirmed != true || !mounted) return;
     final row = ref
@@ -363,6 +360,129 @@ String _fmt(Duration d) => d.inHours > 0
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Header  — full-width thumbnail, title + meta below, description hidden
 // ─────────────────────────────────────────────────────────────────────────────
+
+Future<bool?> _showPlaylistConfirmationSheet(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required String confirmLabel,
+}) {
+  return showModalBottomSheet<bool>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    barrierColor: Colors.black54,
+    isScrollControlled: true,
+    sheetAnimationStyle: const AnimationStyle(
+      duration: Duration(milliseconds: 220),
+      reverseDuration: Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    ),
+    builder: (sheetContext) => SafeArea(
+      minimum: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(color: AppColors.divider),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.textPrimary.withAlpha(20),
+              blurRadius: 28,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              title,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 19,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              message,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 13,
+                height: 1.35,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: _PlaylistSheetButton(
+                    label: 'Cancel',
+                    onPressed: () => Navigator.pop(sheetContext, false),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _PlaylistSheetButton(
+                    label: confirmLabel,
+                    primary: true,
+                    onPressed: () => Navigator.pop(sheetContext, true),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _PlaylistSheetButton extends StatelessWidget {
+  const _PlaylistSheetButton({
+    required this.label,
+    required this.onPressed,
+    this.primary = false,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+  final bool primary;
+
+  @override
+  Widget build(BuildContext context) => FilledButton(
+    onPressed: onPressed,
+    style: FilledButton.styleFrom(
+      backgroundColor: primary ? AppColors.accent : AppColors.accentSoft,
+      foregroundColor: primary ? AppColors.surface : AppColors.textPrimary,
+      elevation: 0,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+      shape: const StadiumBorder(),
+      textStyle: const TextStyle(
+        fontFamily: 'Poppins',
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+    child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+  );
+}
 
 class _Header extends StatefulWidget {
   const _Header({required this.playlist});
