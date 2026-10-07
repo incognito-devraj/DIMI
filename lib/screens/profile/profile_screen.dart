@@ -8,6 +8,7 @@ import '../../data/database.dart';
 import '../../providers/profile_providers.dart';
 import '../../providers/task_providers.dart';
 import '../../routing/app_router.dart';
+import '../../services/persistent_image_cache.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/dimi_hero.dart';
 
@@ -118,6 +119,7 @@ class _EmptyProfileState extends StatelessWidget {
       ],
     );
   }
+
 }
 
 // ── Main profile body ─────────────────────────────────────────────────────────
@@ -455,7 +457,12 @@ class _ProfileAvatar extends StatelessWidget {
       ),
       child: ClipOval(
         child: hasAvatar
-            ? Image.network(avatarUrl, fit: BoxFit.cover)
+            ? DimiCachedImage(
+                url: avatarUrl,
+                refreshInBackground: true,
+                fit: BoxFit.cover,
+                fallback: _fallback(profile),
+              )
             : Container(
                 color: AppColors.accent,
                 alignment: Alignment.center,
@@ -472,6 +479,20 @@ class _ProfileAvatar extends StatelessWidget {
       ),
     );
   }
+
+  Widget _fallback(ProfileTableData profile) => Container(
+    color: AppColors.accent,
+    alignment: Alignment.center,
+    child: Text(
+      profile.name.isNotEmpty ? profile.name[0].toUpperCase() : 'S',
+      style: const TextStyle(
+        fontFamily: 'Inter',
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+        color: AppColors.surface,
+      ),
+    ),
+  );
 }
 
 // ── Personal information ──────────────────────────────────────────────────────

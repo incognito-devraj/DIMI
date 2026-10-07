@@ -15,6 +15,7 @@ import '../../providers/profile_providers.dart';
 import '../../providers/reminder_providers.dart';
 import '../../providers/task_providers.dart';
 import '../../routing/app_router.dart';
+import '../../services/persistent_image_cache.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/section_card.dart';
 import '../../widgets_modals/add_expense_sheet.dart';
@@ -143,11 +144,15 @@ class HomeScreen extends ConsumerWidget {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: homeCardInset),
-                child: plannerEntriesAsync.when(
-                  data: (tasks) => _HomeHeatmapCard(tasks: tasks),
-                  loading: () => const _Shimmer(height: 155),
-                  error: (_, _) => const SizedBox.shrink(),
-                ),
+                child: plannerEntriesAsync.valueOrNull != null
+                    ? _HomeHeatmapCard(
+                        tasks: plannerEntriesAsync.valueOrNull!,
+                      )
+                    : plannerEntriesAsync.when(
+                        data: (tasks) => _HomeHeatmapCard(tasks: tasks),
+                        loading: () => const _Shimmer(height: 155),
+                        error: (_, _) => const SizedBox.shrink(),
+                      ),
               ),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 28)),
@@ -922,18 +927,30 @@ class _GreetingHero extends StatelessWidget {
                     child: CircleAvatar(
                       radius: 18,
                       backgroundColor: AppColors.surfaceDark,
-                      backgroundImage: avatarUrl == null
-                          ? null
-                          : NetworkImage(avatarUrl),
-                      child: Text(
-                        avatarUrl == null ? initials : '',
-                        style: const TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.surface,
-                        ),
-                      ),
+                      child: avatarUrl == null
+                          ? Text(
+                              initials,
+                              style: const TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.surface,
+                              ),
+                            )
+                          : DimiCachedImage(
+                              url: avatarUrl,
+                              refreshInBackground: true,
+                              fit: BoxFit.cover,
+                              fallback: Text(
+                                initials,
+                                style: const TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.surface,
+                                ),
+                              ),
+                            ),
                     ),
                   ),
                 ),
