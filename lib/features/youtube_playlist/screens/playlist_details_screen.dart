@@ -979,6 +979,7 @@ class _PlaylistHeatmapState extends State<_PlaylistHeatmap> {
                   width: _PlaylistHeatmap._labelWidth,
                   child: Column(
                     children: [
+                      SizedBox(height: _PlaylistHeatmap._cellSize + 4),
                       _DayLabel('Sun'),
                       _DayLabel('Mon'),
                       _DayLabel('Tue'),
@@ -986,7 +987,6 @@ class _PlaylistHeatmapState extends State<_PlaylistHeatmap> {
                       _DayLabel('Thu'),
                       _DayLabel('Fri'),
                       _DayLabel('Sat', last: true),
-                      SizedBox(height: 16),
                     ],
                   ),
                 ),
@@ -1323,19 +1323,20 @@ class _HeatMonthGroup extends StatelessWidget {
     final groupStart = month.subtract(Duration(days: month.weekday % 7));
     final groupEnd = monthEnd.add(Duration(days: 6 - (monthEnd.weekday % 7)));
     final weekCount = (groupEnd.difference(groupStart).inDays ~/ 7) + 1;
+    final groupWidth =
+        weekCount * (_PlaylistHeatmap._cellSize + _PlaylistHeatmap._gap) -
+        _PlaylistHeatmap._gap;
 
     return SizedBox(
-      width:
-          weekCount * (_PlaylistHeatmap._cellSize + _PlaylistHeatmap._gap) -
-          _PlaylistHeatmap._gap,
+      width: groupWidth,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
+            width: groupWidth,
             height: 16,
-            child: OverflowBox(
-              alignment: Alignment.centerLeft,
-              maxWidth: 34,
+            child: Align(
+              alignment: Alignment.center,
               child: Text(
                 DateFormat('MMM').format(month),
                 maxLines: 1,
@@ -1423,7 +1424,10 @@ class _DayLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
     height: _PlaylistHeatmap._cellSize + (last ? 0 : _PlaylistHeatmap._gap),
-    child: Text(label, style: _heatDayLabelStyle),
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: Text(label, style: _heatDayLabelStyle),
+    ),
   );
 }
 

@@ -251,6 +251,7 @@ class _DimiActivityHeatmapState extends State<DimiActivityHeatmap> {
                 width: DimiActivityHeatmap._labelWidth,
                 child: Column(
                   children: [
+                    SizedBox(height: DimiActivityHeatmap._cellSize + 4),
                     _DayLabel('Sun'),
                     _DayLabel('Mon'),
                     _DayLabel('Tue'),
@@ -258,7 +259,6 @@ class _DimiActivityHeatmapState extends State<DimiActivityHeatmap> {
                     _DayLabel('Thu'),
                     _DayLabel('Fri'),
                     _DayLabel('Sat', last: true),
-                    SizedBox(height: 16),
                   ],
                 ),
               ),
@@ -546,20 +546,20 @@ class _ActivityMonthGroup extends StatelessWidget {
     final groupStart = month.subtract(Duration(days: month.weekday % 7));
     final groupEnd = monthEnd.add(Duration(days: 6 - (monthEnd.weekday % 7)));
     final weekCount = (groupEnd.difference(groupStart).inDays ~/ 7) + 1;
+    final groupWidth =
+        weekCount * (DimiActivityHeatmap._cellSize + DimiActivityHeatmap._gap) -
+        DimiActivityHeatmap._gap;
 
     return SizedBox(
-      width:
-          weekCount *
-              (DimiActivityHeatmap._cellSize + DimiActivityHeatmap._gap) -
-          DimiActivityHeatmap._gap,
+      width: groupWidth,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
+            width: groupWidth,
             height: 16,
-            child: OverflowBox(
-              alignment: Alignment.centerLeft,
-              maxWidth: 34,
+            child: Align(
+              alignment: Alignment.center,
               child: Text(
                 DateFormat('MMM').format(month),
                 maxLines: 1,
@@ -654,8 +654,11 @@ class _DayLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    height: 12 + (last ? 0 : 3),
-    child: Text(label, style: _dayLabelStyle),
+    height: DimiActivityHeatmap._cellSize + (last ? 0 : 3),
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: Text(label, style: _dayLabelStyle),
+    ),
   );
 }
 
