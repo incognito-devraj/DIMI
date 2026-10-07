@@ -1410,7 +1410,7 @@ class _CalendarCard extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   color: isToday
-                      ? AppColors.accent
+                      ? Colors.black
                       : _HeatmapCard._heatColor(plan, future).withAlpha(115),
                   borderRadius: BorderRadius.circular(11),
                   border: isSelected && !isToday
@@ -1428,9 +1428,7 @@ class _CalendarCard extends StatelessWidget {
                         fontWeight: isToday || isSelected
                             ? FontWeight.w700
                             : FontWeight.w400,
-                        color: isToday
-                            ? AppColors.surface
-                            : AppColors.textPrimary,
+                        color: isToday ? Colors.white : AppColors.textPrimary,
                       ),
                     ),
                     if (plan.hasPlan)
@@ -1448,6 +1446,43 @@ class _CalendarCard extends StatelessWidget {
               ),
             );
           },
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            const Text(
+              'Less',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 9,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 5),
+            ...List.generate(
+              heatmapColors.length,
+              (level) => Padding(
+                padding: const EdgeInsets.only(left: 3),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: heatmapColors[level],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  child: const SizedBox(width: 10, height: 10),
+                ),
+              ),
+            ),
+            const SizedBox(width: 5),
+            const Text(
+              'More',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 9,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
         ),
       ],
     ),
