@@ -44,12 +44,11 @@ class PlaylistDetailsScreen extends ConsumerWidget {
         videos: playlist.videos,
         initialFilter: initialFilter,
       ),
-      error: (_, _) =>
-          _PlaylistPage(
-            playlist: playlist,
-            videos: playlist.videos,
-            initialFilter: initialFilter,
-          ),
+      error: (_, _) => _PlaylistPage(
+        playlist: playlist,
+        videos: playlist.videos,
+        initialFilter: initialFilter,
+      ),
     );
   }
 }
@@ -263,10 +262,7 @@ class _PlaylistPageState extends ConsumerState<_PlaylistPage> {
                   const SizedBox(height: 12),
 
                   // 3. Heatmap (unchanged)
-                  _PlaylistHeatmap(
-                    videos: widget.videos,
-                    onDateTap: _showCompletedOn,
-                  ),
+                  _PlaylistHeatmap(videos: widget.videos),
                   const SizedBox(height: 12),
 
                   // 4. Reminders (just under heatmap)
@@ -354,43 +350,6 @@ class _PlaylistPageState extends ConsumerState<_PlaylistPage> {
       await ref.read(youtubePlaylistDaoProvider).deletePlaylist(row.id);
     }
     if (mounted) context.pop();
-  }
-
-  void _showCompletedOn(DateTime date, List<YouTubeVideo> videos) {
-    final completed = videos
-        .where(
-          (v) =>
-              v.isCompleted &&
-              v.watchedAt != null &&
-              _sameDay(v.watchedAt!, date),
-        )
-        .toList();
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(DateFormat('d MMM yyyy').format(date)),
-        content: completed.isEmpty
-            ? const Text('No videos were ticked on this date.')
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: completed
-                    .map(
-                      (v) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text('✓ ${v.title}'),
-                      ),
-                    )
-                    .toList(),
-              ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -815,10 +774,9 @@ class _RingPainter extends CustomPainter {
 // 3. Playlist Heatmap  — identical style to DimiActivityHeatmap
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _PlaylistHeatmap extends StatelessWidget {
-  const _PlaylistHeatmap({required this.videos, required this.onDateTap});
+class _PlaylistHeatmap extends StatefulWidget {
+  const _PlaylistHeatmap({required this.videos});
   final List<YouTubeVideo> videos;
-  final void Function(DateTime, List<YouTubeVideo>) onDateTap;
 
   static const _cellSize = 12.0;
   static const _gap = 3.0;
@@ -827,9 +785,140 @@ class _PlaylistHeatmap extends StatelessWidget {
   static const _monthCount = 12;
 
   @override
+  State<_PlaylistHeatmap> createState() => _PlaylistHeatmapState();
+}
+
+class _PlaylistHeatmapState extends State<_PlaylistHeatmap> {
+  static const _screenPadding = 12.0;
+  static const _tooltipGap = 8.0;
+  static const _estimatedTooltipHeight = 190.0;
+
+  final Map<DateTime, LayerLink> _cellLinks = {};
+  _PlaylistHeatSelection? _selection;
+  _PlaylistHeatPlacement? _placement;
+  OverlayEntry? _overlayEntry;
+
+  LayerLink _linkFor(DateTime date) =>
+      _cellLinks.putIfAbsent(date, LayerLink.new);
+
+  void _selectCell(BuildContext cellContext, DateTime date) {
+    final box = cellContext.findRenderObject()! as RenderBox;
+    final cellTopLeft = box.localToGlobal(Offset.zero);
+    final cellRect = cellTopLeft & box.size;
+    final videos = widget.videos
+        .where(
+          (video) =>
+              video.isCompleted &&
+              video.watchedAt != null &&
+              _sameDay(video.watchedAt!, date),
+        )
+        .toList();
+    final screen = MediaQuery.sizeOf(context);
+    final dateStyle = AppTextStyles.caption(context).copyWith(fontSize: 12);
+    final mainStyle = AppTextStyles.cardTitle(context)
+        .copyWith(fontSize: 14, fontWeight: FontWeight.w700);
+    final dateWidth = _measureText(
+      DateFormat('EEE, MMM d').format(date),
+      dateStyle,
+    );
+    final mainWidth = _measureText(
+      '${videos.length} ${videos.length == 1 ? 'video' : 'videos'} completed',
+      mainStyle,
+    );
+    final width = math.min(
+      math.max(dateWidth + 24, mainWidth + 24).clamp(260.0, 340.0),
+      screen.width - _screenPadding * 2,
+    );
+    final centerX = cellRect.center.dx;
+    final left = (centerX - width / 2).clamp(
+      _screenPadding,
+      screen.width - _screenPadding - width,
+    );
+    final aboveFits =
+        cellRect.top - _tooltipGap - _estimatedTooltipHeight >= _screenPadding;
+    final vertical = aboveFits
+        ? _PlaylistHeatVertical.above
+        : _PlaylistHeatVertical.below;
+
+    setState(() {
+      _selection = _PlaylistHeatSelection(date, videos);
+      _placement = _PlaylistHeatPlacement(
+        vertical: vertical,
+        width: width,
+        offsetX: left - (centerX - width / 2),
+        arrowX: centerX - left,
+        cellHeight: cellRect.height,
+      );
+    });
+    if (_overlayEntry == null) {
+      _overlayEntry = OverlayEntry(builder: (_) => _buildOverlay());
+      Overlay.of(context, rootOverlay: true).insert(_overlayEntry!);
+    } else {
+      _overlayEntry!.markNeedsBuild();
+    }
+  }
+
+  double _measureText(String text, TextStyle style) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: Directionality.of(context),
+      maxLines: 1,
+    )..layout();
+    return painter.width;
+  }
+
+  void _dismissPopup() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    if (mounted) {
+      setState(() {
+        _selection = null;
+        _placement = null;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _overlayEntry?.remove();
+    super.dispose();
+  }
+
+  Widget _buildOverlay() {
+    final selection = _selection;
+    final placement = _placement;
+    if (selection == null || placement == null) {
+      return const SizedBox.shrink();
+    }
+    return Positioned.fill(
+      child: Stack(
+        clipBehavior: Clip.none,
+        fit: StackFit.loose,
+        children: [
+          CompositedTransformFollower(
+            link: _linkFor(selection.date),
+            showWhenUnlinked: false,
+            targetAnchor: placement.targetAnchor,
+            followerAnchor: placement.followerAnchor,
+            offset: placement.offset,
+            child: TapRegion(
+              onTapOutside: (_) => _dismissPopup(),
+              child: _PlaylistHeatTooltip(
+                selection: selection,
+                placement: placement,
+                onDismiss: _dismissPopup,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final counts = <DateTime, int>{};
-    for (final v in videos) {
+    for (final v in widget.videos) {
       if (v.isCompleted && v.watchedAt != null) {
         final d = _day(v.watchedAt!);
         counts[d] = (counts[d] ?? 0) + 1;
@@ -837,9 +926,13 @@ class _PlaylistHeatmap extends StatelessWidget {
     }
 
     final today = _day(DateTime.now());
-    final firstMonth = DateTime(today.year, today.month - (_monthCount - 1), 1);
+    final firstMonth = DateTime(
+      today.year,
+      today.month - (_PlaylistHeatmap._monthCount - 1),
+      1,
+    );
     final months = List.generate(
-      _monthCount,
+      _PlaylistHeatmap._monthCount,
       (i) => DateTime(firstMonth.year, firstMonth.month + i, 1),
     );
 
@@ -877,12 +970,13 @@ class _PlaylistHeatmap extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           SizedBox(
-            height: 7 * _cellSize + 6 * _gap + 16,
+            height:
+                7 * _PlaylistHeatmap._cellSize + 6 * _PlaylistHeatmap._gap + 16,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(
-                  width: _labelWidth,
+                  width: _PlaylistHeatmap._labelWidth,
                   child: Column(
                     children: [
                       _DayLabel('Sun'),
@@ -908,10 +1002,11 @@ class _PlaylistHeatmap extends StatelessWidget {
                             month: month,
                             today: today,
                             counts: counts,
-                            videos: videos,
-                            onDateTap: onDateTap,
+                            linkFor: _linkFor,
+                            onTap: (cellContext, day) =>
+                                _selectCell(cellContext, day),
                           ),
-                          const SizedBox(width: _monthGap),
+                          const SizedBox(width: _PlaylistHeatmap._monthGap),
                         ],
                       ],
                     ),
@@ -951,20 +1046,276 @@ class _PlaylistHeatmap extends StatelessWidget {
   static DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
 }
 
+class _PlaylistHeatSelection {
+  const _PlaylistHeatSelection(this.date, this.videos);
+
+  final DateTime date;
+  final List<YouTubeVideo> videos;
+}
+
+enum _PlaylistHeatVertical { above, below }
+
+class _PlaylistHeatPlacement {
+  const _PlaylistHeatPlacement({
+    required this.vertical,
+    required this.width,
+    required this.offsetX,
+    required this.arrowX,
+    required this.cellHeight,
+  });
+
+  final _PlaylistHeatVertical vertical;
+  final double width;
+  final double offsetX;
+  final double arrowX;
+  final double cellHeight;
+
+  Alignment get targetAnchor => vertical == _PlaylistHeatVertical.below
+      ? Alignment.bottomCenter
+      : Alignment.topCenter;
+
+  Alignment get followerAnchor => vertical == _PlaylistHeatVertical.below
+      ? Alignment.topCenter
+      : Alignment.bottomCenter;
+
+  Offset get offset => Offset(
+    offsetX,
+    vertical == _PlaylistHeatVertical.above ? cellHeight / 2 : -cellHeight / 2,
+  );
+}
+
+class _PlaylistHeatTooltip extends StatefulWidget {
+  const _PlaylistHeatTooltip({
+    required this.selection,
+    required this.placement,
+    required this.onDismiss,
+  });
+
+  final _PlaylistHeatSelection selection;
+  final _PlaylistHeatPlacement placement;
+  final VoidCallback onDismiss;
+
+  @override
+  State<_PlaylistHeatTooltip> createState() => _PlaylistHeatTooltipState();
+}
+
+class _PlaylistHeatTooltipState extends State<_PlaylistHeatTooltip> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void didUpdateWidget(covariant _PlaylistHeatTooltip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selection.date != widget.selection.date) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _scrollController.hasClients) {
+          _scrollController.jumpTo(0);
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: .96, end: 1),
+    duration: const Duration(milliseconds: 180),
+    curve: Curves.easeOutCubic,
+    builder: (context, scale, child) => Opacity(
+      opacity: (scale - .96) / .04,
+      child: Transform.scale(scale: scale, child: child),
+    ),
+    child: CustomPaint(
+      painter: _PlaylistHeatTooltipPainter(
+        vertical: widget.placement.vertical,
+        arrowX: widget.placement.arrowX,
+      ),
+      child: Container(
+        width: widget.placement.width,
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 28),
+                  child: Text(
+                    DateFormat('EEE, MMM d').format(widget.selection.date),
+                    style: AppTextStyles.caption(context).copyWith(
+                      fontSize: 12,
+                      height: 16 / 12,
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '${widget.selection.videos.length} ${widget.selection.videos.length == 1 ? 'video' : 'videos'} completed',
+                  maxLines: 1,
+                  softWrap: false,
+                  style: AppTextStyles.cardTitle(context).copyWith(
+                    fontSize: 14,
+                    height: 18 / 14,
+                    fontWeight: FontWeight.w700,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 148),
+                  child: ScrollbarTheme(
+                    data: ScrollbarThemeData(
+                      thumbColor: WidgetStatePropertyAll(
+                        AppColors.textSecondary.withAlpha(210),
+                      ),
+                      trackColor: WidgetStatePropertyAll(
+                        AppColors.divider.withAlpha(150),
+                      ),
+                    ),
+                    child: Scrollbar(
+                      controller: _scrollController,
+                      thumbVisibility: true,
+                      trackVisibility: true,
+                      thickness: 4,
+                      radius: const Radius.circular(4),
+                      child: ListView.separated(
+                        controller: _scrollController,
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.only(right: 7),
+                        itemCount: widget.selection.videos.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 4),
+                        itemBuilder: (context, index) {
+                          final video = widget.selection.videos[index];
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.accentSoft.withAlpha(150),
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 1),
+                                  child: Icon(
+                                    Icons.check_circle_rounded,
+                                    size: 14,
+                                    color: AppColors.accent,
+                                  ),
+                                ),
+                                const SizedBox(width: 7),
+                                Expanded(
+                                  child: Text(
+                                    video.title,
+                                    style: AppTextStyles.body(context).copyWith(
+                                      fontSize: 11,
+                                      height: 1.2,
+                                      fontWeight: FontWeight.w500,
+                                      decoration: TextDecoration.none,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Positioned(
+              top: -6,
+              right: -8,
+              child: IconButton(
+                onPressed: widget.onDismiss,
+                icon: const Icon(Icons.close_rounded, size: 16),
+                color: AppColors.textSecondary,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 28,
+                  height: 28,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _PlaylistHeatTooltipPainter extends CustomPainter {
+  const _PlaylistHeatTooltipPainter({
+    required this.vertical,
+    required this.arrowX,
+  });
+
+  final _PlaylistHeatVertical vertical;
+  final double arrowX;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const arrowWidth = 12.0;
+    const arrowHeight = 7.0;
+    final top = vertical == _PlaylistHeatVertical.below ? arrowHeight : 0.0;
+    final bottom = vertical == _PlaylistHeatVertical.above
+        ? size.height - arrowHeight
+        : size.height;
+    final rect = Rect.fromLTRB(0, top, size.width, bottom);
+    final path = Path()
+      ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(16)));
+    final clampedArrow = arrowX.clamp(14.0, size.width - 14.0).toDouble();
+    if (vertical == _PlaylistHeatVertical.below) {
+      path.moveTo(clampedArrow - arrowWidth / 2, arrowHeight);
+      path.lineTo(clampedArrow, 0);
+      path.lineTo(clampedArrow + arrowWidth / 2, arrowHeight);
+    } else {
+      path.moveTo(clampedArrow - arrowWidth / 2, size.height - arrowHeight);
+      path.lineTo(clampedArrow, size.height);
+      path.lineTo(clampedArrow + arrowWidth / 2, size.height - arrowHeight);
+    }
+    canvas.drawShadow(path, const Color(0x40000000), 8, false);
+    canvas.drawPath(path, Paint()..color = AppColors.surface);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = AppColors.divider
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _PlaylistHeatTooltipPainter old) =>
+      old.vertical != vertical || old.arrowX != arrowX;
+}
+
 class _HeatMonthGroup extends StatelessWidget {
   const _HeatMonthGroup({
     required this.month,
     required this.today,
     required this.counts,
-    required this.videos,
-    required this.onDateTap,
+    required this.linkFor,
+    required this.onTap,
   });
 
   final DateTime month;
   final DateTime today;
   final Map<DateTime, int> counts;
-  final List<YouTubeVideo> videos;
-  final void Function(DateTime, List<YouTubeVideo>) onDateTap;
+  final LayerLink Function(DateTime) linkFor;
+  final void Function(BuildContext, DateTime) onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1026,20 +1377,28 @@ class _HeatMonthGroup extends StatelessWidget {
                       padding: EdgeInsets.only(
                         bottom: row == 6 ? 0 : _PlaylistHeatmap._gap,
                       ),
-                      child: GestureDetector(
-                        onTap: count > 0 ? () => onDateTap(day, videos) : null,
-                        child: Semantics(
-                          label:
-                              '${DateFormat('MMMM d, yyyy').format(day)}: $count videos',
-                          button: count > 0,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: color,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                            child: SizedBox(
-                              width: _PlaylistHeatmap._cellSize,
-                              height: _PlaylistHeatmap._cellSize,
+                      child: Builder(
+                        builder: (cellContext) => CompositedTransformTarget(
+                          link: linkFor(day),
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: count > 0
+                                ? () => onTap(cellContext, day)
+                                : null,
+                            child: Semantics(
+                              label:
+                                  '${DateFormat('MMMM d, yyyy').format(day)}: $count videos',
+                              button: count > 0,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                                child: SizedBox(
+                                  width: _PlaylistHeatmap._cellSize,
+                                  height: _PlaylistHeatmap._cellSize,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -1122,7 +1481,10 @@ class _PlaylistReminderSectionState
     final prefs = await SharedPreferences.getInstance();
     final dao = ref.read(databaseProvider).reminderDao;
 
-    Future<Reminder?> findReminder({required String title, required String key}) async {
+    Future<Reminder?> findReminder({
+      required String title,
+      required String key,
+    }) async {
       final storedId = prefs.getInt(key);
       final byId = storedId == null ? null : await dao.getById(storedId);
       if (byId != null) return byId;
@@ -1152,7 +1514,10 @@ class _PlaylistReminderSectionState
       await prefs.setInt(_watchKey, watch.id);
       _watchReminderId = watch.id;
       _watchEnabled = watch.isEnabled;
-      _watchTime = TimeOfDay(hour: watch.dueAt.hour, minute: watch.dueAt.minute);
+      _watchTime = TimeOfDay(
+        hour: watch.dueAt.hour,
+        minute: watch.dueAt.minute,
+      );
     }
     if (tick != null) {
       await prefs.setInt(_tickKey, tick.id);
@@ -1180,7 +1545,9 @@ class _PlaylistReminderSectionState
     int? reminderId = existingId;
     final previous = existingId == null ? null : await dao.getById(existingId);
     if (previous != null) {
-      await NotificationService.instance.cancelReminder(previous.notificationId);
+      await NotificationService.instance.cancelReminder(
+        previous.notificationId,
+      );
     }
 
     if (existingId != null) {
@@ -1208,7 +1575,9 @@ class _PlaylistReminderSectionState
     final reminder = reminderId == null ? null : await dao.getById(reminderId);
     if (reminder == null) return;
     if (!enabled) {
-      await NotificationService.instance.cancelReminder(reminder.notificationId);
+      await NotificationService.instance.cancelReminder(
+        reminder.notificationId,
+      );
       return;
     }
 
