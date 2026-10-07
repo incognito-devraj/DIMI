@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../theme/app_theme.dart';
+import '../../../services/persistent_image_cache.dart';
 import '../../../widgets/dimi_progress_bar.dart';
 import '../models/youtube_video.dart';
 
@@ -16,10 +17,10 @@ class PlaylistThumbnail extends StatelessWidget {
     if (label.startsWith('http')) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(large ? 16 : 10),
-        child: Image.network(
-          label,
+        child: DimiCachedImage(
+          url: label,
+          fallback: _fallback(context),
           fit: BoxFit.cover,
-          errorBuilder: (_, error, stack) => _fallback(context),
         ),
       );
     }

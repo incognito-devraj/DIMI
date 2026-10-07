@@ -14,6 +14,7 @@ import '../features/youtube_playlist/models/youtube_video.dart'
 import '../features/youtube_playlist/providers.dart';
 import '../features/youtube_playlist/screens/add_youtube_playlist_sheet.dart';
 import '../routing/app_router.dart';
+import '../services/persistent_image_cache.dart';
 import '../theme/app_theme.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -611,8 +612,9 @@ class _PlaylistPageItemState
 
             if (row.thumbnailUrl.startsWith('http'))
               Positioned.fill(
-                child: Image.network(
-                  row.thumbnailUrl,
+                child: DimiCachedImage(
+                  url: row.thumbnailUrl,
+                  fallback: const SizedBox.shrink(),
 
                   // Cover the complete page.
                   //
@@ -622,16 +624,7 @@ class _PlaylistPageItemState
                   fit: BoxFit.cover,
 
                   // Keep the important artwork toward the right.
-                  alignment:
-                      Alignment.centerRight,
-
-                  errorBuilder: (
-                    context,
-                    error,
-                    stackTrace,
-                  ) {
-                    return const SizedBox.shrink();
-                  },
+                  alignment: Alignment.centerRight,
                 ),
               ),
 
