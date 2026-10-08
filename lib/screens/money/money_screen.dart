@@ -15,6 +15,7 @@ import '../../core/motion/dimi_motion.dart';
 import '../../widgets/pill_segmented_control.dart';
 import '../../widgets/section_card.dart';
 import '../../widgets_modals/add_expense_sheet.dart';
+import '../../widgets_modals/fixed_dialog.dart';
 
 const _kTabs = ['Wallet', 'Transactions', 'Overview'];
 const _allMoneyCategories = [
@@ -61,14 +62,14 @@ class MoneyScreen extends ConsumerStatefulWidget {
 class _MoneyScreenState extends ConsumerState<MoneyScreen> {
   int _tabIndex = 0;
   bool _showAddButton = true;
-  String? _categoryFilter;
+  Set<String> _categoryFilters = <String>{};
   String _searchQuery = '';
   String _transactionTypeFilter = 'all';
   DateTime? _transactionMonth = DateTime(
     DateTime.now().year,
     DateTime.now().month,
   );
-  bool _sortAscending = false;
+  DateTimeRange? _transactionDateRange;
 
   Future<void> _openSearch() async {
     final controller = TextEditingController(text: _searchQuery);
@@ -109,110 +110,73 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
   }
 
   Future<void> _openFilter(List<String> categories) async {
-    final selected = await showModalBottomSheet<String>(
+    final selected = await showGeneralDialog<Set<String>>(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => Container(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 38,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.divider,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              const Text(
-                'Filter expenses',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _FilterChip(
-                    label: 'All categories',
-                    selected: _categoryFilter == null,
-                    onTap: () => Navigator.pop(sheetContext, ''),
-                  ),
-                  ...categories.map(
-                    (category) => _FilterChip(
-                      label: category,
-                      selected: _categoryFilter == category,
-                      onTap: () => Navigator.pop(sheetContext, category),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+      barrierDismissible: true,
+      barrierLabel: 'Filter expenses',
+      barrierColor: const Color(0x99000000),
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (_, _, _) => DimiFixedDialog(
+        height: 540,
+        child: _FinanceCategoryFilterDialog(
+          categories: categories,
+          selected: _categoryFilters,
         ),
       ),
+      transitionBuilder: (_, animation, _, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.94, end: 1.0).animate(curved),
+            child: child,
+          ),
+        );
+      },
     );
     if (selected != null && mounted) {
-      setState(() => _categoryFilter = selected.isEmpty ? null : selected);
+      setState(() => _categoryFilters = selected);
     }
   }
 
   Future<void> _openMonthSelector() async {
-    final now = DateTime.now();
-    final months = List.generate(
-      12,
-      (index) => DateTime(now.year, now.month - index),
-    );
-    final selected = await showModalBottomSheet<DateTime?>(
+    final selected = await showGeneralDialog<DateTimeRange?>(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => _FinancePickerSheet<DateTime?>(
-        title: 'Date period',
-        selected: _transactionMonth,
-        items: [null, ...months],
-        label: (month) =>
-            month == null ? 'All dates' : DateFormat('MMM yyyy').format(month),
-        onSelected: (value) =>
-            Navigator.pop(sheetContext, value ?? DateTime(1900)),
+      barrierDismissible: true,
+      barrierLabel: 'Date period',
+      barrierColor: const Color(0x99000000),
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (_, _, _) => DimiFixedDialog(
+        height: 560,
+        child: _FinanceDatePeriodDialog(selectedRange: _transactionDateRange),
       ),
+      transitionBuilder: (_, animation, _, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.94, end: 1.0).animate(curved),
+            child: child,
+          ),
+        );
+      },
     );
     if (selected != null && mounted) {
-      setState(
-        () => _transactionMonth = selected.year == 1900 ? null : selected,
-      );
-    }
-  }
-
-  Future<void> _openSortSelector() async {
-    final selected = await showModalBottomSheet<bool>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => _FinancePickerSheet<bool>(
-        title: 'Sort transactions',
-        selected: _sortAscending,
-        items: const [false, true],
-        label: (ascending) => ascending ? 'Oldest first' : 'Latest first',
-        onSelected: (value) => Navigator.pop(sheetContext, value),
-      ),
-    );
-    if (selected != null && mounted) {
-      setState(() => _sortAscending = selected);
+      final isAllDates = selected.start.year == 1900;
+      setState(() {
+        _transactionMonth = isAllDates
+            ? null
+            : DateTime(selected.start.year, selected.start.month);
+        _transactionDateRange = isAllDates ? null : selected;
+      });
     }
   }
 
@@ -257,32 +221,36 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                       ),
                     ),
                     const Spacer(),
-                    IconButton(
-                      tooltip: 'Filter finance',
-                      onPressed: () {
-                        final categories = {
-                          ..._allMoneyCategories,
-                          ...allAsync.maybeWhen(
-                            data: (items) =>
-                                items.map((item) => item.category).toSet(),
-                            orElse: () => <String>{},
-                          ),
-                        }.toList()..sort();
-                        _openFilter(categories);
-                      },
-                      icon: const Icon(
-                        Icons.bar_chart_rounded,
-                        color: AppColors.textSecondary,
+                    if (_tabIndex == 1) ...[
+                      IconButton(
+                        tooltip: 'Filter finance',
+                        onPressed: () {
+                          final categories = {
+                            ..._allMoneyCategories,
+                            ...allAsync.maybeWhen(
+                              data: (items) =>
+                                  items.map((item) => item.category).toSet(),
+                              orElse: () => <String>{},
+                            ),
+                          }.toList()..sort();
+                          _openFilter(categories);
+                        },
+                        icon: Icon(
+                          Icons.bar_chart_rounded,
+                          color: _categoryFilters.isNotEmpty
+                              ? AppColors.accent
+                              : AppColors.textSecondary,
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      tooltip: 'Search finance',
-                      onPressed: _openSearch,
-                      icon: const Icon(
-                        Icons.search_rounded,
-                        color: AppColors.textSecondary,
+                      IconButton(
+                        tooltip: 'Search finance',
+                        onPressed: _openSearch,
+                        icon: const Icon(
+                          Icons.search_rounded,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -298,7 +266,10 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                   child: PillSegmentedControl(
                     options: _kTabs,
                     selected: _tabIndex,
-                    onSelected: (i) => setState(() => _tabIndex = i),
+                    onSelected: (i) => setState(() {
+                      _tabIndex = i;
+                      if (i != 1) _categoryFilters.clear();
+                    }),
                   ),
                 ),
               ),
@@ -308,12 +279,8 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
               if (_tabIndex == 1)
                 _TransactionFilterToolbar(
                   selectedType: _transactionTypeFilter,
-                  selectedMonth: _transactionMonth,
-                  sortAscending: _sortAscending,
                   onTypeSelected: (type) =>
                       setState(() => _transactionTypeFilter = type),
-                  onMonthTap: _openMonthSelector,
-                  onSortTap: _openSortSelector,
                 ),
               Expanded(
                 child: ListView(
@@ -327,11 +294,12 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                         ),
                         1 => _TransactionsContent(
                           transactions: transactions,
-                          categoryFilter: _categoryFilter,
+                          categoryFilters: _categoryFilters,
                           searchQuery: _searchQuery,
                           typeFilter: _transactionTypeFilter,
                           selectedMonth: _transactionMonth,
-                          sortAscending: _sortAscending,
+                          dateRange: _transactionDateRange,
+                          onMonthTap: _openMonthSelector,
                         ),
                         _ => _OverviewContent(transactions: transactions),
                       },
@@ -507,56 +475,52 @@ class _WalletContent extends StatelessWidget {
 class _TransactionsContent extends StatelessWidget {
   const _TransactionsContent({
     required this.transactions,
-    required this.categoryFilter,
+    required this.categoryFilters,
     required this.searchQuery,
     required this.typeFilter,
     required this.selectedMonth,
-    required this.sortAscending,
+    required this.dateRange,
+    required this.onMonthTap,
   });
 
   final List<MoneyTransaction> transactions;
-  final String? categoryFilter;
+  final Set<String> categoryFilters;
   final String searchQuery;
   final String typeFilter;
   final DateTime? selectedMonth;
-  final bool sortAscending;
+  final DateTimeRange? dateRange;
+  final VoidCallback onMonthTap;
 
   @override
   Widget build(BuildContext context) {
     final query = searchQuery.toLowerCase();
-    final filtered =
-        transactions.where((transaction) {
-          final matchesCategory =
-              categoryFilter == null || transaction.category == categoryFilter;
-          final matchesType =
-              typeFilter == 'all' ||
-              (typeFilter == 'loan'
-                  ? transaction.type == 'lent' || transaction.type == 'borrowed'
-                  : transaction.type == typeFilter);
-          final matchesMonth =
-              selectedMonth == null ||
-              (transaction.date.year == selectedMonth!.year &&
-                  transaction.date.month == selectedMonth!.month);
-          final matchesSearch =
-              query.isEmpty ||
-              transaction.category.toLowerCase().contains(query) ||
-              (transaction.note?.toLowerCase().contains(query) ?? false) ||
-              (transaction.counterparty?.toLowerCase().contains(query) ??
-                  false) ||
-              transaction.type.toLowerCase().contains(query) ||
-              DateFormat('d MMM yyyy')
-                  .format(transaction.date)
-                  .toLowerCase()
-                  .contains(query);
-          return matchesCategory &&
-              matchesType &&
-              matchesMonth &&
-              matchesSearch;
-        }).toList()..sort(
-          (a, b) => sortAscending
-              ? a.date.compareTo(b.date)
-              : b.date.compareTo(a.date),
-        );
+    final filtered = transactions.where((transaction) {
+      final matchesCategory =
+          categoryFilters.isEmpty ||
+          categoryFilters.contains(transaction.category);
+      final matchesType =
+          typeFilter == 'all' ||
+          (typeFilter == 'loan'
+              ? transaction.type == 'lent' || transaction.type == 'borrowed'
+              : transaction.type == typeFilter);
+      final matchesMonth = dateRange != null
+          ? !transaction.date.isBefore(dateRange!.start) &&
+                !transaction.date.isAfter(dateRange!.end)
+          : selectedMonth == null ||
+                (transaction.date.year == selectedMonth!.year &&
+                    transaction.date.month == selectedMonth!.month);
+      final matchesSearch =
+          query.isEmpty ||
+          transaction.category.toLowerCase().contains(query) ||
+          (transaction.note?.toLowerCase().contains(query) ?? false) ||
+          (transaction.counterparty?.toLowerCase().contains(query) ?? false) ||
+          transaction.type.toLowerCase().contains(query) ||
+          DateFormat('d MMM yyyy')
+              .format(transaction.date)
+              .toLowerCase()
+              .contains(query);
+      return matchesCategory && matchesType && matchesMonth && matchesSearch;
+    }).toList()..sort((a, b) => b.date.compareTo(a.date));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -568,14 +532,27 @@ class _TransactionsContent extends StatelessWidget {
             AppSpacing.screenHorizontal,
             8,
           ),
-          child: Text(
-            searchQuery.isEmpty ? 'Transactions' : 'Search results',
-            style: const TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-            ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  searchQuery.isEmpty ? 'Transactions' : 'Search results',
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              _FinanceControlButton(
+                icon: Icons.calendar_today_outlined,
+                label: selectedMonth == null
+                    ? 'All dates'
+                    : DateFormat('MMM yyyy').format(selectedMonth!),
+                onTap: onMonthTap,
+              ),
+            ],
           ),
         ),
         _GroupedTransactionList(
@@ -896,19 +873,11 @@ String _dateLabel(DateTime date, bool relative) {
 class _TransactionFilterToolbar extends StatelessWidget {
   const _TransactionFilterToolbar({
     required this.selectedType,
-    required this.selectedMonth,
-    required this.sortAscending,
     required this.onTypeSelected,
-    required this.onMonthTap,
-    required this.onSortTap,
   });
 
   final String selectedType;
-  final DateTime? selectedMonth;
-  final bool sortAscending;
   final ValueChanged<String> onTypeSelected;
-  final VoidCallback onMonthTap;
-  final VoidCallback onSortTap;
 
   @override
   Widget build(BuildContext context) {
@@ -919,56 +888,24 @@ class _TransactionFilterToolbar extends StatelessWidget {
       ('loan', 'Lent/Borrowed', Icons.swap_horiz_rounded),
     ];
 
-    return Column(
-      children: [
-        SizedBox(
-          height: 38,
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.screenHorizontal,
-            ),
-            scrollDirection: Axis.horizontal,
-            itemCount: filters.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemBuilder: (context, index) {
-              final filter = filters[index];
-              final selected = selectedType == filter.$1;
-              return _FinanceFilterPill(
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            for (final filter in filters)
+              _FinanceFilterPill(
                 label: filter.$2,
                 icon: filter.$3,
-                selected: selected,
+                selected: selectedType == filter.$1,
                 onTap: () => onTypeSelected(filter.$1),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 10),
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.screenHorizontal,
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: _FinanceControlButton(
-                  icon: Icons.calendar_today_outlined,
-                  label: selectedMonth == null
-                      ? 'All dates'
-                      : DateFormat('MMM yyyy').format(selectedMonth!),
-                  onTap: onMonthTap,
-                ),
               ),
-              const SizedBox(width: 10),
-              _FinanceControlButton(
-                icon: Icons.swap_vert_rounded,
-                label: sortAscending ? 'Oldest' : 'Latest',
-                onTap: onSortTap,
-              ),
-            ],
-          ),
+          ],
         ),
-        const SizedBox(height: 8),
-      ],
+      ),
     );
   }
 }
@@ -991,13 +928,13 @@ class _FinanceFilterPill extends StatelessWidget {
     color: Colors.transparent,
     child: InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(20),
       child: AnimatedContainer(
         duration: DimiMotion.fast,
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: selected ? AppColors.accent : AppColors.surface,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: selected ? AppColors.accent : AppColors.divider,
           ),
@@ -1005,19 +942,16 @@ class _FinanceFilterPill extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 15,
-              color: selected ? AppColors.textPrimary : AppColors.info,
-            ),
+            Icon(icon, size: 14, color: _filterIconColor(label, selected)),
             const SizedBox(width: 5),
             Text(
               label,
-              style: TextStyle(
+              maxLines: 1,
+              style: const TextStyle(
                 fontFamily: 'Poppins',
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
-                color: selected ? AppColors.textPrimary : AppColors.textPrimary,
+                color: AppColors.textPrimary,
               ),
             ),
           ],
@@ -1025,6 +959,15 @@ class _FinanceFilterPill extends StatelessWidget {
       ),
     ),
   );
+}
+
+Color _filterIconColor(String label, bool selected) {
+  if (selected || label == 'All') return AppColors.textPrimary;
+  return switch (label) {
+    'Income' => AppColors.success,
+    'Expense' => AppColors.danger,
+    _ => AppColors.info,
+  };
 }
 
 class _FinanceControlButton extends StatelessWidget {
@@ -1065,6 +1008,1131 @@ class _FinanceControlButton extends StatelessWidget {
             Icons.keyboard_arrow_down_rounded,
             size: 16,
             color: AppColors.textSecondary,
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// ── Filter Expenses Dialog ────────────────────────────────────────────────────
+
+// Fixed canonical category order — drives the no-scroll grid.
+const _kFilterCategories = [
+  'All categories',
+  'Food & Dining',
+  'Grocery',
+  'Shopping',
+  'Transport',
+  'Utilities',
+  'Entertainment',
+  'Health',
+  'Education',
+  'Sundries',
+  'Gift',
+  'Salary',
+  'Allowance',
+  'Freelance',
+  'Borrowed',
+  'Lent',
+  'Other',
+];
+
+Color _catIconColor(String category) => switch (category) {
+  'All categories' => AppColors.accent,
+  'Allowance' => const Color(0xFF7C4DFF),
+  'Education' => const Color(0xFF5C6BC0),
+  'Entertainment' => const Color(0xFFE64A19),
+  'Food & Dining' => const Color(0xFFF5A623),
+  'Freelance' => const Color(0xFF2E7D32),
+  'Gift' => const Color(0xFFE91E63),
+  'Grocery' => const Color(0xFF43A047),
+  'Health' => const Color(0xFFE53935),
+  'Lent' => const Color(0xFF1E88E5),
+  'Borrowed' => const Color(0xFF1E88E5),
+  'Other' => const Color(0xFF757575),
+  'Salary' => const Color(0xFF2E7D32),
+  'Shopping' => const Color(0xFF8E24AA),
+  'Sundries' => const Color(0xFFFF8F00),
+  'Transport' => const Color(0xFF1976D2),
+  'Utilities' => const Color(0xFFFBC02D),
+  _ => AppColors.textSecondary,
+};
+
+class _FinanceCategoryFilterDialog extends StatefulWidget {
+  const _FinanceCategoryFilterDialog({
+    required this.categories,
+    required this.selected,
+  });
+
+  final List<String> categories;
+  final Set<String> selected;
+
+  @override
+  State<_FinanceCategoryFilterDialog> createState() =>
+      _FinanceCategoryFilterDialogState();
+}
+
+class _FinanceCategoryFilterDialogState
+    extends State<_FinanceCategoryFilterDialog> {
+  late final Set<String> _selected = {...widget.selected};
+
+  @override
+  Widget build(BuildContext context) {
+    // Merge canonical list with any DB categories not in it
+    final extras =
+        widget.categories.where((c) => !_kFilterCategories.contains(c)).toList()
+          ..sort();
+    final allCats = [..._kFilterCategories, ...extras];
+
+    final visible = allCats;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x28000000),
+            blurRadius: 32,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // handle
+          const SizedBox(height: 10),
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.divider,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 40,
+                  height: 50,
+                  child: const Icon(
+                    Icons.bar_chart_rounded,
+                    color: AppColors.accent,
+                    size: 42,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'Filter Expenses',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        'Select categories to filter your transactions.',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 11.5,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: const BoxDecoration(
+                      color: AppColors.background,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 16,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 2),
+
+          // grid — shrinkWrap, no scroll
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: visible.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 5,
+                crossAxisSpacing: 4,
+                mainAxisSpacing: 3,
+                childAspectRatio: .9,
+              ),
+              itemBuilder: (context, i) {
+                final cat = visible[i];
+                final isAll = cat == 'All categories';
+                final isSel = isAll
+                    ? _selected.isEmpty
+                    : _selected.contains(cat);
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => setState(() {
+                    if (isAll) {
+                      _selected.clear();
+                    } else if (isSel) {
+                      _selected.remove(cat);
+                    } else {
+                      _selected.add(cat);
+                    }
+                  }),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AnimatedContainer(
+                        duration: DimiMotion.fast,
+                        width: 48,
+                        height: 48,
+                        decoration: isSel
+                            ? BoxDecoration(
+                                color: AppColors.accentSoft,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppColors.accent,
+                                  width: 1.5,
+                                ),
+                              )
+                            : null,
+                        child: Center(
+                          child: Icon(
+                            isAll
+                                ? Icons.apps_rounded
+                                : financeCategoryIcon(cat),
+                            size: isSel ? 21 : 27,
+                            color: isSel
+                                ? AppColors.accent
+                                : _catIconColor(cat),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        isAll
+                            ? 'All'
+                            : cat == 'Food & Dining'
+                            ? 'Food'
+                            : cat,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 9.5,
+                          fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                          color: isSel
+                              ? AppColors.accent
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // footer
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _selected.clear()),
+                    child: Container(
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: AppColors.divider),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'Reset',
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context, _selected),
+                    child: Container(
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: AppColors.accent,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.tune_rounded,
+                            size: 17,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 7),
+                          Text(
+                            'Apply (${_selected.length})',
+                            style: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Date Period Dialog ────────────────────────────────────────────────────────
+
+enum _DatePeriodKind {
+  allDates,
+  today,
+  thisWeek,
+  thisMonth,
+  lastMonth,
+  thisYear,
+  custom,
+}
+
+class _FinanceDatePeriodDialog extends StatefulWidget {
+  const _FinanceDatePeriodDialog({required this.selectedRange});
+  final DateTimeRange? selectedRange;
+
+  @override
+  State<_FinanceDatePeriodDialog> createState() =>
+      _FinanceDatePeriodDialogState();
+}
+
+class _FinanceDatePeriodDialogState extends State<_FinanceDatePeriodDialog> {
+  late _DatePeriodKind _selected;
+  late DateTimeRange? _customRange;
+
+  @override
+  void initState() {
+    super.initState();
+    _customRange = widget.selectedRange;
+    _selected = _inferKind(widget.selectedRange);
+  }
+
+  _DatePeriodKind _inferKind(DateTimeRange? range) {
+    if (range == null) return _DatePeriodKind.allDates;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final s = range.start;
+    if (s.year == 1900) return _DatePeriodKind.allDates;
+    if (s == today) return _DatePeriodKind.today;
+    final weekStart = today.subtract(Duration(days: today.weekday - 1));
+    if (s == weekStart) return _DatePeriodKind.thisWeek;
+    if (s == DateTime(now.year, now.month)) return _DatePeriodKind.thisMonth;
+    final lm = DateTime(now.year, now.month - 1);
+    if (s == DateTime(lm.year, lm.month)) return _DatePeriodKind.lastMonth;
+    if (s == DateTime(now.year)) return _DatePeriodKind.thisYear;
+    return _DatePeriodKind.custom;
+  }
+
+  DateTimeRange _rangeForKind(_DatePeriodKind kind) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return switch (kind) {
+      _DatePeriodKind.allDates => DateTimeRange(
+        start: DateTime(1900),
+        end: DateTime(1900),
+      ),
+      _DatePeriodKind.today => DateTimeRange(
+        start: today,
+        end: DateTime(today.year, today.month, today.day, 23, 59, 59, 999),
+      ),
+      _DatePeriodKind.thisWeek => () {
+        final s = today.subtract(Duration(days: today.weekday - 1));
+        final e = s.add(const Duration(days: 6));
+        return DateTimeRange(
+          start: s,
+          end: DateTime(e.year, e.month, e.day, 23, 59, 59, 999),
+        );
+      }(),
+      _DatePeriodKind.thisMonth => DateTimeRange(
+        start: DateTime(now.year, now.month),
+        end: DateTime(
+          now.year,
+          now.month + 1,
+        ).subtract(const Duration(microseconds: 1)),
+      ),
+      _DatePeriodKind.lastMonth => () {
+        final lm = DateTime(now.year, now.month - 1);
+        return DateTimeRange(
+          start: DateTime(lm.year, lm.month),
+          end: DateTime(
+            lm.year,
+            lm.month + 1,
+          ).subtract(const Duration(microseconds: 1)),
+        );
+      }(),
+      _DatePeriodKind.thisYear => DateTimeRange(
+        start: DateTime(now.year),
+        end: DateTime(now.year + 1).subtract(const Duration(microseconds: 1)),
+      ),
+      _DatePeriodKind.custom =>
+        _customRange ?? DateTimeRange(start: today, end: today),
+    };
+  }
+
+  String _subtitle(_DatePeriodKind kind) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return switch (kind) {
+      _DatePeriodKind.allDates => 'View all your transactions',
+      _DatePeriodKind.today => DateFormat('d MMM yyyy').format(today),
+      _DatePeriodKind.thisWeek => () {
+        final s = today.subtract(Duration(days: today.weekday - 1));
+        final e = s.add(const Duration(days: 6));
+        return '${DateFormat('d').format(s)} – ${DateFormat('d MMM yyyy').format(e)}';
+      }(),
+      _DatePeriodKind.thisMonth => DateFormat('MMMM yyyy').format(now),
+      _DatePeriodKind.lastMonth => DateFormat(
+        'MMMM yyyy',
+      ).format(DateTime(now.year, now.month - 1)),
+      _DatePeriodKind.thisYear => '${now.year}',
+      _DatePeriodKind.custom =>
+        _customRange != null
+            ? '${DateFormat('d MMM yyyy').format(_customRange!.start)}'
+                  ' → ${DateFormat('d MMM yyyy').format(_customRange!.end)}'
+            : 'Tap to set range',
+    };
+  }
+
+  IconData _icon(_DatePeriodKind kind) => switch (kind) {
+    _DatePeriodKind.allDates => Icons.calendar_today_outlined,
+    _DatePeriodKind.today => Icons.wb_sunny_outlined,
+    _DatePeriodKind.thisWeek => Icons.view_week_outlined,
+    _DatePeriodKind.thisMonth => Icons.calendar_month_outlined,
+    _DatePeriodKind.lastMonth => Icons.undo_rounded,
+    _DatePeriodKind.thisYear => Icons.bar_chart_rounded,
+    _DatePeriodKind.custom => Icons.date_range_outlined,
+  };
+
+  String _label(_DatePeriodKind kind) => switch (kind) {
+    _DatePeriodKind.allDates => 'All dates',
+    _DatePeriodKind.today => 'Today',
+    _DatePeriodKind.thisWeek => 'This week',
+    _DatePeriodKind.thisMonth => 'This month',
+    _DatePeriodKind.lastMonth => 'Last month',
+    _DatePeriodKind.thisYear => 'This year',
+    _DatePeriodKind.custom => 'Custom date range',
+  };
+
+  Future<void> _pickCustomRange() async {
+    final picked = await showDialog<DateTimeRange>(
+      context: context,
+      builder: (_) => _CustomDateRangeDialog(initialRange: _customRange),
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _customRange = picked;
+        _selected = _DatePeriodKind.custom;
+      });
+      Navigator.pop(context, picked);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x28000000),
+            blurRadius: 32,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // handle
+          const SizedBox(height: 10),
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.divider,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 40,
+                  height: 46,
+                  child: const Icon(
+                    Icons.calendar_today_rounded,
+                    color: AppColors.accent,
+                    size: 34,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'Date Period',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 23,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: const BoxDecoration(
+                      color: AppColors.background,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 16,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // period list — shrinkWrap, no scroll
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: ListView(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              children: _DatePeriodKind.values.map((kind) {
+                final isSel = _selected == kind;
+                final isCustom = kind == _DatePeriodKind.custom;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: GestureDetector(
+                    onTap: () {
+                      if (isCustom) {
+                        _pickCustomRange();
+                      } else {
+                        setState(() => _selected = kind);
+                        final nav = Navigator.of(context);
+                        Future.delayed(const Duration(milliseconds: 150), () {
+                          nav.pop(_rangeForKind(kind));
+                        });
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: DimiMotion.fast,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSel
+                            ? AppColors.accentSoft
+                            : AppColors.surface.withValues(alpha: .65),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isSel ? AppColors.accent : AppColors.divider,
+                          width: isSel ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          // plain icon — no box, no border
+                          Icon(
+                            _icon(kind),
+                            size: 21,
+                            color: isSel
+                                ? AppColors.accent
+                                : AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _label(kind),
+                                  style: TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 13,
+                                    fontWeight: isSel
+                                        ? FontWeight.w700
+                                        : FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                Text(
+                                  _subtitle(kind),
+                                  style: const TextStyle(
+                                    fontFamily: 'Poppins',
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // edit pencil for custom
+                          if (isCustom) ...[
+                            GestureDetector(
+                              onTap: _pickCustomRange,
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: Icon(
+                                  Icons.edit_outlined,
+                                  size: 17,
+                                  color: isSel
+                                      ? AppColors.accent
+                                      : AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ],
+                          // radio indicator
+                          AnimatedContainer(
+                            duration: DimiMotion.fast,
+                            width: 20,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.transparent,
+                              border: Border.all(
+                                color: isSel
+                                    ? AppColors.accent
+                                    : const Color(0xFFCCCCCC),
+                                width: 1.8,
+                              ),
+                            ),
+                            child: isSel
+                                ? Center(
+                                    child: Container(
+                                      width: 10,
+                                      height: 10,
+                                      decoration: const BoxDecoration(
+                                        color: AppColors.accent,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  )
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomDateRangeDialog extends StatefulWidget {
+  const _CustomDateRangeDialog({required this.initialRange});
+
+  final DateTimeRange? initialRange;
+
+  @override
+  State<_CustomDateRangeDialog> createState() => _CustomDateRangeDialogState();
+}
+
+class _CustomDateRangeDialogState extends State<_CustomDateRangeDialog> {
+  late DateTime _start;
+  late DateTime _end;
+  late DateTime _displayedMonth;
+  bool _editingEnd = true;
+
+  @override
+  void initState() {
+    super.initState();
+    final today = DateTime.now();
+    _start =
+        widget.initialRange?.start ??
+        DateTime(today.year, today.month, today.day);
+    _end = widget.initialRange?.end ?? _start.add(const Duration(days: 7));
+    _displayedMonth = DateTime(_end.year, _end.month);
+  }
+
+  void _setDate(DateTime value) {
+    final date = DateTime(value.year, value.month, value.day);
+    setState(() {
+      if (_editingEnd) {
+        _end = date.isBefore(_start) ? _start : date;
+      } else {
+        _start = date.isAfter(_end) ? _end : date;
+      }
+      _displayedMonth = DateTime(date.year, date.month);
+    });
+  }
+
+  String _format(DateTime value) => DateFormat('d MMM yyyy').format(value);
+
+  @override
+  Widget build(BuildContext context) {
+    final firstDate = DateTime(2020);
+    final lastDate = DateTime(DateTime.now().year + 2, 12, 31);
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+      backgroundColor: Colors.transparent,
+      child: Container(
+        height: 560,
+        padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.divider,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                const SizedBox(
+                  width: 48,
+                  height: 54,
+                  child: Icon(
+                    Icons.calendar_month_rounded,
+                    color: AppColors.accent,
+                    size: 42,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Select Date Range',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 23,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: const BoxDecoration(
+                      color: AppColors.background,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 16,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: _RangeDateField(
+                    label: 'From',
+                    value: _format(_start),
+                    selected: !_editingEnd,
+                    onTap: () => setState(() => _editingEnd = false),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 7),
+                  child: Icon(Icons.arrow_forward_rounded, size: 16),
+                ),
+                Expanded(
+                  child: _RangeDateField(
+                    label: 'To',
+                    value: _format(_end),
+                    selected: _editingEnd,
+                    onTap: () => setState(() => _editingEnd = true),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            _RangeCalendar(
+              month: _displayedMonth,
+              start: _start,
+              end: _end,
+              firstDate: firstDate,
+              lastDate: lastDate,
+              onPreviousMonth: () => setState(() {
+                _displayedMonth = DateTime(
+                  _displayedMonth.year,
+                  _displayedMonth.month - 1,
+                );
+              }),
+              onNextMonth: () => setState(() {
+                _displayedMonth = DateTime(
+                  _displayedMonth.year,
+                  _displayedMonth.month + 1,
+                );
+              }),
+              onDateSelected: _setDate,
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => setState(() {
+                      final today = DateTime.now();
+                      _start = DateTime(today.year, today.month, today.day);
+                      _end = _start;
+                      _displayedMonth = DateTime(today.year, today.month);
+                    }),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                      backgroundColor: AppColors.background,
+                      side: const BorderSide(color: AppColors.divider),
+                      minimumSize: const Size.fromHeight(46),
+                    ),
+                    child: const Text('Clear'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.accent,
+                      foregroundColor: AppColors.surface,
+                      minimumSize: const Size.fromHeight(46),
+                    ),
+                    onPressed: () => Navigator.pop(
+                      context,
+                      DateTimeRange(
+                        start: _start,
+                        end: DateTime(
+                          _end.year,
+                          _end.month,
+                          _end.day,
+                          23,
+                          59,
+                          59,
+                          999,
+                        ),
+                      ),
+                    ),
+                    child: const Text('Apply'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RangeCalendar extends StatelessWidget {
+  const _RangeCalendar({
+    required this.month,
+    required this.start,
+    required this.end,
+    required this.firstDate,
+    required this.lastDate,
+    required this.onPreviousMonth,
+    required this.onNextMonth,
+    required this.onDateSelected,
+  });
+
+  final DateTime month;
+  final DateTime start;
+  final DateTime end;
+  final DateTime firstDate;
+  final DateTime lastDate;
+  final VoidCallback onPreviousMonth;
+  final VoidCallback onNextMonth;
+  final ValueChanged<DateTime> onDateSelected;
+
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  @override
+  Widget build(BuildContext context) {
+    final firstWeekday = DateTime(month.year, month.month, 1).weekday % 7;
+    final days = DateUtils.getDaysInMonth(month.year, month.month);
+    final cells = firstWeekday + days;
+    final totalCells = cells + ((7 - cells % 7) % 7);
+    final weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                DateFormat('MMMM yyyy').format(month),
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed:
+                  month.isAfter(DateTime(firstDate.year, firstDate.month))
+                  ? onPreviousMonth
+                  : null,
+              icon: const Icon(Icons.chevron_left_rounded),
+              visualDensity: VisualDensity.compact,
+            ),
+            IconButton(
+              onPressed: month.isBefore(DateTime(lastDate.year, lastDate.month))
+                  ? onNextMonth
+                  : null,
+              icon: const Icon(Icons.chevron_right_rounded),
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
+        ),
+        Row(
+          children: weekdays
+              .map(
+                (day) => Expanded(
+                  child: Center(
+                    child: Text(
+                      day,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+        const SizedBox(height: 12),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: totalCells,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            childAspectRatio: 1.35,
+          ),
+          itemBuilder: (context, index) {
+            if (index < firstWeekday || index >= firstWeekday + days) {
+              return const SizedBox.shrink();
+            }
+            final date = DateTime(
+              month.year,
+              month.month,
+              index - firstWeekday + 1,
+            );
+            final inRange = !date.isBefore(start) && !date.isAfter(end);
+            final endpoint = _sameDay(date, start) || _sameDay(date, end);
+            final column = index % 7;
+            final enabled =
+                !date.isBefore(firstDate) && !date.isAfter(lastDate);
+            return GestureDetector(
+              onTap: enabled ? () => onDateSelected(date) : null,
+              child: Container(
+                margin: EdgeInsets.zero,
+                decoration: BoxDecoration(
+                  color: inRange
+                      ? AppColors.accent.withValues(alpha: .22)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.horizontal(
+                    left: Radius.circular(
+                      inRange && (column == 0 || _sameDay(date, start)) ? 8 : 0,
+                    ),
+                    right: Radius.circular(
+                      inRange && (column == 6 || _sameDay(date, end)) ? 8 : 0,
+                    ),
+                  ),
+                ),
+                child: Center(
+                  child: Container(
+                    width: endpoint ? 30 : null,
+                    height: endpoint ? 30 : null,
+                    alignment: Alignment.center,
+                    decoration: endpoint
+                        ? const BoxDecoration(
+                            color: AppColors.accent,
+                            shape: BoxShape.circle,
+                          )
+                        : null,
+                    child: Text(
+                      '${date.day}',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 11,
+                        fontWeight: endpoint
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: endpoint
+                            ? AppColors.surface
+                            : AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _RangeDateField extends StatelessWidget {
+  const _RangeDateField({
+    required this.label,
+    required this.value,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(14),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10),
+      decoration: BoxDecoration(
+        color: selected ? AppColors.accentSoft : AppColors.background,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: selected ? AppColors.accent : AppColors.divider,
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.calendar_today_outlined,
+            size: 16,
+            color: AppColors.accent,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 10,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
