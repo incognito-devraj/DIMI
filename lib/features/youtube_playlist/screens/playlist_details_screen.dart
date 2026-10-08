@@ -179,6 +179,7 @@ class _PlaylistPageState extends ConsumerState<_PlaylistPage> {
           ? 'Mark "${video.title}" as watched?'
           : 'Mark "${video.title}" as unwatched?',
       confirmLabel: desired ? 'Mark as watched' : 'Mark as unwatched',
+      destructive: !desired,
     );
     if (confirmed != true || !mounted) return;
     debugPrint(
@@ -336,6 +337,7 @@ class _PlaylistPageState extends ConsumerState<_PlaylistPage> {
       message:
           'Remove "${widget.playlist.title}" and all of its local progress?',
       confirmLabel: 'Remove',
+      destructive: true,
     );
     if (confirmed != true || !mounted) return;
     final row = ref
@@ -366,6 +368,7 @@ Future<bool?> _showPlaylistConfirmationSheet(
   required String title,
   required String message,
   required String confirmLabel,
+  bool destructive = false,
 }) {
   return showModalBottomSheet<bool>(
     context: context,
@@ -442,6 +445,7 @@ Future<bool?> _showPlaylistConfirmationSheet(
                   child: _PlaylistSheetButton(
                     label: confirmLabel,
                     primary: true,
+                    destructive: destructive,
                     onPressed: () => Navigator.pop(sheetContext, true),
                   ),
                 ),
@@ -459,18 +463,26 @@ class _PlaylistSheetButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.primary = false,
+    this.destructive = false,
   });
 
   final String label;
   final VoidCallback onPressed;
   final bool primary;
+  final bool destructive;
 
   @override
   Widget build(BuildContext context) => FilledButton(
     onPressed: onPressed,
     style: FilledButton.styleFrom(
-      backgroundColor: primary ? AppColors.accent : AppColors.accentSoft,
-      foregroundColor: primary ? AppColors.surface : AppColors.textPrimary,
+      backgroundColor: destructive
+          ? AppColors.danger
+          : primary
+          ? AppColors.accent
+          : AppColors.accentSoft,
+      foregroundColor: destructive || primary
+          ? AppColors.surface
+          : AppColors.textPrimary,
       elevation: 0,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
       shape: const StadiumBorder(),
@@ -2091,233 +2103,250 @@ class _VideoRowState extends State<_VideoRow> {
     final completed = widget.effectiveCompleted;
     final video = widget.video;
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      // onTapDown fires before onTap — gives instant visual response
-      onTapDown: (_) => setState(() => _pressing = true),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: widget.onToggle,
+        onHighlightChanged: (pressed) => setState(() => _pressing = pressed),
+        splashColor: AppColors.accentSoft.withAlpha(90),
+        highlightColor: AppColors.accentSoft.withAlpha(45),
+        child: Ink(
+          decoration: BoxDecoration(color: _bgColor),
+          // onTapDown fires before onTap — gives instant visual response
+          /* onTapDown: (_) => setState(() => _pressing = true),
       onTapUp: (_) {
         setState(() => _pressing = false);
         widget.onToggle();
       },
-      onTapCancel: () => setState(() => _pressing = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOut,
-        decoration: BoxDecoration(
-          color: _bgColor,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // Position number
-                  SizedBox(
-                    width: 20,
-                    child: Text(
-                      '${video.position}',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-
-                  // Thumbnail
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: SizedBox(
-                      width: 96,
-                      height: 60,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          // Slightly dim when watched
-                          ColorFiltered(
-                            colorFilter: completed
-                                ? const ColorFilter.matrix([
-                                    0.72,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    0.72,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    0.72,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    1,
-                                    0,
-                                  ])
-                                : const ColorFilter.matrix([
-                                    1,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    1,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    1,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    1,
-                                    0,
-                                  ]),
-                            child: PlaylistThumbnail(label: video.thumbnailUrl),
-                          ),
-
-                          // Amber overlay + centred amber check
-                          if (completed)
-                            Container(
-                              color: AppColors.accent.withAlpha(38),
-                              alignment: Alignment.center,
-                              child: Container(
-                                width: 28,
-                                height: 28,
-                                decoration: BoxDecoration(
-                                  color: AppColors.accent,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withAlpha(55),
-                                      blurRadius: 4,
-                                    ),
-                                  ],
-                                ),
-                                child: const Icon(
-                                  Icons.check_rounded,
-                                  color: Colors.white,
-                                  size: 17,
-                                ),
-                              ),
-                            ),
-
-                          // Duration badge
-                          Positioned(
-                            right: 3,
-                            bottom: 3,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black87,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                formatDuration(video.duration),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-
-                  // Title + sub-line
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          video.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(
-                                color: completed
-                                    ? AppColors.textSecondary
-                                    : AppColors.textPrimary,
-                              ),
-                        ),
-                        const SizedBox(height: 3),
-                        // Watched date when done, duration when not
-                        if (completed && video.watchedAt != null)
-                          Text(
-                            DateFormat('MMM d, yyyy').format(video.watchedAt!),
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(
-                                  color: AppColors.accent.withAlpha(200),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          )
-                        else
-                          Text(
-                            formatDuration(video.duration),
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-
-                  // Tick circle — purely visual, GestureDetector owns the tap
-                  IgnorePointer(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 160),
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: completed
-                            ? AppColors.accent
-                            : Colors.transparent,
-                        border: Border.all(
-                          color: completed
-                              ? AppColors.accent
-                              : const Color(0xFFCCCCCC),
-                          width: 2,
-                        ),
-                      ),
-                      child: completed
-                          ? const Icon(
-                              Icons.check_rounded,
-                              size: 16,
-                              color: Colors.white,
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                  ),
-                ],
-              ),
+      onTapCancel: () => setState(() => _pressing = false), */
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              color: _bgColor,
+              borderRadius: BorderRadius.circular(12),
             ),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 6,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Position number
+                      SizedBox(
+                        width: 20,
+                        child: Text(
+                          '${video.position}',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
 
-            if (widget.showDivider)
-              Divider(
-                height: 1,
-                thickness: 0.5,
-                color: completed
-                    ? AppColors.accent.withAlpha(55)
-                    : AppColors.divider,
-                indent: 32,
-                endIndent: 0,
-              ),
-          ],
+                      // Thumbnail
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: SizedBox(
+                          width: 96,
+                          height: 60,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              // Slightly dim when watched
+                              ColorFiltered(
+                                colorFilter: completed
+                                    ? const ColorFilter.matrix([
+                                        0.72,
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        0.72,
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        0.72,
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        1,
+                                        0,
+                                      ])
+                                    : const ColorFilter.matrix([
+                                        1,
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        1,
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        1,
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        1,
+                                        0,
+                                      ]),
+                                child: PlaylistThumbnail(
+                                  label: video.thumbnailUrl,
+                                ),
+                              ),
+
+                              // Amber overlay + centred amber check
+                              if (completed)
+                                Container(
+                                  color: AppColors.accent.withAlpha(38),
+                                  alignment: Alignment.center,
+                                  child: Container(
+                                    width: 28,
+                                    height: 28,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.accent,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withAlpha(55),
+                                          blurRadius: 4,
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Icon(
+                                      Icons.check_rounded,
+                                      color: Colors.white,
+                                      size: 17,
+                                    ),
+                                  ),
+                                ),
+
+                              // Duration badge
+                              Positioned(
+                                right: 3,
+                                bottom: 3,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black87,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    formatDuration(video.duration),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+
+                      // Title + sub-line
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              video.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(
+                                    color: completed
+                                        ? AppColors.textSecondary
+                                        : AppColors.textPrimary,
+                                  ),
+                            ),
+                            const SizedBox(height: 3),
+                            // Watched date when done, duration when not
+                            if (completed && video.watchedAt != null)
+                              Text(
+                                DateFormat('MMM d, yyyy')
+                                    .format(video.watchedAt!),
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: AppColors.accent.withAlpha(200),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              )
+                            else
+                              Text(
+                                formatDuration(video.duration),
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Tick circle — purely visual, GestureDetector owns the tap
+                      IgnorePointer(
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 160),
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: completed
+                                ? AppColors.accent
+                                : Colors.transparent,
+                            border: Border.all(
+                              color: completed
+                                  ? AppColors.accent
+                                  : const Color(0xFFCCCCCC),
+                              width: 2,
+                            ),
+                          ),
+                          child: completed
+                              ? const Icon(
+                                  Icons.check_rounded,
+                                  size: 16,
+                                  color: Colors.white,
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                if (widget.showDivider)
+                  Divider(
+                    height: 1,
+                    thickness: 0.5,
+                    color: completed
+                        ? AppColors.accent.withAlpha(55)
+                        : AppColors.divider,
+                    indent: 32,
+                    endIndent: 0,
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
