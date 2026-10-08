@@ -16,7 +16,7 @@ import '../../widgets/pill_segmented_control.dart';
 import '../../widgets/section_card.dart';
 import '../../widgets_modals/add_expense_sheet.dart';
 
-const _kTabs = ['Overview', 'Transactions', 'Categories'];
+const _kTabs = ['Wallet', 'Transactions', 'Overview'];
 const _allMoneyCategories = [
   'Sundries',
   'Grocery',
@@ -41,6 +41,16 @@ final _fmt = NumberFormat('#,##0.00', 'en_IN');
 
 double _moneyMajorAmount(int amountMinor) => amountMinor / 100.0;
 
+List<MoneyTransaction> _activeTransactionsOfType(
+  List<MoneyTransaction> transactions,
+  String type,
+) => transactions.where((transaction) => transaction.type == type).toList();
+
+double _totalForTransactions(List<MoneyTransaction> transactions) =>
+    transactions.fold(0.0, (sum, transaction) {
+      return sum + _moneyMajorAmount(transaction.amount);
+    });
+
 class MoneyScreen extends ConsumerStatefulWidget {
   const MoneyScreen({super.key});
 
@@ -53,19 +63,25 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
   bool _showAddButton = true;
   String? _categoryFilter;
   String _searchQuery = '';
+  String _transactionTypeFilter = 'all';
+  DateTime? _transactionMonth = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+  );
+  bool _sortAscending = false;
 
   Future<void> _openSearch() async {
     final controller = TextEditingController(text: _searchQuery);
     final query = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Search expenses'),
+        title: const Text('Search transactions'),
         content: TextField(
           controller: controller,
           autofocus: true,
           textInputAction: TextInputAction.search,
           decoration: const InputDecoration(
-            hintText: 'Search by description or category',
+            hintText: 'Search notes, categories, people, or dates',
             prefixIcon: Icon(Icons.search_rounded),
           ),
           onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
@@ -157,15 +173,52 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
     }
   }
 
+  Future<void> _openMonthSelector() async {
+    final now = DateTime.now();
+    final months = List.generate(
+      12,
+      (index) => DateTime(now.year, now.month - index),
+    );
+    final selected = await showModalBottomSheet<DateTime?>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _FinancePickerSheet<DateTime?>(
+        title: 'Date period',
+        selected: _transactionMonth,
+        items: [null, ...months],
+        label: (month) =>
+            month == null ? 'All dates' : DateFormat('MMM yyyy').format(month),
+        onSelected: (value) =>
+            Navigator.pop(sheetContext, value ?? DateTime(1900)),
+      ),
+    );
+    if (selected != null && mounted) {
+      setState(
+        () => _transactionMonth = selected.year == 1900 ? null : selected,
+      );
+    }
+  }
+
+  Future<void> _openSortSelector() async {
+    final selected = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _FinancePickerSheet<bool>(
+        title: 'Sort transactions',
+        selected: _sortAscending,
+        items: const [false, true],
+        label: (ascending) => ascending ? 'Oldest first' : 'Latest first',
+        onSelected: (value) => Navigator.pop(sheetContext, value),
+      ),
+    );
+    if (selected != null && mounted) {
+      setState(() => _sortAscending = selected);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final allAsync = ref.watch(allTransactionsProvider);
-    final weeklyAsync = ref.watch(thisWeeksTransactionsProvider);
-    final allLoansAsync = ref.watch(allTransactionsProvider);
-    final expensesAsync = ref.watch(transactionsByTypeProvider('expense'));
-
-    // Which list to show
-    final listAsync = _tabIndex == 1 ? expensesAsync : allAsync;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -252,159 +305,45 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
               const SizedBox(height: 12),
 
               // ── Content ───────────────────────────────────────────────
+              if (_tabIndex == 1)
+                _TransactionFilterToolbar(
+                  selectedType: _transactionTypeFilter,
+                  selectedMonth: _transactionMonth,
+                  sortAscending: _sortAscending,
+                  onTypeSelected: (type) =>
+                      setState(() => _transactionTypeFilter = type),
+                  onMonthTap: _openMonthSelector,
+                  onSortTap: _openSortSelector,
+                ),
               Expanded(
                 child: ListView(
                   padding: EdgeInsets.zero,
                   children: [
-                    // Summary cards (visible on all tabs)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.screenHorizontal,
-                      ),
-                      child: weeklyAsync.when(
-                        data: (weeklyTxns) => allAsync.when(
-                          data: (allTxns) => allLoansAsync.when(
-                            data: (allLoans) => _ExpenseSummaryCards(
-                              weeklyTransactions: weeklyTxns,
-                              allTransactions: allTxns,
-                              allLoans: allLoans,
-                            ),
-                            loading: () => _ExpenseSummaryCards(
-                              weeklyTransactions: weeklyTxns,
-                              allTransactions: allTxns,
-                              allLoans: const [],
-                            ),
-                            error: (_, _) => _ExpenseSummaryCards(
-                              weeklyTransactions: weeklyTxns,
-                              allTransactions: allTxns,
-                              allLoans: const [],
-                            ),
-                          ),
-                          loading: () => const _SkeletonCard(height: 270),
-                          error: (_, _) => const SizedBox.shrink(),
+                    allAsync.when(
+                      data: (transactions) => switch (_tabIndex) {
+                        0 => _WalletContent(
+                          transactions: transactions,
+                          onSeeAll: () => setState(() => _tabIndex = 1),
                         ),
-                        loading: () => const _SkeletonCard(height: 88),
-                        error: (_, _) => const SizedBox.shrink(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    if (_tabIndex == 2)
-                      allAsync.when(
-                        data: (transactions) =>
-                            _CategorySpendGridV2(transactions: transactions),
-                        loading: () => const _SkeletonCard(height: 180),
-                        error: (_, _) => const SizedBox.shrink(),
-                      )
-                    else ...[
-                      // Transaction list header
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
+                        1 => _TransactionsContent(
+                          transactions: transactions,
+                          categoryFilter: _categoryFilter,
+                          searchQuery: _searchQuery,
+                          typeFilter: _transactionTypeFilter,
+                          selectedMonth: _transactionMonth,
+                          sortAscending: _sortAscending,
+                        ),
+                        _ => _OverviewContent(transactions: transactions),
+                      },
+                      loading: () => const Padding(
+                        padding: EdgeInsets.symmetric(
                           horizontal: AppSpacing.screenHorizontal,
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              _tabIndex == 0
-                                  ? 'Recent Transactions'
-                                  : _kTabs[_tabIndex],
-                              style: const TextStyle(
-                                fontFamily: 'Poppins',
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
+                        child: _SkeletonCard(height: 270),
                       ),
-                      const SizedBox(height: 8),
-
-                      // Transaction list
-                      listAsync.when(
-                        data: (txns) {
-                          final query = _searchQuery.toLowerCase();
-                          final filtered = txns.where((txn) {
-                            final matchesCategory =
-                                _categoryFilter == null ||
-                                txn.category == _categoryFilter;
-                            final matchesSearch =
-                                query.isEmpty ||
-                                txn.category.toLowerCase().contains(query) ||
-                                (txn.note?.toLowerCase().contains(query) ??
-                                    false);
-                            return matchesCategory && matchesSearch;
-                          }).toList();
-                          final list = _tabIndex == 0
-                              ? filtered.take(20).toList()
-                              : filtered;
-                          if (list.isEmpty) {
-                            return const EmptyState(
-                              icon: Icons.account_balance_wallet_outlined,
-                              title: 'No transactions yet',
-                              subtitle: 'Tap + to add one.',
-                              asset: 'assets/illustrations/Finance.png',
-                            );
-                          }
-                          final grouped = <DateTime, List<MoneyTransaction>>{};
-                          for (final transaction in list) {
-                            final day = DateTime(
-                              transaction.date.year,
-                              transaction.date.month,
-                              transaction.date.day,
-                            );
-                            grouped.putIfAbsent(day, () => []).add(transaction);
-                          }
-                          return Column(
-                            children: [
-                              for (final entry in grouped.entries) ...[
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    AppSpacing.screenHorizontal,
-                                    8,
-                                    AppSpacing.screenHorizontal,
-                                    6,
-                                  ),
-                                  child: Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(
-                                      DateFormat('EEEE, d MMM yyyy').format(entry.key),
-                                      style: const TextStyle(
-                                        fontFamily: 'Poppins',
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                for (final transaction in entry.value)
-                                  Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                      AppSpacing.screenHorizontal,
-                                      0,
-                                      AppSpacing.screenHorizontal,
-                                      8,
-                                    ),
-                                    child: _TransactionTile(txn: transaction),
-                                  ),
-                              ],
-                            ],
-                          );
-                        },
-                        loading: () => const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: AppSpacing.screenHorizontal,
-                          ),
-                          child: _SkeletonCard(height: 60),
-                        ),
-                        error: (e, _) => Center(child: Text('Error: $e')),
-                      ),
-                      SizedBox(
-                        height: _showAddButton ? 80 : 0,
-                      ), // FAB clearance
-                    ],
+                      error: (error, _) => Center(child: Text('Error: $error')),
+                    ),
+                    SizedBox(height: _showAddButton ? 80 : 0),
                   ],
                 ),
               ),
@@ -432,6 +371,777 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
+}
+
+String _formatFinanceAmount(double amount) {
+  final prefix = amount < 0 ? '-' : '+';
+  return '$prefix₹${_formatAbsoluteFinanceAmount(amount)}';
+}
+
+String _formatAbsoluteFinanceAmount(double amount) {
+  final absolute = amount.abs();
+  final formatted = absolute == absolute.roundToDouble()
+      ? NumberFormat('#,##0', 'en_IN').format(absolute)
+      : _fmt.format(absolute);
+  return formatted;
+}
+
+class _FinanceAmountText extends StatelessWidget {
+  const _FinanceAmountText({
+    required this.text,
+    required this.style,
+    this.negative = false,
+  });
+
+  final String text;
+  final TextStyle style;
+  final bool negative;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayText = negative && !text.startsWith('-') ? '-$text' : text;
+    final decimalIndex = displayText.lastIndexOf('.');
+    if (decimalIndex == -1 || decimalIndex == displayText.length - 1) {
+      return Text(displayText, style: style);
+    }
+    final main = displayText.substring(0, decimalIndex);
+    final decimal = displayText.substring(decimalIndex);
+    final decimalStyle = style.copyWith(
+      fontSize: (style.fontSize ?? 14) * .72,
+      color: style.color?.withAlpha(190),
+    );
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: main, style: style),
+          TextSpan(text: decimal, style: decimalStyle),
+        ],
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
+class _WalletContent extends StatelessWidget {
+  const _WalletContent({required this.transactions, required this.onSeeAll});
+
+  final List<MoneyTransaction> transactions;
+  final VoidCallback onSeeAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final start = today.subtract(const Duration(days: 6));
+    final recent = transactions.where((transaction) {
+      final date = DateTime(
+        transaction.date.year,
+        transaction.date.month,
+        transaction.date.day,
+      );
+      return !date.isBefore(start) && !date.isAfter(today);
+    }).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.screenHorizontal,
+          ),
+          child: _ExpenseSummaryCards(
+            weeklyTransactions: recent,
+            allTransactions: transactions,
+            allLoans: transactions,
+          ),
+        ),
+        const SizedBox(height: 18),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.screenHorizontal,
+          ),
+          child: Row(
+            children: [
+              const Text(
+                'Recent activity',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: onSeeAll,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.accent,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                ),
+                child: const Text(
+                  'See All',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 2),
+        _GroupedTransactionList(
+          transactions: recent,
+          emptyTitle: 'No activity in the last 7 days',
+          emptySubtitle: 'Your latest income and spending will appear here.',
+          useRelativeDates: true,
+          summaryFilter: 'wallet',
+        ),
+      ],
+    );
+  }
+}
+
+class _TransactionsContent extends StatelessWidget {
+  const _TransactionsContent({
+    required this.transactions,
+    required this.categoryFilter,
+    required this.searchQuery,
+    required this.typeFilter,
+    required this.selectedMonth,
+    required this.sortAscending,
+  });
+
+  final List<MoneyTransaction> transactions;
+  final String? categoryFilter;
+  final String searchQuery;
+  final String typeFilter;
+  final DateTime? selectedMonth;
+  final bool sortAscending;
+
+  @override
+  Widget build(BuildContext context) {
+    final query = searchQuery.toLowerCase();
+    final filtered =
+        transactions.where((transaction) {
+          final matchesCategory =
+              categoryFilter == null || transaction.category == categoryFilter;
+          final matchesType =
+              typeFilter == 'all' ||
+              (typeFilter == 'loan'
+                  ? transaction.type == 'lent' || transaction.type == 'borrowed'
+                  : transaction.type == typeFilter);
+          final matchesMonth =
+              selectedMonth == null ||
+              (transaction.date.year == selectedMonth!.year &&
+                  transaction.date.month == selectedMonth!.month);
+          final matchesSearch =
+              query.isEmpty ||
+              transaction.category.toLowerCase().contains(query) ||
+              (transaction.note?.toLowerCase().contains(query) ?? false) ||
+              (transaction.counterparty?.toLowerCase().contains(query) ??
+                  false) ||
+              transaction.type.toLowerCase().contains(query) ||
+              DateFormat('d MMM yyyy')
+                  .format(transaction.date)
+                  .toLowerCase()
+                  .contains(query);
+          return matchesCategory &&
+              matchesType &&
+              matchesMonth &&
+              matchesSearch;
+        }).toList()..sort(
+          (a, b) => sortAscending
+              ? a.date.compareTo(b.date)
+              : b.date.compareTo(a.date),
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenHorizontal,
+            8,
+            AppSpacing.screenHorizontal,
+            8,
+          ),
+          child: Text(
+            searchQuery.isEmpty ? 'Transactions' : 'Search results',
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ),
+        _GroupedTransactionList(
+          transactions: filtered,
+          emptyTitle: 'No matching transactions',
+          emptySubtitle: 'Try changing your search or category filter.',
+          useRelativeDates: false,
+          summaryFilter: typeFilter,
+        ),
+      ],
+    );
+  }
+}
+
+class _OverviewContent extends StatelessWidget {
+  const _OverviewContent({required this.transactions});
+
+  final List<MoneyTransaction> transactions;
+
+  @override
+  Widget build(BuildContext context) {
+    final income = _totalForTransactions(
+      transactions
+          .where((transaction) => transaction.type == 'income')
+          .toList(),
+    );
+    final spending = _totalForTransactions(
+      transactions
+          .where((transaction) => transaction.type == 'expense')
+          .toList(),
+    );
+    final net = income - spending;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.screenHorizontal,
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: AppColors.divider),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _OverviewMetric(
+                    label: 'Income',
+                    value: '₹${_fmt.format(income)}',
+                    color: AppColors.success,
+                  ),
+                ),
+                Expanded(
+                  child: _OverviewMetric(
+                    label: 'Spending',
+                    value: '₹${_fmt.format(spending)}',
+                    color: AppColors.danger,
+                  ),
+                ),
+                Expanded(
+                  child: _OverviewMetric(
+                    label: 'Net flow',
+                    value: _formatFinanceAmount(net),
+                    color: net >= 0 ? AppColors.success : AppColors.danger,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.screenHorizontal,
+          ),
+          child: _SpendingChart(transactions: transactions),
+        ),
+        const SizedBox(height: 14),
+        _CategorySpendGrid(transactions: transactions),
+      ],
+    );
+  }
+}
+
+class _OverviewMetric extends StatelessWidget {
+  const _OverviewMetric({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: const TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 10,
+          color: AppColors.textSecondary,
+        ),
+      ),
+      const SizedBox(height: 4),
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: _FinanceAmountText(
+          text: value,
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+class _GroupedTransactionList extends StatelessWidget {
+  const _GroupedTransactionList({
+    required this.transactions,
+    required this.emptyTitle,
+    required this.emptySubtitle,
+    required this.useRelativeDates,
+    this.summaryFilter,
+  });
+
+  final List<MoneyTransaction> transactions;
+  final String emptyTitle;
+  final String emptySubtitle;
+  final bool useRelativeDates;
+  final String? summaryFilter;
+
+  @override
+  Widget build(BuildContext context) {
+    if (transactions.isEmpty) {
+      return EmptyState(
+        icon: Icons.account_balance_wallet_outlined,
+        title: emptyTitle,
+        subtitle: emptySubtitle,
+        asset: 'assets/illustrations/Finance.png',
+      );
+    }
+
+    final grouped = <DateTime, List<MoneyTransaction>>{};
+    for (final transaction in transactions) {
+      final day = DateTime(
+        transaction.date.year,
+        transaction.date.month,
+        transaction.date.day,
+      );
+      grouped.putIfAbsent(day, () => []).add(transaction);
+    }
+    final entries = grouped.entries.toList()
+      ..sort((a, b) => b.key.compareTo(a.key));
+
+    return Column(
+      children: [
+        for (final entry in entries)
+          _DailyTransactionGroup(
+            date: entry.key,
+            transactions: entry.value,
+            useRelativeDates: useRelativeDates,
+            summaryFilter: summaryFilter,
+          ),
+      ],
+    );
+  }
+}
+
+class _DailyTransactionGroup extends StatelessWidget {
+  const _DailyTransactionGroup({
+    required this.date,
+    required this.transactions,
+    required this.useRelativeDates,
+    this.summaryFilter,
+  });
+
+  final DateTime date;
+  final List<MoneyTransaction> transactions;
+  final bool useRelativeDates;
+  final String? summaryFilter;
+
+  @override
+  Widget build(BuildContext context) {
+    final income = transactions.fold(0.0, (sum, transaction) {
+      final isIncome =
+          transaction.type == 'income' || transaction.type == 'borrowed';
+      return isIncome ? sum + _moneyMajorAmount(transaction.amount) : sum;
+    });
+    final expense = transactions.fold(0.0, (sum, transaction) {
+      final isExpense =
+          transaction.type == 'expense' || transaction.type == 'lent';
+      return isExpense ? sum + _moneyMajorAmount(transaction.amount) : sum;
+    });
+    final net = income - expense;
+
+    final headerSummary = switch (summaryFilter) {
+      'income' => '+₹${_formatAbsoluteFinanceAmount(income)}',
+      'expense' => '-₹${_formatAbsoluteFinanceAmount(expense)}',
+      'loan' => _formatFinanceAmount(net),
+      _ => null,
+    };
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenHorizontal,
+        5,
+        AppSpacing.screenHorizontal,
+        5,
+      ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(0, 0, 0, 4),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+              decoration: const BoxDecoration(
+                color: AppColors.surfaceDark,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _dateLabel(date, useRelativeDates),
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  if (summaryFilter == 'all') ...[
+                    _FinanceAmountText(
+                      text: '+₹${_formatAbsoluteFinanceAmount(income)}',
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.success,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    _FinanceAmountText(
+                      text: '-₹${_formatAbsoluteFinanceAmount(expense)}',
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.danger,
+                      ),
+                    ),
+                  ] else
+                    _FinanceAmountText(
+                      text: headerSummary ?? _formatFinanceAmount(net),
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color:
+                            (summaryFilter == 'expense' ||
+                                (summaryFilter == 'loan' && net < 0))
+                            ? AppColors.danger
+                            : AppColors.success,
+                      ),
+                    ),
+                  const SizedBox(width: 3),
+                  const Icon(
+                    Icons.keyboard_arrow_up_rounded,
+                    size: 16,
+                    color: Colors.white70,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 3),
+            for (final transaction in transactions)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
+                child: _TransactionTile(txn: transaction),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _dateLabel(DateTime date, bool relative) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  if (relative && date == today) return 'Today';
+  if (relative && date == today.subtract(const Duration(days: 1))) {
+    return 'Yesterday';
+  }
+  return DateFormat('EEEE, d MMM yyyy').format(date);
+}
+
+class _TransactionFilterToolbar extends StatelessWidget {
+  const _TransactionFilterToolbar({
+    required this.selectedType,
+    required this.selectedMonth,
+    required this.sortAscending,
+    required this.onTypeSelected,
+    required this.onMonthTap,
+    required this.onSortTap,
+  });
+
+  final String selectedType;
+  final DateTime? selectedMonth;
+  final bool sortAscending;
+  final ValueChanged<String> onTypeSelected;
+  final VoidCallback onMonthTap;
+  final VoidCallback onSortTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const filters = [
+      ('all', 'All', Icons.grid_view_rounded),
+      ('income', 'Income', Icons.arrow_downward_rounded),
+      ('expense', 'Expense', Icons.arrow_upward_rounded),
+      ('loan', 'Lent/Borrowed', Icons.swap_horiz_rounded),
+    ];
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 38,
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.screenHorizontal,
+            ),
+            scrollDirection: Axis.horizontal,
+            itemCount: filters.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final filter = filters[index];
+              final selected = selectedType == filter.$1;
+              return _FinanceFilterPill(
+                label: filter.$2,
+                icon: filter.$3,
+                selected: selected,
+                onTap: () => onTypeSelected(filter.$1),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.screenHorizontal,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _FinanceControlButton(
+                  icon: Icons.calendar_today_outlined,
+                  label: selectedMonth == null
+                      ? 'All dates'
+                      : DateFormat('MMM yyyy').format(selectedMonth!),
+                  onTap: onMonthTap,
+                ),
+              ),
+              const SizedBox(width: 10),
+              _FinanceControlButton(
+                icon: Icons.swap_vert_rounded,
+                label: sortAscending ? 'Oldest' : 'Latest',
+                onTap: onSortTap,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}
+
+class _FinanceFilterPill extends StatelessWidget {
+  const _FinanceFilterPill({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: AnimatedContainer(
+        duration: DimiMotion.fast,
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accent : AppColors.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? AppColors.accent : AppColors.divider,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: selected ? AppColors.textPrimary : AppColors.info,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: selected ? AppColors.textPrimary : AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _FinanceControlButton extends StatelessWidget {
+  const _FinanceControlButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(12),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: AppColors.textSecondary),
+          const SizedBox(width: 7),
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          const SizedBox(width: 3),
+          const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            size: 16,
+            color: AppColors.textSecondary,
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _FinancePickerSheet<T> extends StatelessWidget {
+  const _FinancePickerSheet({
+    required this.title,
+    required this.selected,
+    required this.items,
+    required this.label,
+    required this.onSelected,
+  });
+
+  final String title;
+  final T selected;
+  final List<T> items;
+  final String Function(T item) label;
+  final ValueChanged<T> onSelected;
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    top: false,
+    child: Container(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.divider,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            title,
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...items.map(
+            (item) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                label(item),
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              trailing: item == selected
+                  ? const Icon(Icons.check_rounded, color: AppColors.accent)
+                  : null,
+              onTap: () => onSelected(item),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _FilterChip extends StatelessWidget {
@@ -692,13 +1402,14 @@ class _ExpenseSummaryCards extends StatelessWidget {
     final income = allTransactions
         .where((t) => t.type == 'income')
         .fold(0.0, (s, t) => s + _moneyMajorAmount(t.amount));
-    final lent = allLoans
-        .where((t) => t.type == 'lent')
-        .fold(0.0, (s, t) => s + _moneyMajorAmount(t.amount));
-    final borrowed = allLoans
-        .where((t) => t.type == 'borrowed')
-        .fold(0.0, (s, t) => s + _moneyMajorAmount(t.amount));
-    final balance = income - spent + lent - borrowed;
+    final lentTransactions = _activeTransactionsOfType(allLoans, 'lent');
+    final borrowedTransactions = _activeTransactionsOfType(
+      allLoans,
+      'borrowed',
+    );
+    final lent = _totalForTransactions(lentTransactions);
+    final borrowed = _totalForTransactions(borrowedTransactions);
+    final balance = income - spent - lent + borrowed;
     return Column(
       children: [
         Container(
@@ -735,8 +1446,8 @@ class _ExpenseSummaryCards extends StatelessWidget {
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    '₹${_fmt.format(balance)}',
+                  child: _FinanceAmountText(
+                    text: '₹${_fmt.format(balance)}',
                     style: const TextStyle(
                       fontFamily: 'Poppins',
                       fontSize: 30,
@@ -779,6 +1490,16 @@ class _ExpenseSummaryCards extends StatelessWidget {
                 value: lent,
                 icon: Icons.person_outline_rounded,
                 color: AppColors.accent,
+                onTap: () => showModalBottomSheet<void>(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  barrierColor: Colors.black54,
+                  builder: (_) => _LoanTransactionsSheet(
+                    type: 'lent',
+                    transactions: lentTransactions,
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -788,6 +1509,16 @@ class _ExpenseSummaryCards extends StatelessWidget {
                 value: borrowed,
                 icon: Icons.account_balance_wallet_outlined,
                 color: AppColors.danger,
+                onTap: () => showModalBottomSheet<void>(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  barrierColor: Colors.black54,
+                  builder: (_) => _LoanTransactionsSheet(
+                    type: 'borrowed',
+                    transactions: borrowedTransactions,
+                  ),
+                ),
               ),
             ),
           ],
@@ -830,8 +1561,8 @@ class _BalanceStat extends StatelessWidget {
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
-                child: Text(
-                  value,
+                child: _FinanceAmountText(
+                  text: value,
                   style: const TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 16,
@@ -854,65 +1585,349 @@ class _LoanCard extends StatelessWidget {
     required this.value,
     required this.icon,
     required this.color,
+    required this.onTap,
   });
   final String label;
   final double value;
   final IconData icon;
   final Color color;
+  final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(13),
-    decoration: BoxDecoration(
-      color: AppColors.surface,
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: onTap,
       borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: AppColors.divider),
-    ),
-    child: Row(
-      children: [
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: color.withAlpha(25),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, size: 19, color: color),
+      child: Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.divider),
         ),
-        const SizedBox(width: 9),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
-                ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: color.withAlpha(25),
+                shape: BoxShape.circle,
               ),
-              SizedBox(
-                width: double.infinity,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '₹${_fmt.format(value)}',
+              child: Icon(icon, size: 19, color: color),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
                     style: const TextStyle(
                       fontFamily: 'Poppins',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
                     ),
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: _FinanceAmountText(
+                        text: '₹${_fmt.format(value)}',
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _LoanTransactionsSheet extends StatelessWidget {
+  const _LoanTransactionsSheet({
+    required this.type,
+    required this.transactions,
+  });
+
+  final String type;
+  final List<MoneyTransaction> transactions;
+
+  bool get _isLent => type == 'lent';
+  String get _title => _isLent ? 'Lent money' : 'Borrowed money';
+  String get _description => _isLent
+      ? 'Money currently out with other people'
+      : 'Money currently received from other people';
+  Color get _color => AppColors.info;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = _totalForTransactions(transactions);
+    final screenHeight = MediaQuery.sizeOf(context).height;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 48),
+        child: Container(
+          constraints: BoxConstraints(maxHeight: screenHeight * .78),
+          decoration: const BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 18, 14, 16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: _color.withAlpha(26),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _isLent
+                            ? Icons.arrow_forward_rounded
+                            : Icons.arrow_back_rounded,
+                        color: _color,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _title,
+                            style: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _description,
+                            style: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                      color: AppColors.textSecondary,
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 13,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _color.withAlpha(18),
+                    borderRadius: BorderRadius.circular(17),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(
+                        'Total ${_isLent ? 'lent' : 'borrowed'}',
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const Spacer(),
+                      _FinanceAmountText(
+                        text: '₹${_fmt.format(total)}',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: _color,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
+              const SizedBox(height: 14),
+              Flexible(
+                child: transactions.isEmpty
+                    ? _LoanEmptyState(isLent: _isLent)
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(22, 0, 22, 24),
+                        shrinkWrap: true,
+                        itemCount: transactions.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (_, index) => _LoanTransactionRow(
+                          transaction: transactions[index],
+                          color: _color,
+                        ),
+                      ),
+              ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoanEmptyState extends StatelessWidget {
+  const _LoanEmptyState({required this.isLent});
+
+  final bool isLent;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(22, 22, 22, 34),
+    child: Column(
+      children: [
+        Icon(
+          isLent
+              ? Icons.person_search_rounded
+              : Icons.account_balance_wallet_outlined,
+          size: 34,
+          color: AppColors.textSecondary,
+        ),
+        const SizedBox(height: 9),
+        Text(
+          'No active ${isLent ? 'lent' : 'borrowed'} transactions',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 13,
+            color: AppColors.textSecondary,
           ),
         ),
       ],
     ),
   );
+}
+
+class _LoanTransactionRow extends StatelessWidget {
+  const _LoanTransactionRow({required this.transaction, required this.color});
+
+  final MoneyTransaction transaction;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final rowColor = AppColors.info;
+    final title = transaction.note?.trim().isNotEmpty == true
+        ? transaction.note!.trim()
+        : transaction.category;
+    final subtitle = transaction.counterparty?.trim().isNotEmpty == true
+        ? '${transaction.counterparty} · ${DateFormat('d MMM yyyy').format(transaction.date)}'
+        : DateFormat('d MMM yyyy').format(transaction.date);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: rowColor.withAlpha(22),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              transaction.type == 'lent'
+                  ? Icons.arrow_forward_rounded
+                  : Icons.arrow_back_rounded,
+              size: 17,
+              color: rowColor,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 10,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _FinanceAmountText(
+            text: '₹${_fmt.format(_moneyMajorAmount(transaction.amount))}',
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: rowColor,
+            ),
+            negative: transaction.type == 'lent',
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ignore: unused_element
@@ -993,8 +2008,8 @@ class _SummaryCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            value,
+          _FinanceAmountText(
+            text: value,
             style: TextStyle(
               fontFamily: 'Poppins',
               fontSize: 16,
@@ -1174,92 +2189,110 @@ class _SpendingChart extends StatelessWidget {
 
 // ── Transaction tile ──────────────────────────────────────────────────────────
 
-class _TransactionTile extends ConsumerWidget {
+class _TransactionTile extends ConsumerStatefulWidget {
   const _TransactionTile({required this.txn});
   final MoneyTransaction txn;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_TransactionTile> createState() => _TransactionTileState();
+}
+
+class _TransactionTileState extends ConsumerState<_TransactionTile> {
+  MoneyTransaction get txn => widget.txn;
+
+  @override
+  Widget build(BuildContext context) {
     final dao = ref.read(moneyDaoProvider);
     final (color, icon) = _typeStyle(txn.type);
-    final sign = txn.type == 'expense' ? '-' : '+';
+    final sign = txn.type == 'expense' || txn.type == 'lent' ? '-' : '+';
 
-    return GestureDetector(
-      onTap: () => _showDetails(context, color, icon),
-      onLongPress: () => _confirmDelete(context, dao),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-          border: Border.all(color: AppColors.divider),
-        ),
-        child: Row(
-          children: [
-            // Category icon circle
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: color.withAlpha(26),
-                shape: BoxShape.circle,
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _showDetails(context, color, icon),
+        splashColor: AppColors.accentSoft.withAlpha(80),
+        highlightColor: AppColors.accentSoft.withAlpha(35),
+        onLongPress: () async {
+          if (!context.mounted) return;
+          await _confirmDelete(context, dao);
+        },
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+            border: Border.all(color: AppColors.divider),
+          ),
+          child: Row(
+            children: [
+              // Category icon circle
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: color.withAlpha(26),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 18, color: color),
               ),
-              child: Icon(icon, size: 18, color: color),
-            ),
-            const SizedBox(width: 10),
-            // Category + note
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    txn.note?.trim().isNotEmpty == true
-                        ? txn.note!
-                        : txn.category,
-                    style: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                    maxLines: 2,
-                    softWrap: true,
-                  ),
-                  Text(
-                    txn.category,
-                    style: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 10,
-                      color: AppColors.textSecondary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            // Amount + date
-            SizedBox(
-              width: 145,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      '$sign₹${_fmt.format(_moneyMajorAmount(txn.amount))}',
-                      style: TextStyle(
+              const SizedBox(width: 10),
+              // Category + note
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      txn.note?.trim().isNotEmpty == true
+                          ? txn.note!
+                          : txn.category,
+                      style: const TextStyle(
                         fontFamily: 'Poppins',
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: color,
+                        color: AppColors.textPrimary,
+                      ),
+                      maxLines: 2,
+                      softWrap: true,
+                    ),
+                    Text(
+                      txn.category,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 10,
+                        color: AppColors.textSecondary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              // Amount + date
+              SizedBox(
+                width: 145,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: _FinanceAmountText(
+                        text:
+                            '$sign₹${_fmt.format(_moneyMajorAmount(txn.amount))}',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: color,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1267,17 +2300,13 @@ class _TransactionTile extends ConsumerWidget {
 
   (Color, IconData) _typeStyle(String type) => switch (type) {
     'income' => (AppColors.success, Icons.arrow_downward_rounded),
-    'lent' || 'borrowed' => (AppColors.info, Icons.swap_horiz_rounded),
+    'borrowed' => (AppColors.info, Icons.arrow_back_rounded),
+    'lent' => (AppColors.info, Icons.arrow_forward_rounded),
     _ => (AppColors.danger, Icons.arrow_upward_rounded),
   };
 
   Future<void> _showDetails(BuildContext context, Color color, IconData icon) {
-    final isIncome = txn.type == 'income';
-    final sign = isIncome
-        ? '+'
-        : txn.type == 'expense'
-        ? '-'
-        : '';
+    final sign = txn.type == 'expense' || txn.type == 'lent' ? '-' : '+';
     final description = txn.note?.trim().isNotEmpty == true
         ? txn.note!.trim()
         : 'No description added';
@@ -1325,8 +2354,8 @@ class _TransactionTile extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 18),
-              Text(
-                '$sign${_fmt.format(_moneyMajorAmount(txn.amount))}',
+              _FinanceAmountText(
+                text: '$sign${_fmt.format(_moneyMajorAmount(txn.amount))}',
                 style: TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 32,
@@ -1405,7 +2434,12 @@ class _TransactionTile extends ConsumerWidget {
           'Remove this ${txn.type} of ₹${_fmt.format(_moneyMajorAmount(txn.amount))}?',
       actions: const [
         DimiDialogAction(label: 'Cancel', value: false),
-        DimiDialogAction(label: 'Delete', value: true, primary: true),
+        DimiDialogAction(
+          label: 'Delete',
+          value: true,
+          primary: true,
+          destructive: true,
+        ),
       ],
     );
     if (ok == true) await dao.deleteTransaction(txn.id);
@@ -1427,7 +2461,7 @@ class _TransactionTile extends ConsumerWidget {
         actions: [
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accent,
+              backgroundColor: AppColors.danger,
               foregroundColor: AppColors.surface,
               shape: const StadiumBorder(),
             ),
