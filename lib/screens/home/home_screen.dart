@@ -145,9 +145,7 @@ class HomeScreen extends ConsumerWidget {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: homeCardInset),
                 child: plannerEntriesAsync.valueOrNull != null
-                    ? _HomeHeatmapCard(
-                        tasks: plannerEntriesAsync.valueOrNull!,
-                      )
+                    ? _HomeHeatmapCard(tasks: plannerEntriesAsync.valueOrNull!)
                     : plannerEntriesAsync.when(
                         data: (tasks) => _HomeHeatmapCard(tasks: tasks),
                         loading: () => const _Shimmer(height: 155),
@@ -405,11 +403,11 @@ class _HomeContentGrid extends ConsumerWidget {
                           emptyTitle: 'No plans for today',
                           subtitle: 'Add an event to plan your day',
                           action: 'Add Event',
-                            onAction: () => showAddTaskSheet(
-                              context,
-                              initialDate: DateTime.now(),
-                              plannerEntry: true,
-                            ),
+                          onAction: () => showAddTaskSheet(
+                            context,
+                            initialDate: DateTime.now(),
+                            plannerEntry: true,
+                          ),
                         )
                       : _PlannerPreviewCard(tasks: plannerItems, compact: true),
                 );
@@ -656,10 +654,7 @@ class _RenderAdaptiveMasonry extends RenderBox
       child = (child.parentData! as _MasonryParentData).nextSibling;
     }
 
-    final columnIndices = List<List<int>>.generate(
-      columnCount,
-      (_) => <int>[],
-    );
+    final columnIndices = List<List<int>>.generate(columnCount, (_) => <int>[]);
     if (columnCount == 1) {
       columnIndices[0].addAll(List<int>.generate(children.length, (i) => i));
     } else if (children.isNotEmpty) {
@@ -688,8 +683,7 @@ class _RenderAdaptiveMasonry extends RenderBox
           }
         }
 
-        final difference =
-            (partitionHeights[0] - partitionHeights[1]).abs();
+        final difference = (partitionHeights[0] - partitionHeights[1]).abs();
         final tallest = partitionHeights[0] > partitionHeights[1]
             ? partitionHeights[0]
             : partitionHeights[1];
@@ -710,7 +704,8 @@ class _RenderAdaptiveMasonry extends RenderBox
           if (actualColumn != preferredColumn) orderPenalty++;
         }
 
-        final isBetter = difference < bestDifference ||
+        final isBetter =
+            difference < bestDifference ||
             (difference == bestDifference && tallest < bestTallest) ||
             (difference == bestDifference &&
                 tallest == bestTallest &&
@@ -937,17 +932,23 @@ class _GreetingHero extends StatelessWidget {
                                 color: AppColors.surface,
                               ),
                             )
-                          : DimiCachedImage(
-                              url: avatarUrl,
-                              refreshInBackground: true,
-                              fit: BoxFit.cover,
-                              fallback: Text(
-                                initials,
-                                style: const TextStyle(
-                                  fontFamily: 'Poppins',
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.surface,
+                          : ClipOval(
+                              child: DimiCachedImage(
+                                url: avatarUrl,
+                                refreshInBackground: true,
+                                fit: BoxFit.cover,
+                                fallback: Container(
+                                  color: AppColors.surfaceDark,
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    initials,
+                                    style: const TextStyle(
+                                      fontFamily: 'Poppins',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.surface,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -1392,20 +1393,22 @@ class _TodayTasksCard extends ConsumerWidget {
     // them from this stream after the day changes.
     final orderedTasks = tasks.asMap().entries.toList();
     orderedTasks.sort((a, b) {
-        final status = (a.value.isCompleted ? 1 : 0).compareTo(
-          b.value.isCompleted ? 1 : 0,
-        );
-        if (status != 0) return status;
-        // Active tasks keep the stream's order. Completed tasks are ordered
-        // by completion time so the task just ticked always becomes the last
-        // item in the list.
-        if (a.value.isCompleted) {
-          final aCompleted = a.value.completedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-          final bCompleted = b.value.completedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-          final completedOrder = aCompleted.compareTo(bCompleted);
-          if (completedOrder != 0) return completedOrder;
-        }
-        return a.key.compareTo(b.key);
+      final status = (a.value.isCompleted ? 1 : 0).compareTo(
+        b.value.isCompleted ? 1 : 0,
+      );
+      if (status != 0) return status;
+      // Active tasks keep the stream's order. Completed tasks are ordered
+      // by completion time so the task just ticked always becomes the last
+      // item in the list.
+      if (a.value.isCompleted) {
+        final aCompleted =
+            a.value.completedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bCompleted =
+            b.value.completedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final completedOrder = aCompleted.compareTo(bCompleted);
+        if (completedOrder != 0) return completedOrder;
+      }
+      return a.key.compareTo(b.key);
     });
     final visibleTasks = orderedTasks.map((entry) => entry.value).toList();
 
@@ -1485,7 +1488,11 @@ class _TodayTasksCard extends ConsumerWidget {
 /// Keeps the list's layout stable while applying a FLIP-style positional move.
 /// Rows are laid out at their final positions; only their Y offset is animated.
 class _FlipTaskList extends StatefulWidget {
-  const _FlipTaskList({required this.tasks, required this.dao, required this.compact});
+  const _FlipTaskList({
+    required this.tasks,
+    required this.dao,
+    required this.compact,
+  });
   final List<Task> tasks;
   final dynamic dao;
   final bool compact;
@@ -1548,11 +1555,18 @@ class _FlipTaskListState extends State<_FlipTaskList>
       _lastIds = widget.tasks.map((task) => task.id).toList();
       _to = _tops(widget.tasks, _heights);
     }
-    final totalHeight = widget.tasks.fold<double>(0, (sum, task) => sum + (_heights[task.id] ?? (widget.compact ? 44.0 : 50.0)));
+    final totalHeight = widget.tasks.fold<double>(
+      0,
+      (sum, task) =>
+          sum + (_heights[task.id] ?? (widget.compact ? 44.0 : 50.0)),
+    );
     return SizedBox(
       height: totalHeight,
       child: AnimatedBuilder(
-        animation: CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+        animation: CurvedAnimation(
+          parent: _controller,
+          curve: Curves.easeOutCubic,
+        ),
         builder: (context, child) {
           final value = _controller.value;
           return Stack(
@@ -1575,7 +1589,11 @@ class _FlipTaskListState extends State<_FlipTaskList>
                       });
                     }
                   },
-                  child: _MiniTaskRow(task: task, dao: widget.dao, compact: widget.compact),
+                  child: _MiniTaskRow(
+                    task: task,
+                    dao: widget.dao,
+                    compact: widget.compact,
+                  ),
                 ),
               );
             }).toList(),
@@ -1592,16 +1610,21 @@ class _MeasuredTaskRow extends StatelessWidget {
   final ValueChanged<double> onSize;
 
   @override
-  Widget build(BuildContext context) => _MeasureSize(onChange: onSize, child: child);
+  Widget build(BuildContext context) =>
+      _MeasureSize(onChange: onSize, child: child);
 }
 
 class _MeasureSize extends SingleChildRenderObjectWidget {
   const _MeasureSize({required this.onChange, required super.child});
   final ValueChanged<double> onChange;
   @override
-  RenderObject createRenderObject(BuildContext context) => _MeasureSizeRenderObject(onChange);
+  RenderObject createRenderObject(BuildContext context) =>
+      _MeasureSizeRenderObject(onChange);
   @override
-  void updateRenderObject(BuildContext context, covariant _MeasureSizeRenderObject renderObject) => renderObject.onChange = onChange;
+  void updateRenderObject(
+    BuildContext context,
+    covariant _MeasureSizeRenderObject renderObject,
+  ) => renderObject.onChange = onChange;
 }
 
 class _MeasureSizeRenderObject extends RenderProxyBox {
@@ -1613,7 +1636,9 @@ class _MeasureSizeRenderObject extends RenderProxyBox {
     super.performLayout();
     if (child != null && _oldSize != child!.size) {
       _oldSize = child!.size;
-      WidgetsBinding.instance.addPostFrameCallback((_) => onChange(_oldSize!.height));
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => onChange(_oldSize!.height),
+      );
     }
   }
 }
@@ -1658,30 +1683,30 @@ class _MiniTaskRow extends StatelessWidget {
                 child: GestureDetector(
                   onTap: _toggle,
                   child: AnimatedContainer(
-                duration: DimiMotion.fast,
-                curve: DimiMotion.curve,
-                width: compact ? 16 : 20,
-                height: compact ? 16 : 20,
-                decoration: BoxDecoration(
-                  color: task.isCompleted
-                      ? AppColors.accent
-                      : Colors.transparent,
-                  border: Border.all(
-                    color: task.isCompleted
-                        ? AppColors.accent
-                        : AppColors.textSecondary,
-                    width: 1.5,
-                  ),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                  child: task.isCompleted
-                      ? const Icon(
-                          Icons.check_rounded,
-                          key: ValueKey('home-mini-done'),
-                          size: 12,
-                          color: AppColors.surface,
-                        )
-                      : const SizedBox(key: ValueKey('home-mini-pending')),
+                    duration: DimiMotion.fast,
+                    curve: DimiMotion.curve,
+                    width: compact ? 16 : 20,
+                    height: compact ? 16 : 20,
+                    decoration: BoxDecoration(
+                      color: task.isCompleted
+                          ? AppColors.accent
+                          : Colors.transparent,
+                      border: Border.all(
+                        color: task.isCompleted
+                            ? AppColors.accent
+                            : AppColors.textSecondary,
+                        width: 1.5,
+                      ),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: task.isCompleted
+                        ? const Icon(
+                            Icons.check_rounded,
+                            key: ValueKey('home-mini-done'),
+                            size: 12,
+                            color: AppColors.surface,
+                          )
+                        : const SizedBox(key: ValueKey('home-mini-pending')),
                   ),
                 ),
               ),
@@ -1696,21 +1721,21 @@ class _MiniTaskRow extends StatelessWidget {
               SizedBox(width: compact ? 7 : 10),
               Expanded(
                 child: Text(
-                task.title,
-                maxLines: compact ? 2 : null,
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: compact ? 12.5 : 13,
-                  color: task.isCompleted
-                      ? AppColors.textSecondary
-                      : AppColors.textPrimary,
-                  decoration: task.isCompleted
-                      ? TextDecoration.lineThrough
-                      : null,
+                  task.title,
+                  maxLines: compact ? 2 : null,
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: compact ? 12.5 : 13,
+                    color: task.isCompleted
+                        ? AppColors.textSecondary
+                        : AppColors.textPrimary,
+                    decoration: task.isCompleted
+                        ? TextDecoration.lineThrough
+                        : null,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
-                ),
               if (!compact && task.dueTime != null)
                 Text(
                   formatTime12Hour(task.dueTime),
@@ -1765,7 +1790,9 @@ class _FinanceCard extends StatelessWidget {
     final dayAmounts = List.filled(7, 0.0);
     for (final transaction in weeklyTransactions) {
       if (transaction.type == 'expense') {
-        dayAmounts[transaction.date.weekday - 1] += _homeMajorAmount(transaction.amount);
+        dayAmounts[transaction.date.weekday - 1] += _homeMajorAmount(
+          transaction.amount,
+        );
       }
     }
     final maxAmount = dayAmounts.reduce((a, b) => a > b ? a : b);
@@ -1933,92 +1960,90 @@ class _PlannerPreviewCard extends StatelessWidget {
               ),
             )
           else
-            ...sorted.map(
-              (task) {
-                final time = _homePlannerTime(task.dueTime);
-                final color = _plannerColor(task.category);
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: compact ? 38 : 52,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppColors.background,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
+            ...sorted.map((task) {
+              final time = _homePlannerTime(task.dueTime);
+              final color = _plannerColor(task.category);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: compact ? 38 : 52,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              time.time,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: compact ? 9 : 11,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            if (time.period.isNotEmpty)
                               Text(
-                                time.time,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                                time.period,
                                 style: TextStyle(
                                   fontFamily: 'Poppins',
-                                  fontSize: compact ? 9 : 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary,
+                                  fontSize: compact ? 7 : 8,
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
-                              if (time.period.isNotEmpty)
-                                Text(
-                                  time.period,
-                                  style: TextStyle(
-                                    fontFamily: 'Poppins',
-                                    fontSize: compact ? 7 : 8,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                            ],
-                          ),
+                          ],
                         ),
                       ),
-                      SizedBox(width: compact ? 5 : 8),
-                      Container(
-                        width: compact ? 3 : 4,
-                        height: compact ? 30 : 38,
+                    ),
+                    SizedBox(width: compact ? 5 : 8),
+                    Container(
+                      width: compact ? 3 : 4,
+                      height: compact ? 30 : 38,
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    SizedBox(width: compact ? 5 : 8),
+                    Expanded(
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: compact ? 6 : 9,
+                          vertical: compact ? 7 : 8,
+                        ),
                         decoration: BoxDecoration(
-                          color: color,
-                          borderRadius: BorderRadius.circular(4),
+                          color: color.withAlpha(22),
+                          borderRadius: BorderRadius.circular(9),
                         ),
-                      ),
-                      SizedBox(width: compact ? 5 : 8),
-                      Expanded(
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: compact ? 6 : 9,
-                            vertical: compact ? 7 : 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: color.withAlpha(22),
-                            borderRadius: BorderRadius.circular(9),
-                          ),
-                          child: Text(
-                            task.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontFamily: 'Poppins',
-                              fontSize: compact ? 10.5 : 11,
-                              fontWeight: FontWeight.w500,
-                              color: task.isCompleted
-                                  ? AppColors.textSecondary
-                                  : AppColors.textPrimary,
-                              decoration: task.isCompleted
-                                  ? TextDecoration.lineThrough
-                                  : null,
-                            ),
+                        child: Text(
+                          task.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: compact ? 10.5 : 11,
+                            fontWeight: FontWeight.w500,
+                            color: task.isCompleted
+                                ? AppColors.textSecondary
+                                : AppColors.textPrimary,
+                            decoration: task.isCompleted
+                                ? TextDecoration.lineThrough
+                                : null,
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                );
-              },
-            ),
+                    ),
+                  ],
+                ),
+              );
+            }),
           const SizedBox(height: 4),
           GestureDetector(
             onTap: () => showAddTaskSheet(
