@@ -224,117 +224,128 @@ class _ReminderCard extends ConsumerWidget {
         ? false
         : reminder.dueAt.isBefore(DateTime.now());
 
-    return GestureDetector(
-      onLongPress: () => _showActions(context, dao),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        decoration: BoxDecoration(
-          color: highlighted ? AppColors.accentSoft : AppColors.surface,
-          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-          border: Border.all(
-            color: highlighted
-                ? AppColors.accent
-                : isOverdue
-                ? AppColors.danger.withAlpha(80)
-                : AppColors.divider,
-            width: highlighted ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            // Bell icon
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: reminder.isEnabled
-                    ? AppColors.accentSoft
-                    : AppColors.divider,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                reminder.isEnabled
-                    ? Icons.notifications_active_outlined
-                    : Icons.notifications_off_outlined,
-                size: 20,
-                color: reminder.isEnabled
-                    ? AppColors.accent
-                    : AppColors.textSecondary,
-              ),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onLongPress: () => _showActions(context, dao),
+        splashColor: AppColors.accentSoft.withAlpha(85),
+        highlightColor: AppColors.accentSoft.withAlpha(45),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: highlighted ? AppColors.accentSoft : AppColors.surface,
+            borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+            border: Border.all(
+              color: highlighted
+                  ? AppColors.accent
+                  : isOverdue
+                  ? AppColors.danger.withAlpha(80)
+                  : AppColors.divider,
+              width: highlighted ? 2 : 1,
             ),
-            const SizedBox(width: 12),
-            // Title + date/time
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    reminder.title,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: reminder.isEnabled
-                          ? AppColors.textPrimary
-                          : AppColors.textSecondary,
-                      decoration: reminder.isEnabled
-                          ? TextDecoration.none
-                          : TextDecoration.lineThrough,
-                      decorationColor: AppColors.textSecondary,
-                      decorationThickness: 1.6,
-                    ),
-                    maxLines: 3,
-                    softWrap: true,
+          ),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            decoration: const BoxDecoration(),
+            child: Row(
+              children: [
+                // Bell icon
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: reminder.isEnabled
+                        ? AppColors.accentSoft
+                        : AppColors.divider,
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(height: 3),
-                  Row(
+                  child: Icon(
+                    reminder.isEnabled
+                        ? Icons.notifications_active_outlined
+                        : Icons.notifications_off_outlined,
+                    size: 20,
+                    color: reminder.isEnabled
+                        ? AppColors.accent
+                        : AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Title + date/time
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.schedule_outlined,
-                        size: 11,
-                        color: isOverdue
-                            ? AppColors.danger
-                            : AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
                       Text(
-                        _formatDue(reminder.dueAt),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontSize: 11,
-                          color: isOverdue
-                              ? AppColors.danger
+                        reminder.title,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: reminder.isEnabled
+                              ? AppColors.textPrimary
                               : AppColors.textSecondary,
+                          decoration: reminder.isEnabled
+                              ? TextDecoration.none
+                              : TextDecoration.lineThrough,
+                          decorationColor: AppColors.textSecondary,
+                          decorationThickness: 1.6,
                         ),
+                        maxLines: 3,
+                        softWrap: true,
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.schedule_outlined,
+                            size: 11,
+                            color: isOverdue
+                                ? AppColors.danger
+                                : AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _formatDue(reminder.dueAt),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  fontSize: 11,
+                                  color: isOverdue
+                                      ? AppColors.danger
+                                      : AppColors.textSecondary,
+                                ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+                // Toggle switch
+                Switch(
+                  value: reminder.isEnabled,
+                  onChanged: (v) async {
+                    await dao.toggleEnabled(reminder.id, v);
+                    if (v) {
+                      final updated = await dao.getById(reminder.id);
+                      if (updated != null) {
+                        await NotificationService.instance.scheduleReminder(
+                          updated,
+                        );
+                      }
+                    } else {
+                      await NotificationService.instance.cancelReminder(
+                        reminder.notificationId,
+                      );
+                    }
+                  },
+                  activeThumbColor: AppColors.accent,
+                  activeTrackColor: AppColors.accentSoft,
+                  inactiveThumbColor: AppColors.textSecondary,
+                  inactiveTrackColor: AppColors.divider,
+                ),
+              ],
             ),
-            // Toggle switch
-            Switch(
-              value: reminder.isEnabled,
-              onChanged: (v) async {
-                await dao.toggleEnabled(reminder.id, v);
-                if (v) {
-                  final updated = await dao.getById(reminder.id);
-                  if (updated != null) {
-                    await NotificationService.instance.scheduleReminder(
-                      updated,
-                    );
-                  }
-                } else {
-                  await NotificationService.instance.cancelReminder(
-                    reminder.notificationId,
-                  );
-                }
-              },
-              activeThumbColor: AppColors.accent,
-              activeTrackColor: AppColors.accentSoft,
-              inactiveThumbColor: AppColors.textSecondary,
-              inactiveTrackColor: AppColors.divider,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -371,6 +382,7 @@ class _ReminderCard extends ConsumerWidget {
           value: 'delete',
           icon: Icons.delete_outline,
           primary: true,
+          destructive: true,
         ),
       ],
     );
@@ -390,7 +402,12 @@ class _ReminderCard extends ConsumerWidget {
       message: 'This will permanently remove "${reminder.title}".',
       actions: const [
         DimiDialogAction(label: 'Cancel', value: false),
-        DimiDialogAction(label: 'Delete', value: true, primary: true),
+        DimiDialogAction(
+          label: 'Delete',
+          value: true,
+          primary: true,
+          destructive: true,
+        ),
       ],
     );
     if (confirmed == true) {

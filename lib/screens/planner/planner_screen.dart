@@ -469,118 +469,122 @@ class _ReferenceTaskRow extends ConsumerWidget {
       _ => Icons.more_horiz_rounded,
     };
 
-    return InkWell(
-      onLongPress: isPast
-          ? null
-          : () => _TaskTile(task: task)._showOptions(context, ref),
-      onTap: isFuture || isPast
-          ? null
-          : () => ref.read(taskDaoProvider).toggleCompleted(task.id, !done),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-        height: 112,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: highlighted ? AppColors.accentSoft : null,
-          border: const Border(bottom: BorderSide(color: AppColors.divider)),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 56,
-              child: Text(
-                formatTime12Hour(task.dueTime),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ),
-            Container(width: 2, height: 48, color: color),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 50,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: color.withAlpha(28),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(icon, size: 22, color: color),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    task.category,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 8,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    task.title,
-                    maxLines: 3,
-                    softWrap: true,
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: done
-                          ? AppColors.textSecondary
-                          : AppColors.textPrimary,
-                      decoration: done ? TextDecoration.lineThrough : null,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: isFuture || isPast
-                  ? null
-                  : () => ref
-                        .read(taskDaoProvider)
-                        .toggleCompleted(task.id, !done),
-              child: Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: done ? AppColors.accent : Colors.transparent,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: done ? AppColors.accent : const Color(0xFFD7D0C3),
-                    width: 2,
+    return Material(
+      color: Colors.transparent,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        splashColor: AppColors.accentSoft.withAlpha(85),
+        highlightColor: AppColors.accentSoft.withAlpha(45),
+        onLongPress: isPast
+            ? null
+            : () => _TaskTile(task: task)._showOptions(context, ref),
+        onTap: isFuture || isPast
+            ? null
+            : () => ref.read(taskDaoProvider).toggleCompleted(task.id, !done),
+        child: Ink(
+          height: 112,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: highlighted ? AppColors.accentSoft : null,
+            border: const Border(bottom: BorderSide(color: AppColors.divider)),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 56,
+                child: Text(
+                  formatTime12Hour(task.dueTime),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
                   ),
                 ),
-                child: done
-                    ? const Icon(
-                        Icons.check_rounded,
-                        color: AppColors.surface,
-                        size: 18,
-                      )
-                    : null,
               ),
-            ),
-          ],
+              Container(width: 2, height: 48, color: color),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 50,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: color.withAlpha(28),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(icon, size: 22, color: color),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      task.category,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 8,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task.title,
+                      maxLines: 3,
+                      softWrap: true,
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: done
+                            ? AppColors.textSecondary
+                            : AppColors.textPrimary,
+                        decoration: done ? TextDecoration.lineThrough : null,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: isFuture || isPast
+                    ? null
+                    : () => ref
+                          .read(taskDaoProvider)
+                          .toggleCompleted(task.id, !done),
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: done ? AppColors.accent : Colors.transparent,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: done ? AppColors.accent : const Color(0xFFD7D0C3),
+                      width: 2,
+                    ),
+                  ),
+                  child: done
+                      ? const Icon(
+                          Icons.check_rounded,
+                          color: AppColors.surface,
+                          size: 18,
+                        )
+                      : null,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1825,124 +1829,131 @@ class _TaskTile extends ConsumerWidget {
     final done = task.isCompleted;
     final isFuture = _isFuturePlannerTask(task);
     final isPast = _isPastPlannerTask(task);
-    return GestureDetector(
-      onLongPress: isPast ? null : () => _showOptions(context, ref),
-      onTap: tapToToggle && !isFuture && !isPast
-          ? () => dao.toggleCompleted(task.id, !done)
-          : null,
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: compact ? 10 : 14,
-          vertical: compact ? 10 : 13,
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-          border: Border.all(
-            color: done ? AppColors.success.withAlpha(80) : AppColors.divider,
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        splashColor: AppColors.accentSoft.withAlpha(85),
+        highlightColor: AppColors.accentSoft.withAlpha(45),
+        onLongPress: isPast ? null : () => _showOptions(context, ref),
+        onTap: tapToToggle && !isFuture && !isPast
+            ? () => dao.toggleCompleted(task.id, !done)
+            : null,
+        child: Ink(
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 10 : 14,
+            vertical: compact ? 10 : 13,
           ),
-        ),
-        child: Row(
-          children: [
-            // Left color bar
-            Container(
-              width: 4,
-              height: compact ? 36 : 44,
-              decoration: BoxDecoration(
-                color: _categoryColor(task.category),
-                borderRadius: BorderRadius.circular(2),
-              ),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+            border: Border.all(
+              color: done ? AppColors.success.withAlpha(80) : AppColors.divider,
             ),
-            const SizedBox(width: 10),
-            // Time column
-            if (task.dueTime != null)
-              SizedBox(
-                width: 38,
-                child: Text(
-                  formatTime12Hour(task.dueTime),
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ),
-            if (task.dueTime != null)
+          ),
+          child: Row(
+            children: [
+              // Left color bar
               Container(
-                width: 1,
-                height: 28,
-                color: AppColors.divider,
-                margin: const EdgeInsets.only(right: 10),
-              ),
-            // Title + category
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    task.title,
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: compact ? 12 : 13,
-                      fontWeight: FontWeight.w600,
-                      color: done
-                          ? AppColors.textSecondary
-                          : AppColors.textPrimary,
-                      decoration: done ? TextDecoration.lineThrough : null,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (!compact)
-                    Text(
-                      task.category,
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 11,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            // Checkbox
-            GestureDetector(
-              onTap: isFuture || isPast
-                  ? null
-                  : tapToToggle
-                  ? null
-                  : () => dao.toggleCompleted(task.id, !done),
-              child: AnimatedContainer(
-                duration: DimiMotion.fast,
-                curve: DimiMotion.curve,
-                width: 22,
-                height: 22,
+                width: 4,
+                height: compact ? 36 : 44,
                 decoration: BoxDecoration(
-                  color: done ? AppColors.accent : Colors.transparent,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: done ? AppColors.accent : AppColors.textSecondary,
-                    width: 1.5,
-                  ),
-                ),
-                child: AnimatedSwitcher(
-                  duration: DimiMotion.fast,
-                  transitionBuilder: (child, animation) => ScaleTransition(
-                    scale: animation,
-                    child: FadeTransition(opacity: animation, child: child),
-                  ),
-                  child: done
-                      ? const Icon(
-                          Icons.check_rounded,
-                          key: ValueKey('planner-done'),
-                          size: 13,
-                          color: AppColors.surface,
-                        )
-                      : const SizedBox(key: ValueKey('planner-pending')),
+                  color: _categoryColor(task.category),
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 10),
+              // Time column
+              if (task.dueTime != null)
+                SizedBox(
+                  width: 38,
+                  child: Text(
+                    formatTime12Hour(task.dueTime),
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              if (task.dueTime != null)
+                Container(
+                  width: 1,
+                  height: 28,
+                  color: AppColors.divider,
+                  margin: const EdgeInsets.only(right: 10),
+                ),
+              // Title + category
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task.title,
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: compact ? 12 : 13,
+                        fontWeight: FontWeight.w600,
+                        color: done
+                            ? AppColors.textSecondary
+                            : AppColors.textPrimary,
+                        decoration: done ? TextDecoration.lineThrough : null,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (!compact)
+                      Text(
+                        task.category,
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              // Checkbox
+              GestureDetector(
+                onTap: isFuture || isPast
+                    ? null
+                    : tapToToggle
+                    ? null
+                    : () => dao.toggleCompleted(task.id, !done),
+                child: AnimatedContainer(
+                  duration: DimiMotion.fast,
+                  curve: DimiMotion.curve,
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: done ? AppColors.accent : Colors.transparent,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: done ? AppColors.accent : AppColors.textSecondary,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: AnimatedSwitcher(
+                    duration: DimiMotion.fast,
+                    transitionBuilder: (child, animation) => ScaleTransition(
+                      scale: animation,
+                      child: FadeTransition(opacity: animation, child: child),
+                    ),
+                    child: done
+                        ? const Icon(
+                            Icons.check_rounded,
+                            key: ValueKey('planner-done'),
+                            size: 13,
+                            color: AppColors.surface,
+                          )
+                        : const SizedBox(key: ValueKey('planner-pending')),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1975,6 +1986,7 @@ class _TaskTile extends ConsumerWidget {
           value: 'delete',
           icon: Icons.delete_outline,
           primary: true,
+          destructive: true,
         ),
       ],
     );
@@ -1993,7 +2005,12 @@ class _TaskTile extends ConsumerWidget {
               : 'Remove "${task.title}"?',
           actions: const [
             DimiDialogAction(label: 'Cancel', value: false),
-            DimiDialogAction(label: 'Delete', value: true, primary: true),
+            DimiDialogAction(
+              label: 'Delete',
+              value: true,
+              primary: true,
+              destructive: true,
+            ),
           ],
         );
         if (ok == true) {
