@@ -8,12 +8,14 @@ class DimiDialogAction<T> {
     required this.value,
     this.icon,
     this.primary = false,
+    this.destructive = false,
   });
 
   final String label;
   final T value;
   final IconData? icon;
   final bool primary;
+  final bool destructive;
 }
 
 Future<T?> showDimiActionDialog<T>(
@@ -82,10 +84,8 @@ Future<T?> showDimiActionDialog<T>(
                         Expanded(
                           child: _DimiActionButton(
                             action: actions[i],
-                            onPressed: () => Navigator.pop(
-                              dialogContext,
-                              actions[i].value,
-                            ),
+                            onPressed: () =>
+                                Navigator.pop(dialogContext, actions[i].value),
                           ),
                         ),
                       ],
@@ -99,10 +99,8 @@ Future<T?> showDimiActionDialog<T>(
                       for (final action in actions)
                         _DimiActionButton(
                           action: action,
-                          onPressed: () => Navigator.pop(
-                            dialogContext,
-                            action.value,
-                          ),
+                          onPressed: () =>
+                              Navigator.pop(dialogContext, action.value),
                         ),
                     ],
                   ),
@@ -121,10 +119,12 @@ class _DimiActionButton<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final background = action.primary
+    final background = action.destructive
+        ? AppColors.danger
+        : action.primary
         ? AppColors.accent
         : AppColors.accentSoft;
-    final foreground = action.primary
+    final foreground = action.destructive || action.primary
         ? AppColors.surface
         : AppColors.textPrimary;
     return FilledButton.icon(

@@ -12,7 +12,12 @@ Future<bool> showDimiDeleteConfirmation(
         message: 'Delete this $itemLabel permanently?',
         actions: const [
           DimiDialogAction(label: 'Cancel', value: false),
-          DimiDialogAction(label: 'Delete', value: true, primary: true),
+          DimiDialogAction(
+            label: 'Delete',
+            value: true,
+            primary: true,
+            destructive: true,
+          ),
         ],
       ) ??
       false;

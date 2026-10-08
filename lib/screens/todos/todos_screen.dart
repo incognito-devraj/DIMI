@@ -322,58 +322,65 @@ class _NoteCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => Padding(
     padding: const EdgeInsets.only(bottom: 10),
-    child: GestureDetector(
-      onTap: () => _showNoteViewer(context, note, ref),
-      child: SectionCard(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: AppColors.accentSoft,
-                borderRadius: BorderRadius.circular(12),
+    child: Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _showNoteViewer(context, note, ref),
+        splashColor: AppColors.accentSoft.withAlpha(85),
+        highlightColor: AppColors.accentSoft.withAlpha(45),
+        child: SectionCard(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.accentSoft,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.sticky_note_2_rounded,
+                  color: AppColors.accent,
+                ),
               ),
-              child: const Icon(
-                Icons.sticky_note_2_rounded,
-                color: AppColors.accent,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      note.title,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      note.content,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '${note.updatedAt.day}/${note.updatedAt.month}/${note.updatedAt.year}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    note.title,
-                    style: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    note.content,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    '${note.updatedAt.day}/${note.updatedAt.month}/${note.updatedAt.year}',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     ),
@@ -684,7 +691,7 @@ Future<void> _showNoteViewer(
                       const SizedBox(width: 12),
                       FilledButton(
                         style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.accent,
+                          backgroundColor: AppColors.danger,
                           foregroundColor: AppColors.surface,
                           shape: const StadiumBorder(),
                         ),
