@@ -8,6 +8,7 @@ import '../../data/database.dart';
 import '../../data/daos/money_dao.dart';
 import '../../providers/money_providers.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/dimi_activity_heatmap.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/dimi_add_action_button.dart';
 import '../../widgets/dimi_action_dialog.dart';
@@ -316,6 +317,21 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
               ),
               const SizedBox(height: 12),
 
+              if (_tabIndex == 2)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screenHorizontal,
+                  ),
+                  child: _FinanceExpenseHeatmap(
+                    transactions: allAsync.maybeWhen(
+                      data: (items) => items,
+                      orElse: () => const <MoneyTransaction>[],
+                    ),
+                    selectedMonth: _transactionMonth ?? DateTime.now(),
+                  ),
+                ),
+              if (_tabIndex == 2) const SizedBox(height: 14),
+
               // ── Content ───────────────────────────────────────────────
               if (_tabIndex == 1)
                 _TransactionFilterToolbar(
@@ -345,7 +361,11 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                             onClearSearch: _clearSearch,
                             availableHeight: constraints.maxHeight,
                           ),
-                          _ => _OverviewContent(transactions: transactions),
+                          _ => _OverviewContent(
+                            transactions: transactions,
+                            selectedMonth: _transactionMonth ?? DateTime.now(),
+                            onMonthTap: _openMonthSelector,
+                          ),
                         },
                         loading: () => const Padding(
                           padding: EdgeInsets.symmetric(
@@ -831,7 +851,525 @@ class _FinanceSearchEmptyState extends StatelessWidget {
 }
 
 class _OverviewContent extends StatelessWidget {
-  const _OverviewContent({required this.transactions});
+  const _OverviewContent({
+    required this.transactions,
+    required this.selectedMonth,
+    required this.onMonthTap,
+  });
+
+  final List<MoneyTransaction> transactions;
+  final DateTime selectedMonth;
+  final VoidCallback onMonthTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final monthTransactions = transactions.where((transaction) {
+      return transaction.date.year == selectedMonth.year &&
+          transaction.date.month == selectedMonth.month;
+    }).toList();
+    final expenses = monthTransactions
+        .where((transaction) => transaction.type == 'expense')
+        .toList();
+    final totalSpent = _totalForTransactions(expenses);
+    final dailyAverage =
+        totalSpent /
+        DateTime(selectedMonth.year, selectedMonth.month + 1, 0).day;
+    final byDay = <DateTime, double>{};
+    for (final transaction in expenses) {
+      final day = DateTime(
+        transaction.date.year,
+        transaction.date.month,
+        transaction.date.day,
+      );
+      byDay[day] = (byDay[day] ?? 0) + _moneyMajorAmount(transaction.amount);
+    }
+    final highestDay = byDay.entries.isEmpty
+        ? null
+        : (byDay.entries.toList()..sort((a, b) => b.value.compareTo(a.value)))
+              .first;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.screenHorizontal,
+      ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Overview',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                _FinanceControlButton(
+                  icon: Icons.calendar_today_outlined,
+                  label: DateFormat('MMM yyyy').format(selectedMonth),
+                  onTap: onMonthTap,
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: _OverviewMetric(
+                    label: 'Total Spent',
+                    value: '₹${_formatAbsoluteFinanceAmount(totalSpent)}',
+                    color: AppColors.danger,
+                  ),
+                ),
+                Expanded(
+                  child: _OverviewMetric(
+                    label: 'Daily Average',
+                    value: '₹${_formatAbsoluteFinanceAmount(dailyAverage)}',
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                Expanded(
+                  child: _OverviewMetric(
+                    label: 'Highest Day',
+                    value: highestDay == null
+                        ? '—'
+                        : '₹${_formatAbsoluteFinanceAmount(highestDay.value)}',
+                    color: AppColors.accent,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            const Text(
+              'Spending by category',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _OverviewCategoryGrid(expenses: expenses, totalSpent: totalSpent),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OverviewCategoryGrid extends StatelessWidget {
+  const _OverviewCategoryGrid({
+    required this.expenses,
+    required this.totalSpent,
+  });
+
+  final List<MoneyTransaction> expenses;
+  final double totalSpent;
+
+  @override
+  Widget build(BuildContext context) {
+    final totals = <String, double>{};
+    for (final transaction in expenses) {
+      totals[transaction.category] =
+          (totals[transaction.category] ?? 0) +
+          _moneyMajorAmount(transaction.amount);
+    }
+    final entries = totals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    if (entries.isEmpty) {
+      return const Text(
+        'No expenses for this month',
+        style: TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 12,
+          color: AppColors.textSecondary,
+        ),
+      );
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: entries.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 18,
+        mainAxisSpacing: 16,
+        childAspectRatio: 2.8,
+      ),
+      itemBuilder: (context, index) {
+        final entry = entries[index];
+        final percentage = totalSpent <= 0 ? 0 : entry.value / totalSpent * 100;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              financeCategoryIcon(entry.key),
+              size: 21,
+              color: _catIconColor(entry.key),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    entry.key,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '₹${_formatAbsoluteFinanceAmount(entry.value)}',
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.danger,
+                    ),
+                  ),
+                  Text(
+                    '${percentage.toStringAsFixed(0)}% of total',
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 9,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _FinanceExpenseHeatmap extends StatelessWidget {
+  const _FinanceExpenseHeatmap({
+    required this.transactions,
+    required this.selectedMonth,
+  });
+
+  final List<MoneyTransaction> transactions;
+  final DateTime selectedMonth;
+
+  static const _cellSize = 12.0;
+  static const _gap = 3.0;
+  static const _labelWidth = 30.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final expenses = transactions.where((transaction) {
+      return transaction.type == 'expense' &&
+          transaction.date.year == selectedMonth.year &&
+          transaction.date.month == selectedMonth.month;
+    }).toList();
+    final totals = <DateTime, double>{};
+    for (final transaction in expenses) {
+      final day = DateTime(
+        transaction.date.year,
+        transaction.date.month,
+        transaction.date.day,
+      );
+      totals[day] = (totals[day] ?? 0) + _moneyMajorAmount(transaction.amount);
+    }
+    final monthStart = DateTime(selectedMonth.year, selectedMonth.month);
+    final monthEnd = DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+    final gridStart = monthStart.subtract(
+      Duration(days: monthStart.weekday % 7),
+    );
+    final gridEnd = monthEnd.add(Duration(days: 6 - monthEnd.weekday % 7));
+    final weekCount = gridEnd.difference(gridStart).inDays ~/ 7 + 1;
+    final maxSpend = totals.values.isEmpty
+        ? 0.0
+        : totals.values.reduce((a, b) => a > b ? a : b);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Expense rhythm',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Text(
+                DateFormat('MMM yyyy').format(selectedMonth),
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 10,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 7 * _cellSize + 6 * _gap + 16,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(
+                  width: _labelWidth,
+                  child: Column(
+                    children: [
+                      SizedBox(height: _cellSize + 4),
+                      _FinanceHeatmapLabel('Sun'),
+                      _FinanceHeatmapLabel('Mon'),
+                      _FinanceHeatmapLabel('Tue'),
+                      _FinanceHeatmapLabel('Wed'),
+                      _FinanceHeatmapLabel('Thu'),
+                      _FinanceHeatmapLabel('Fri'),
+                      _FinanceHeatmapLabel('Sat', last: true),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    reverse: true,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (var week = 0; week < weekCount; week++)
+                          Padding(
+                            padding: EdgeInsets.only(
+                              right: week == weekCount - 1 ? 0 : _gap,
+                            ),
+                            child: Column(
+                              children: List.generate(7, (row) {
+                                final day = gridStart.add(
+                                  Duration(days: week * 7 + row),
+                                );
+                                final inMonth =
+                                    day.month == selectedMonth.month;
+                                final amount = totals[day] ?? 0;
+                                return Padding(
+                                  padding: EdgeInsets.only(
+                                    bottom: row == 6 ? 0 : _gap,
+                                  ),
+                                  child: GestureDetector(
+                                    onTap: inMonth
+                                        ? () => _showDayDetails(
+                                            context,
+                                            day,
+                                            expenses,
+                                          )
+                                        : null,
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: inMonth
+                                            ? _expenseHeatColor(
+                                                amount,
+                                                maxSpend,
+                                              )
+                                            : heatmapColors[0],
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                      child: const SizedBox(
+                                        width: _cellSize,
+                                        height: _cellSize,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              const Text('Less', style: _financeHeatmapLabelStyle),
+              const SizedBox(width: 5),
+              for (final color in heatmapColors)
+                Padding(
+                  padding: const EdgeInsets.only(left: 3),
+                  child: SizedBox(
+                    width: 10,
+                    height: 10,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+              const SizedBox(width: 5),
+              const Text('More', style: _financeHeatmapLabelStyle),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDayDetails(
+    BuildContext context,
+    DateTime day,
+    List<MoneyTransaction> expenses,
+  ) {
+    final dayExpenses = expenses.where((transaction) {
+      return transaction.date.year == day.year &&
+          transaction.date.month == day.month &&
+          transaction.date.day == day.day;
+    }).toList();
+    final total = _totalForTransactions(dayExpenses);
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              DateFormat('EEEE, d MMM yyyy').format(day),
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Total spent  ₹${_formatAbsoluteFinanceAmount(total)}',
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 13,
+                color: AppColors.danger,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 14),
+            for (final transaction in dayExpenses)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      financeCategoryIcon(transaction.category),
+                      size: 18,
+                      color: _catIconColor(transaction.category),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        transaction.note?.isNotEmpty == true
+                            ? transaction.note!
+                            : transaction.category,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '₹${_formatAbsoluteFinanceAmount(_moneyMajorAmount(transaction.amount))}',
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.danger,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (dayExpenses.isEmpty)
+              const Text(
+                'No expenses recorded',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FinanceHeatmapLabel extends StatelessWidget {
+  const _FinanceHeatmapLabel(this.label, {this.last = false});
+  final String label;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: _FinanceExpenseHeatmap._cellSize + (last ? 0 : 3),
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: Text(label, style: _financeHeatmapLabelStyle),
+    ),
+  );
+}
+
+const _financeHeatmapLabelStyle = TextStyle(
+  fontFamily: 'Poppins',
+  fontSize: 8,
+  color: AppColors.textSecondary,
+);
+
+Color _expenseHeatColor(double amount, double maxAmount) {
+  if (amount <= 0 || maxAmount <= 0) return heatmapColors[0];
+  final ratio = amount / maxAmount;
+  if (ratio < .2) return heatmapColors[1];
+  if (ratio < .4) return heatmapColors[2];
+  if (ratio < .6) return heatmapColors[3];
+  if (ratio < .8) return heatmapColors[4];
+  return heatmapColors[5];
+}
+
+class _LegacyOverviewContent extends StatelessWidget {
+  const _LegacyOverviewContent({required this.transactions});
 
   final List<MoneyTransaction> transactions;
 
