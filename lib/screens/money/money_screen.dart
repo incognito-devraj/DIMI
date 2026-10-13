@@ -64,6 +64,9 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
   bool _showAddButton = true;
   Set<String> _categoryFilters = <String>{};
   String _searchQuery = '';
+  bool _searchActive = false;
+  late final TextEditingController _searchController;
+  late final FocusNode _searchFocusNode;
   String _transactionTypeFilter = 'all';
   DateTime? _transactionMonth = DateTime(
     DateTime.now().year,
@@ -71,42 +74,39 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
   );
   DateTimeRange? _transactionDateRange;
 
-  Future<void> _openSearch() async {
-    final controller = TextEditingController(text: _searchQuery);
-    final query = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Search transactions'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textInputAction: TextInputAction.search,
-          decoration: const InputDecoration(
-            hintText: 'Search notes, categories, people, or dates',
-            prefixIcon: Icon(Icons.search_rounded),
-          ),
-          onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('Search'),
-          ),
-        ],
-      ),
-    );
-    // The dialog route can still be detaching its TextField when the future
-    // completes. Dispose on the next frame so Flutter has released the
-    // controller's dependents first.
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+    _searchFocusNode = FocusNode();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _openSearch() {
+    setState(() => _searchActive = true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      controller.dispose();
+      if (mounted) _searchFocusNode.requestFocus();
     });
-    if (query != null && mounted) setState(() => _searchQuery = query);
+  }
+
+  void _closeSearch() {
+    _searchController.clear();
+    _searchFocusNode.unfocus();
+    setState(() {
+      _searchActive = false;
+      _searchQuery = '';
+    });
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() => _searchQuery = '');
   }
 
   Future<void> _openFilter(List<String> categories) async {
@@ -209,49 +209,85 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                   AppSpacing.screenHorizontal,
                   0,
                 ),
-                child: Row(
-                  children: [
-                    const Text(
-                      'Finance',
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 26,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                child: AnimatedSwitcher(
+                  duration: DimiMotion.smooth,
+                  reverseDuration: DimiMotion.smooth,
+                  switchInCurve: DimiMotion.transitionCurve,
+                  switchOutCurve: DimiMotion.transitionCurve,
+                  transitionBuilder: (child, animation) {
+                    final curved = CurvedAnimation(
+                      parent: animation,
+                      curve: DimiMotion.transitionCurve,
+                      reverseCurve: DimiMotion.curve,
+                    );
+                    return FadeTransition(
+                      opacity: curved,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0.025, 0),
+                          end: Offset.zero,
+                        ).animate(curved),
+                        child: child,
                       ),
-                    ),
-                    const Spacer(),
-                    if (_tabIndex == 1) ...[
-                      IconButton(
-                        tooltip: 'Filter finance',
-                        onPressed: () {
-                          final categories = {
-                            ..._allMoneyCategories,
-                            ...allAsync.maybeWhen(
-                              data: (items) =>
-                                  items.map((item) => item.category).toSet(),
-                              orElse: () => <String>{},
+                    );
+                  },
+                  child: _searchActive
+                      ? _FinanceSearchHeader(
+                          key: const ValueKey('finance-search'),
+                          controller: _searchController,
+                          focusNode: _searchFocusNode,
+                          onChanged: (value) =>
+                              setState(() => _searchQuery = value.trim()),
+                          onBack: _closeSearch,
+                          onCancel: _closeSearch,
+                          onClear: _clearSearch,
+                        )
+                      : Row(
+                          key: const ValueKey('finance-header'),
+                          children: [
+                            const Text(
+                              'Finance',
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 26,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
                             ),
-                          }.toList()..sort();
-                          _openFilter(categories);
-                        },
-                        icon: Icon(
-                          Icons.bar_chart_rounded,
-                          color: _categoryFilters.isNotEmpty
-                              ? AppColors.accent
-                              : AppColors.textSecondary,
+                            const Spacer(),
+                            if (_tabIndex == 1) ...[
+                              IconButton(
+                                tooltip: 'Filter finance',
+                                onPressed: () {
+                                  final categories = {
+                                    ..._allMoneyCategories,
+                                    ...allAsync.maybeWhen(
+                                      data: (items) => items
+                                          .map((item) => item.category)
+                                          .toSet(),
+                                      orElse: () => <String>{},
+                                    ),
+                                  }.toList()..sort();
+                                  _openFilter(categories);
+                                },
+                                icon: Icon(
+                                  Icons.bar_chart_rounded,
+                                  color: _categoryFilters.isNotEmpty
+                                      ? AppColors.accent
+                                      : AppColors.textSecondary,
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'Search finance',
+                                onPressed: _openSearch,
+                                icon: const Icon(
+                                  Icons.search_rounded,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                      ),
-                      IconButton(
-                        tooltip: 'Search finance',
-                        onPressed: _openSearch,
-                        icon: const Icon(
-                          Icons.search_rounded,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ],
                 ),
               ),
               const SizedBox(height: 12),
@@ -268,7 +304,12 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                     selected: _tabIndex,
                     onSelected: (i) => setState(() {
                       _tabIndex = i;
-                      if (i != 1) _categoryFilters.clear();
+                      if (i != 1) {
+                        _categoryFilters.clear();
+                        _searchActive = false;
+                        _searchController.clear();
+                        _searchQuery = '';
+                      }
                     }),
                   ),
                 ),
@@ -283,36 +324,41 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                       setState(() => _transactionTypeFilter = type),
                 ),
               Expanded(
-                child: ListView(
-                  padding: EdgeInsets.zero,
-                  children: [
-                    allAsync.when(
-                      data: (transactions) => switch (_tabIndex) {
-                        0 => _WalletContent(
-                          transactions: transactions,
-                          onSeeAll: () => setState(() => _tabIndex = 1),
+                child: LayoutBuilder(
+                  builder: (context, constraints) => ListView(
+                    padding: EdgeInsets.zero,
+                    children: [
+                      allAsync.when(
+                        data: (transactions) => switch (_tabIndex) {
+                          0 => _WalletContent(
+                            transactions: transactions,
+                            onSeeAll: () => setState(() => _tabIndex = 1),
+                          ),
+                          1 => _TransactionsContent(
+                            transactions: transactions,
+                            categoryFilters: _categoryFilters,
+                            searchQuery: _searchQuery,
+                            typeFilter: _transactionTypeFilter,
+                            selectedMonth: _transactionMonth,
+                            dateRange: _transactionDateRange,
+                            onMonthTap: _openMonthSelector,
+                            onClearSearch: _clearSearch,
+                            availableHeight: constraints.maxHeight,
+                          ),
+                          _ => _OverviewContent(transactions: transactions),
+                        },
+                        loading: () => const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: AppSpacing.screenHorizontal,
+                          ),
+                          child: _SkeletonCard(height: 270),
                         ),
-                        1 => _TransactionsContent(
-                          transactions: transactions,
-                          categoryFilters: _categoryFilters,
-                          searchQuery: _searchQuery,
-                          typeFilter: _transactionTypeFilter,
-                          selectedMonth: _transactionMonth,
-                          dateRange: _transactionDateRange,
-                          onMonthTap: _openMonthSelector,
-                        ),
-                        _ => _OverviewContent(transactions: transactions),
-                      },
-                      loading: () => const Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: AppSpacing.screenHorizontal,
-                        ),
-                        child: _SkeletonCard(height: 270),
+                        error: (error, _) =>
+                            Center(child: Text('Error: $error')),
                       ),
-                      error: (error, _) => Center(child: Text('Error: $error')),
-                    ),
-                    SizedBox(height: _showAddButton ? 80 : 0),
-                  ],
+                      SizedBox(height: _showAddButton ? 80 : 0),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -389,6 +435,90 @@ class _FinanceAmountText extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
     );
   }
+}
+
+class _FinanceSearchHeader extends StatelessWidget {
+  const _FinanceSearchHeader({
+    super.key,
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+    required this.onBack,
+    required this.onCancel,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onBack;
+  final VoidCallback onCancel;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      IconButton(
+        onPressed: onBack,
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+        visualDensity: VisualDensity.compact,
+      ),
+      Expanded(
+        child: Container(
+          height: 42,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: AppColors.divider),
+          ),
+          child: TextField(
+            controller: controller,
+            focusNode: focusNode,
+            autofocus: true,
+            onChanged: onChanged,
+            textInputAction: TextInputAction.search,
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Search transactions',
+              prefixIcon: const Icon(Icons.search_rounded, size: 18),
+              suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: controller,
+                builder: (context, value, _) => value.text.isEmpty
+                    ? const SizedBox.shrink()
+                    : IconButton(
+                        onPressed: onClear,
+                        icon: const Icon(Icons.close_rounded, size: 16),
+                        visualDensity: VisualDensity.compact,
+                      ),
+              ),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 11),
+            ),
+          ),
+        ),
+      ),
+      TextButton(
+        onPressed: onCancel,
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.only(left: 8),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        child: const Text(
+          'Cancel',
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 class _WalletContent extends StatelessWidget {
@@ -481,6 +611,8 @@ class _TransactionsContent extends StatelessWidget {
     required this.selectedMonth,
     required this.dateRange,
     required this.onMonthTap,
+    required this.onClearSearch,
+    required this.availableHeight,
   });
 
   final List<MoneyTransaction> transactions;
@@ -490,10 +622,13 @@ class _TransactionsContent extends StatelessWidget {
   final DateTime? selectedMonth;
   final DateTimeRange? dateRange;
   final VoidCallback onMonthTap;
+  final VoidCallback onClearSearch;
+  final double availableHeight;
 
   @override
   Widget build(BuildContext context) {
     final query = searchQuery.toLowerCase();
+    final numericQuery = query.replaceAll(RegExp(r'[₹,\s]'), '');
     final filtered = transactions.where((transaction) {
       final matchesCategory =
           categoryFilters.isEmpty ||
@@ -518,7 +653,16 @@ class _TransactionsContent extends StatelessWidget {
           DateFormat('d MMM yyyy')
               .format(transaction.date)
               .toLowerCase()
-              .contains(query);
+              .contains(query) ||
+          [
+            transaction.amount.toString(),
+            _moneyMajorAmount(transaction.amount).toString(),
+            _moneyMajorAmount(transaction.amount).toStringAsFixed(2),
+            _formatAbsoluteFinanceAmount(_moneyMajorAmount(transaction.amount)),
+          ].any(
+            (amount) =>
+                amount.replaceAll(RegExp(r'[₹,\s]'), '').contains(numericQuery),
+          );
       return matchesCategory && matchesType && matchesMonth && matchesSearch;
     }).toList()..sort((a, b) => b.date.compareTo(a.date));
 
@@ -555,16 +699,122 @@ class _TransactionsContent extends StatelessWidget {
             ],
           ),
         ),
-        _GroupedTransactionList(
-          transactions: filtered,
-          emptyTitle: 'No matching transactions',
-          emptySubtitle: 'Try changing your search or category filter.',
-          useRelativeDates: false,
-          summaryFilter: typeFilter,
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 380),
+          reverseDuration: const Duration(milliseconds: 280),
+          switchInCurve: DimiMotion.transitionCurve,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) {
+            final curved = CurvedAnimation(
+              parent: animation,
+              curve: DimiMotion.transitionCurve,
+              reverseCurve: Curves.easeInCubic,
+            );
+            return FadeTransition(
+              opacity: curved,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.035),
+                  end: Offset.zero,
+                ).animate(curved),
+                child: child,
+              ),
+            );
+          },
+          child: searchQuery.isNotEmpty && filtered.isEmpty
+              ? SizedBox(
+                  key: const ValueKey('search-empty'),
+                  height: (availableHeight - 64)
+                      .clamp(300.0, double.infinity)
+                      .toDouble(),
+                  child: Center(
+                    child: _FinanceSearchEmptyState(onClear: onClearSearch),
+                  ),
+                )
+              : _GroupedTransactionList(
+                  key: ValueKey(
+                    '${filtered.length}-${typeFilter}-${searchQuery.isEmpty ? 'all' : 'search'}',
+                  ),
+                  transactions: filtered,
+                  emptyTitle: 'No matching transactions',
+                  emptySubtitle: 'Try changing your search or category filter.',
+                  useRelativeDates: false,
+                  summaryFilter: typeFilter,
+                ),
         ),
       ],
     );
   }
+}
+
+class _FinanceSearchEmptyState extends StatelessWidget {
+  const _FinanceSearchEmptyState({required this.onClear});
+
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.screenHorizontal,
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 72,
+          height: 72,
+          decoration: const BoxDecoration(
+            color: AppColors.accentSoft,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.search_off_rounded,
+            size: 38,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 18),
+        const Text(
+          'No transactions found',
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'We couldn’t find any transactions\nmatching your search.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 11,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 18),
+        TextButton(
+          onPressed: onClear,
+          style: TextButton.styleFrom(
+            backgroundColor: AppColors.accentSoft,
+            foregroundColor: AppColors.textPrimary,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(13),
+            ),
+          ),
+          child: const Text(
+            'Clear Search',
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _OverviewContent extends StatelessWidget {
@@ -684,6 +934,7 @@ class _OverviewMetric extends StatelessWidget {
 
 class _GroupedTransactionList extends StatelessWidget {
   const _GroupedTransactionList({
+    super.key,
     required this.transactions,
     required this.emptyTitle,
     required this.emptySubtitle,
@@ -734,7 +985,7 @@ class _GroupedTransactionList extends StatelessWidget {
   }
 }
 
-class _DailyTransactionGroup extends StatelessWidget {
+class _DailyTransactionGroup extends StatefulWidget {
   const _DailyTransactionGroup({
     required this.date,
     required this.transactions,
@@ -748,20 +999,27 @@ class _DailyTransactionGroup extends StatelessWidget {
   final String? summaryFilter;
 
   @override
+  State<_DailyTransactionGroup> createState() => _DailyTransactionGroupState();
+}
+
+class _DailyTransactionGroupState extends State<_DailyTransactionGroup> {
+  bool _isCollapsed = false;
+
+  @override
   Widget build(BuildContext context) {
-    final income = transactions.fold(0.0, (sum, transaction) {
+    final income = widget.transactions.fold(0.0, (sum, transaction) {
       final isIncome =
           transaction.type == 'income' || transaction.type == 'borrowed';
       return isIncome ? sum + _moneyMajorAmount(transaction.amount) : sum;
     });
-    final expense = transactions.fold(0.0, (sum, transaction) {
+    final expense = widget.transactions.fold(0.0, (sum, transaction) {
       final isExpense =
           transaction.type == 'expense' || transaction.type == 'lent';
       return isExpense ? sum + _moneyMajorAmount(transaction.amount) : sum;
     });
     final net = income - expense;
 
-    final headerSummary = switch (summaryFilter) {
+    final headerSummary = switch (widget.summaryFilter) {
       'income' => '+₹${_formatAbsoluteFinanceAmount(income)}',
       'expense' => '-₹${_formatAbsoluteFinanceAmount(expense)}',
       'loan' => _formatFinanceAmount(net),
@@ -775,89 +1033,168 @@ class _DailyTransactionGroup extends StatelessWidget {
         AppSpacing.screenHorizontal,
         5,
       ),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(0, 0, 0, 4),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
-              decoration: const BoxDecoration(
-                color: AppColors.surfaceDark,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
+      child: AnimatedSize(
+        duration: DimiMotion.smooth,
+        curve: DimiMotion.transitionCurve,
+        alignment: Alignment.topCenter,
+        child: _isCollapsed
+            ? _buildCollapsedCard(income, expense)
+            : Container(
+                padding: const EdgeInsets.fromLTRB(0, 0, 0, 4),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: Column(
+                  children: [
+                    GestureDetector(
+                      onTap: () => setState(() => _isCollapsed = true),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+                        decoration: const BoxDecoration(
+                          color: AppColors.surfaceDark,
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(15),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _dateLabel(
+                                  widget.date,
+                                  widget.useRelativeDates,
+                                ),
+                                style: const TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                            if (widget.summaryFilter == 'all') ...[
+                              _FinanceAmountText(
+                                text:
+                                    '+₹${_formatAbsoluteFinanceAmount(income)}',
+                                style: const TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.success,
+                                ),
+                              ),
+                              const SizedBox(width: 7),
+                              _FinanceAmountText(
+                                text:
+                                    '-₹${_formatAbsoluteFinanceAmount(expense)}',
+                                style: const TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.danger,
+                                ),
+                              ),
+                            ] else
+                              _FinanceAmountText(
+                                text:
+                                    headerSummary ?? _formatFinanceAmount(net),
+                                style: TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color:
+                                      (widget.summaryFilter == 'expense' ||
+                                          (widget.summaryFilter == 'loan' &&
+                                              net < 0))
+                                      ? AppColors.danger
+                                      : AppColors.success,
+                                ),
+                              ),
+                            const SizedBox(width: 3),
+                            const Icon(
+                              Icons.keyboard_arrow_up_rounded,
+                              size: 21,
+                              color: Colors.white70,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    for (final transaction in widget.transactions)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
+                        child: _TransactionTile(txn: transaction),
+                      ),
+                  ],
+                ),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _dateLabel(date, useRelativeDates),
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  if (summaryFilter == 'all') ...[
-                    _FinanceAmountText(
-                      text: '+₹${_formatAbsoluteFinanceAmount(income)}',
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.success,
-                      ),
-                    ),
-                    const SizedBox(width: 7),
-                    _FinanceAmountText(
-                      text: '-₹${_formatAbsoluteFinanceAmount(expense)}',
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.danger,
-                      ),
-                    ),
-                  ] else
-                    _FinanceAmountText(
-                      text: headerSummary ?? _formatFinanceAmount(net),
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color:
-                            (summaryFilter == 'expense' ||
-                                (summaryFilter == 'loan' && net < 0))
-                            ? AppColors.danger
-                            : AppColors.success,
-                      ),
-                    ),
-                  const SizedBox(width: 3),
-                  const Icon(
-                    Icons.keyboard_arrow_up_rounded,
-                    size: 16,
-                    color: Colors.white70,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 3),
-            for (final transaction in transactions)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
-                child: _TransactionTile(txn: transaction),
-              ),
-          ],
-        ),
       ),
     );
   }
+
+  Widget _buildCollapsedCard(double income, double expense) => GestureDetector(
+    onTap: () => setState(() => _isCollapsed = false),
+    child: Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceDark,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: _buildDateSummary(
+        dateLabel: _dateLabel(widget.date, false),
+        income: income,
+        expense: expense,
+        icon: Icons.keyboard_arrow_down_rounded,
+      ),
+    ),
+  );
+
+  Widget _buildDateSummary({
+    required String dateLabel,
+    required double income,
+    required double expense,
+    required IconData icon,
+  }) => Row(
+    children: [
+      Expanded(
+        child: Text(
+          dateLabel,
+          style: const TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
+        ),
+      ),
+      _FinanceAmountText(
+        text: '+₹${_formatAbsoluteFinanceAmount(income)}',
+        style: const TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: AppColors.success,
+        ),
+      ),
+      const SizedBox(width: 8),
+      _FinanceAmountText(
+        text: '-₹${_formatAbsoluteFinanceAmount(expense)}',
+        style: const TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: AppColors.danger,
+        ),
+      ),
+      const SizedBox(width: 5),
+      Icon(icon, size: 22, color: Colors.white70),
+    ],
+  );
 }
 
 String _dateLabel(DateTime date, bool relative) {
@@ -930,7 +1267,8 @@ class _FinanceFilterPill extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: AnimatedContainer(
-        duration: DimiMotion.fast,
+        duration: DimiMotion.normal,
+        curve: DimiMotion.transitionCurve,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: selected ? AppColors.accent : AppColors.surface,
