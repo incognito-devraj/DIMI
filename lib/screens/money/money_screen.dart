@@ -700,24 +700,37 @@ class _TransactionsContent extends StatelessWidget {
           ),
         ),
         AnimatedSwitcher(
-          duration: const Duration(milliseconds: 380),
-          reverseDuration: const Duration(milliseconds: 280),
+          duration: const Duration(milliseconds: 240),
+          reverseDuration: const Duration(milliseconds: 170),
           switchInCurve: DimiMotion.transitionCurve,
           switchOutCurve: Curves.easeInCubic,
+          layoutBuilder: (currentChild, previousChildren) => Stack(
+            alignment: Alignment.topCenter,
+            children: <Widget>[
+              ...previousChildren,
+              if (currentChild != null) currentChild,
+            ],
+          ),
           transitionBuilder: (child, animation) {
             final curved = CurvedAnimation(
               parent: animation,
-              curve: DimiMotion.transitionCurve,
+              curve: Curves.easeOutCubic,
               reverseCurve: Curves.easeInCubic,
             );
-            return FadeTransition(
-              opacity: curved,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 0.035),
-                  end: Offset.zero,
-                ).animate(curved),
-                child: child,
+            return ClipRect(
+              child: FadeTransition(
+                opacity: Tween<double>(begin: 0.2, end: 1).animate(curved),
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.07),
+                    end: Offset.zero,
+                  ).animate(curved),
+                  child: ScaleTransition(
+                    scale: Tween<double>(begin: 0.985, end: 1).animate(curved),
+                    alignment: Alignment.topCenter,
+                    child: child,
+                  ),
+                ),
               ),
             );
           },
@@ -1267,7 +1280,7 @@ class _FinanceFilterPill extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: AnimatedContainer(
-        duration: DimiMotion.normal,
+        duration: DimiMotion.fast,
         curve: DimiMotion.transitionCurve,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
