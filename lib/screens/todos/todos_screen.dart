@@ -119,17 +119,38 @@ class _TabSwitch extends StatelessWidget {
       color: AppColors.accentSoft,
       borderRadius: BorderRadius.circular(28),
     ),
-    child: Row(
+    child: Stack(
       children: [
-        _Tab(
-          label: 'Tasks',
-          selected: selected == 0,
-          onTap: () => onSelected(0),
+        AnimatedAlign(
+          alignment: selected == 0
+              ? Alignment.centerLeft
+              : Alignment.centerRight,
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeInOutCubic,
+          child: FractionallySizedBox(
+            widthFactor: 0.5,
+            heightFactor: 1,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.textPrimary,
+                borderRadius: BorderRadius.circular(24),
+              ),
+            ),
+          ),
         ),
-        _Tab(
-          label: 'Notes',
-          selected: selected == 1,
-          onTap: () => onSelected(1),
+        Row(
+          children: [
+            _Tab(
+              label: 'Tasks',
+              selected: selected == 0,
+              onTap: () => onSelected(0),
+            ),
+            _Tab(
+              label: 'Notes',
+              selected: selected == 1,
+              onTap: () => onSelected(1),
+            ),
+          ],
         ),
       ],
     ),
@@ -151,20 +172,18 @@ class _Tab extends StatelessWidget {
     child: GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
         alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? AppColors.textPrimary : Colors.transparent,
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: Text(
-          label,
+        duration: const Duration(milliseconds: 120),
+        color: Colors.transparent,
+        child: AnimatedDefaultTextStyle(
+          duration: const Duration(milliseconds: 120),
           style: TextStyle(
             fontFamily: 'Poppins',
             fontSize: 13,
             fontWeight: FontWeight.w600,
             color: selected ? AppColors.surface : AppColors.textSecondary,
           ),
+          child: Text(label),
         ),
       ),
     ),
@@ -344,7 +363,8 @@ class _NoteCard extends ConsumerWidget {
                 ),
                 child: const Icon(
                   Icons.sticky_note_2_rounded,
-                  color: AppColors.accent,
+                  color: AppColors.textPrimary,
+                  size: 24,
                 ),
               ),
               const SizedBox(width: 12),
@@ -360,16 +380,6 @@ class _NoteCard extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 3),
-                    Text(
-                      note.content,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
                     Text(
                       '${note.updatedAt.day}/${note.updatedAt.month}/${note.updatedAt.year}',
                       style: const TextStyle(
