@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -74,6 +76,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
     DateTime.now().month,
   );
   DateTimeRange? _transactionDateRange;
+  final _tooltipOpen = ValueNotifier<bool>(false);
 
   @override
   void initState() {
@@ -86,6 +89,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _tooltipOpen.dispose();
     super.dispose();
   }
 
@@ -328,6 +332,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                       orElse: () => const <MoneyTransaction>[],
                     ),
                     selectedMonth: _transactionMonth ?? DateTime.now(),
+                    tooltipOpen: _tooltipOpen,
                   ),
                 ),
               if (_tabIndex == 2) const SizedBox(height: 14),
@@ -362,6 +367,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                             availableHeight: constraints.maxHeight,
                           ),
                           _ => _OverviewContent(
+                            tooltipOpen: _tooltipOpen,
                             transactions: transactions,
                             selectedMonth: _transactionMonth ?? DateTime.now(),
                             onMonthTap: _openMonthSelector,
@@ -649,6 +655,11 @@ class _TransactionsContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final query = searchQuery.toLowerCase();
     final numericQuery = query.replaceAll(RegExp(r'[₹,\s]'), '');
+    final numericValue = double.tryParse(numericQuery);
+    final isExactNumericSearch =
+        numericValue != null &&
+        numericQuery.isNotEmpty &&
+        RegExp(r'^\d+(\.\d{1,2})?$').hasMatch(numericQuery);
     final filtered = transactions.where((transaction) {
       final matchesCategory =
           categoryFilters.isEmpty ||
@@ -664,25 +675,33 @@ class _TransactionsContent extends StatelessWidget {
           : selectedMonth == null ||
                 (transaction.date.year == selectedMonth!.year &&
                     transaction.date.month == selectedMonth!.month);
-      final matchesSearch =
-          query.isEmpty ||
-          transaction.category.toLowerCase().contains(query) ||
-          (transaction.note?.toLowerCase().contains(query) ?? false) ||
-          (transaction.counterparty?.toLowerCase().contains(query) ?? false) ||
-          transaction.type.toLowerCase().contains(query) ||
-          DateFormat('d MMM yyyy')
-              .format(transaction.date)
-              .toLowerCase()
-              .contains(query) ||
-          [
-            transaction.amount.toString(),
-            _moneyMajorAmount(transaction.amount).toString(),
-            _moneyMajorAmount(transaction.amount).toStringAsFixed(2),
-            _formatAbsoluteFinanceAmount(_moneyMajorAmount(transaction.amount)),
-          ].any(
-            (amount) =>
-                amount.replaceAll(RegExp(r'[₹,\s]'), '').contains(numericQuery),
-          );
+      final amount = _moneyMajorAmount(transaction.amount);
+      final matchesExactAmount =
+          isExactNumericSearch && (amount - numericValue!).abs() < 0.001;
+      final matchesSearch = isExactNumericSearch
+          ? matchesExactAmount
+          : (query.isEmpty ||
+                transaction.category.toLowerCase().contains(query) ||
+                (transaction.note?.toLowerCase().contains(query) ?? false) ||
+                (transaction.counterparty?.toLowerCase().contains(query) ??
+                    false) ||
+                transaction.type.toLowerCase().contains(query) ||
+                DateFormat('d MMM yyyy')
+                    .format(transaction.date)
+                    .toLowerCase()
+                    .contains(query) ||
+                [
+                  transaction.amount.toString(),
+                  _moneyMajorAmount(transaction.amount).toString(),
+                  _moneyMajorAmount(transaction.amount).toStringAsFixed(2),
+                  _formatAbsoluteFinanceAmount(
+                    _moneyMajorAmount(transaction.amount),
+                  ),
+                ].any(
+                  (amount) => amount
+                      .replaceAll(RegExp(r'[₹,\s]'), '')
+                      .contains(numericQuery),
+                ));
       return matchesCategory && matchesType && matchesMonth && matchesSearch;
     }).toList()..sort((a, b) => b.date.compareTo(a.date));
 
@@ -852,6 +871,7 @@ class _FinanceSearchEmptyState extends StatelessWidget {
 
 class _OverviewContent extends StatelessWidget {
   const _OverviewContent({
+    required this.tooltipOpen,
     required this.transactions,
     required this.selectedMonth,
     required this.onMonthTap,
@@ -860,6 +880,7 @@ class _OverviewContent extends StatelessWidget {
   final List<MoneyTransaction> transactions;
   final DateTime selectedMonth;
   final VoidCallback onMonthTap;
+  final ValueNotifier<bool> tooltipOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -892,81 +913,102 @@ class _OverviewContent extends StatelessWidget {
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.screenHorizontal,
       ),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: AppColors.divider),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x10000000),
-              blurRadius: 18,
-              offset: Offset(0, 6),
-            ),
-          ],
+      child: ValueListenableBuilder<bool>(
+        valueListenable: tooltipOpen,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: AppColors.divider),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x10000000),
+                blurRadius: 18,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Overview',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  _FinanceControlButton(
+                    icon: Icons.calendar_today_outlined,
+                    label: DateFormat('MMM yyyy').format(selectedMonth),
+                    onTap: onMonthTap,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: _OverviewMetric(
+                      label: 'Total Spent',
+                      value: '₹${_formatAbsoluteFinanceAmount(totalSpent)}',
+                      color: AppColors.danger,
+                    ),
+                  ),
+                  Expanded(
+                    child: _OverviewMetric(
+                      label: 'Daily Average',
+                      value: '₹${_formatAbsoluteFinanceAmount(dailyAverage)}',
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Expanded(
+                    child: _OverviewMetric(
+                      label: 'Highest Day',
+                      value: highestDay == null
+                          ? '—'
+                          : '₹${_formatAbsoluteFinanceAmount(highestDay.value)}',
+                      color: AppColors.accent,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+              const Text(
+                'Spending by category',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _OverviewCategoryGrid(expenses: expenses, totalSpent: totalSpent),
+            ],
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        builder: (context, isTooltipOpen, child) => Stack(
+          clipBehavior: Clip.none,
           children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Overview',
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+            child!,
+            if (isTooltipOpen)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(22),
+                    child: BackdropFilter(
+                      filter: ui.ImageFilter.blur(sigmaX: 2, sigmaY: 2),
+                      child: const ColoredBox(color: Color(0x04000000)),
                     ),
                   ),
                 ),
-                _FinanceControlButton(
-                  icon: Icons.calendar_today_outlined,
-                  label: DateFormat('MMM yyyy').format(selectedMonth),
-                  onTap: onMonthTap,
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: _OverviewMetric(
-                    label: 'Total Spent',
-                    value: '₹${_formatAbsoluteFinanceAmount(totalSpent)}',
-                    color: AppColors.danger,
-                  ),
-                ),
-                Expanded(
-                  child: _OverviewMetric(
-                    label: 'Daily Average',
-                    value: '₹${_formatAbsoluteFinanceAmount(dailyAverage)}',
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                Expanded(
-                  child: _OverviewMetric(
-                    label: 'Highest Day',
-                    value: highestDay == null
-                        ? '—'
-                        : '₹${_formatAbsoluteFinanceAmount(highestDay.value)}',
-                    color: AppColors.accent,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 22),
-            const Text(
-              'Spending by category',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
               ),
-            ),
-            const SizedBox(height: 12),
-            _OverviewCategoryGrid(expenses: expenses, totalSpent: totalSpent),
           ],
         ),
       ),
@@ -1031,70 +1073,65 @@ class _OverviewCategoryGrid extends StatelessWidget {
               ),
             ],
           ),
-          child: Stack(
-            children: [
-              Positioned(
-                top: -2,
-                right: -2,
-                child: CustomPaint(
-                  painter: _PercentageBadgePainter(),
-                  child: SizedBox(
-                    width: 46,
-                    height: 32,
-                    child: Align(
-                      alignment: Alignment.topRight,
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 4, right: 5),
-                        child: Text(
-                          '${percentage.toStringAsFixed(0)}%',
-                          style: const TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(painter: _PercentageCornerPainter()),
+                  ),
+                ),
+                Positioned(
+                  top: 5,
+                  right: 7,
+                  child: Text(
+                    '${percentage.toStringAsFixed(0)}%',
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),
-              ),
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Icon(
-                      financeCategoryIcon(entry.key),
-                      size: 34,
-                      color: _catIconColor(entry.key),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      entry.key,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Icon(
+                        financeCategoryIcon(entry.key),
+                        size: 34,
+                        color: _catIconColor(entry.key),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '₹${_formatAbsoluteFinanceAmount(entry.value)}',
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.danger,
+                      const SizedBox(height: 5),
+                      Text(
+                        entry.key,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        '₹${_formatAbsoluteFinanceAmount(entry.value)}',
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.danger,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -1102,61 +1139,58 @@ class _OverviewCategoryGrid extends StatelessWidget {
   }
 }
 
-class _PercentageBadgePainter extends CustomPainter {
+class _PercentageCornerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final path = Path()
-      // A clean corner label: the outer edges stay square with the card while
-      // the inner edge folds away with a soft, deliberate curve.
-      ..moveTo(0, 0)
+      ..moveTo(size.width * .57, 0)
       ..lineTo(size.width - 7, 0)
       ..quadraticBezierTo(size.width, 0, size.width, 7)
-      ..lineTo(size.width, size.height - 7)
-      ..quadraticBezierTo(size.width, size.height, size.width - 7, size.height)
-      ..lineTo(size.width * .3, size.height)
+      ..lineTo(size.width, size.height * .36)
       ..cubicTo(
-        size.width * .12,
-        size.height - 1,
-        2,
-        size.height * .62,
+        size.width * .84,
+        size.height * .37,
+        size.width * .67,
+        size.height * .24,
+        size.width * .57,
         0,
-        size.height * .38,
       )
       ..close();
 
-    canvas.drawShadow(path, const Color(0x36000000), 4, false);
     canvas.drawPath(path, Paint()..color = AppColors.accentSoft);
 
     final fold = Paint()
-      ..color = AppColors.accent.withAlpha(120)
+      ..color = AppColors.accent.withAlpha(105)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2
       ..strokeCap = StrokeCap.round;
     final foldPath = Path()
-      ..moveTo(0, 0)
+      ..moveTo(size.width * .57, 0)
       ..cubicTo(
-        size.width * .08,
-        size.height * .42,
-        size.width * .16,
-        size.height * .78,
-        size.width * .3,
-        size.height,
+        size.width * .67,
+        size.height * .24,
+        size.width * .84,
+        size.height * .37,
+        size.width,
+        size.height * .36,
       );
     canvas.drawPath(foldPath, fold);
   }
 
   @override
-  bool shouldRepaint(covariant _PercentageBadgePainter oldDelegate) => false;
+  bool shouldRepaint(covariant _PercentageCornerPainter oldDelegate) => false;
 }
 
 class _FinanceExpenseHeatmap extends StatefulWidget {
   const _FinanceExpenseHeatmap({
     required this.transactions,
     required this.selectedMonth,
+    required this.tooltipOpen,
   });
 
   final List<MoneyTransaction> transactions;
   final DateTime selectedMonth;
+  final ValueNotifier<bool> tooltipOpen;
 
   static const _cellSize = 12.0;
   static const _gap = 3.0;
@@ -1181,6 +1215,7 @@ class _FinanceExpenseHeatmapState extends State<_FinanceExpenseHeatmap> {
   @override
   void dispose() {
     _overlayEntry?.remove();
+    widget.tooltipOpen.value = false;
     super.dispose();
   }
 
@@ -1352,6 +1387,7 @@ class _FinanceExpenseHeatmapState extends State<_FinanceExpenseHeatmap> {
         cellHeight: cellRect.height,
       );
     });
+    widget.tooltipOpen.value = true;
     if (_overlayEntry == null) {
       _overlayEntry = OverlayEntry(builder: (_) => _buildOverlay());
       Overlay.of(context, rootOverlay: true).insert(_overlayEntry!);
@@ -1370,21 +1406,34 @@ class _FinanceExpenseHeatmapState extends State<_FinanceExpenseHeatmap> {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          CompositedTransformFollower(
-            link: _linkFor(selection.date),
-            showWhenUnlinked: false,
-            targetAnchor: Alignment.bottomCenter,
-            followerAnchor: Alignment.topCenter,
-            offset: placement.offset,
-            child: TapRegion(
-              onTapOutside: (_) => _dismissTooltip(),
-              child: _FinanceExpenseTooltip(
-                width: placement.width,
-                arrowX: placement.arrowX,
-                above: placement.above,
-                day: selection.date,
-                total: selection.total,
-                expenses: selection.expenses,
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, child) => Opacity(
+              opacity: value,
+              child: Transform.scale(
+                scale: 0.96 + (value * 0.04),
+                alignment: Alignment.topCenter,
+                child: child,
+              ),
+            ),
+            child: CompositedTransformFollower(
+              link: _linkFor(selection.date),
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.bottomCenter,
+              followerAnchor: Alignment.topCenter,
+              offset: placement.offset,
+              child: TapRegion(
+                onTapOutside: (_) => _dismissTooltip(),
+                child: _FinanceExpenseTooltip(
+                  width: placement.width,
+                  arrowX: placement.arrowX,
+                  above: placement.above,
+                  day: selection.date,
+                  total: selection.total,
+                  expenses: selection.expenses,
+                ),
               ),
             ),
           ),
@@ -1396,6 +1445,7 @@ class _FinanceExpenseHeatmapState extends State<_FinanceExpenseHeatmap> {
   void _dismissTooltip() {
     _overlayEntry?.remove();
     _overlayEntry = null;
+    widget.tooltipOpen.value = false;
     if (mounted) {
       setState(() {
         _selection = null;
@@ -1684,7 +1734,8 @@ class _FinanceHeatmapPlacement {
   final double arrowX;
   final double cellHeight;
 
-  Offset get offset => Offset(offsetX, above ? cellHeight / 2 : 0);
+  Offset get offset =>
+      Offset(offsetX, above ? cellHeight / 2 : -cellHeight / 2);
 }
 
 class _FinanceExpenseTooltip extends StatefulWidget {
@@ -1718,116 +1769,128 @@ class _FinanceExpenseTooltipState extends State<_FinanceExpenseTooltip> {
   }
 
   @override
-  Widget build(BuildContext context) => CustomPaint(
-    painter: _FinanceTooltipPainter(above: widget.above, arrowX: widget.arrowX),
-    child: Container(
-      width: widget.width,
-      padding: const EdgeInsets.fromLTRB(12, 11, 12, 13),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            DateFormat('EEE, MMM d').format(widget.day),
-            style: AppTextStyles.caption(context).copyWith(
-              fontSize: 12,
-              height: 16 / 12,
-              decoration: TextDecoration.none,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            '₹${_formatAbsoluteFinanceAmount(widget.total)} spent',
-            style: AppTextStyles.cardTitle(context).copyWith(
-              fontSize: 13,
-              height: 18 / 13,
-              fontWeight: FontWeight.w600,
-              decoration: TextDecoration.none,
-            ),
-          ),
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: widget.expenses.length > 5 ? 176 : double.infinity,
-            ),
-            child: ScrollbarTheme(
-              data: ScrollbarThemeData(
-                thumbColor: WidgetStatePropertyAll(
-                  AppColors.textSecondary.withAlpha(150),
-                ),
-                trackColor: WidgetStatePropertyAll(
-                  AppColors.divider.withAlpha(90),
-                ),
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: .96, end: 1),
+    duration: const Duration(milliseconds: 180),
+    curve: Curves.easeOutCubic,
+    builder: (context, scale, child) => Opacity(
+      opacity: (scale - .96) / .04,
+      child: Transform.scale(scale: scale, child: child),
+    ),
+    child: CustomPaint(
+      painter: _FinanceTooltipPainter(
+        above: widget.above,
+        arrowX: widget.arrowX,
+      ),
+      child: Container(
+        width: widget.width,
+        padding: const EdgeInsets.fromLTRB(12, 11, 12, 13),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              DateFormat('EEE, MMM d').format(widget.day),
+              style: AppTextStyles.caption(context).copyWith(
+                fontSize: 12,
+                height: 16 / 12,
+                decoration: TextDecoration.none,
               ),
-              child: Scrollbar(
-                controller: _scrollController,
-                thumbVisibility: widget.expenses.length > 5,
-                thickness: 3,
-                radius: const Radius.circular(3),
-                trackVisibility: widget.expenses.length > 5,
-                child: SingleChildScrollView(
+            ),
+            const SizedBox(height: 5),
+            Text(
+              '₹${_formatAbsoluteFinanceAmount(widget.total)} spent',
+              style: AppTextStyles.cardTitle(context).copyWith(
+                fontSize: 13,
+                height: 18 / 13,
+                fontWeight: FontWeight.w600,
+                decoration: TextDecoration.none,
+              ),
+            ),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: widget.expenses.length > 10 ? 212 : double.infinity,
+              ),
+              child: ScrollbarTheme(
+                data: ScrollbarThemeData(
+                  thumbColor: WidgetStatePropertyAll(
+                    AppColors.textSecondary.withAlpha(150),
+                  ),
+                  trackColor: WidgetStatePropertyAll(
+                    AppColors.divider.withAlpha(90),
+                  ),
+                ),
+                child: Scrollbar(
                   controller: _scrollController,
-                  physics: const ClampingScrollPhysics(),
-                  padding: const EdgeInsets.only(right: 5),
-                  child: Column(
-                    children: [
-                      for (final transaction in widget.expenses)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Row(
-                            children: [
-                              Icon(
-                                financeCategoryIcon(transaction.category),
-                                size: 15,
-                                color: _catIconColor(transaction.category),
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  transaction.note?.isNotEmpty == true
-                                      ? transaction.note!
-                                      : transaction.category,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                  thumbVisibility: widget.expenses.length > 10,
+                  thickness: 3,
+                  radius: const Radius.circular(3),
+                  trackVisibility: widget.expenses.length > 10,
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    physics: const ClampingScrollPhysics(),
+                    padding: const EdgeInsets.only(right: 5),
+                    child: Column(
+                      children: [
+                        for (final transaction in widget.expenses)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  financeCategoryIcon(transaction.category),
+                                  size: 15,
+                                  color: _catIconColor(transaction.category),
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    transaction.note?.isNotEmpty == true
+                                        ? transaction.note!
+                                        : transaction.category,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTextStyles.body(context).copyWith(
+                                      fontSize: 10,
+                                      height: 14 / 10,
+                                      decoration: TextDecoration.none,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '₹${_formatAbsoluteFinanceAmount(_moneyMajorAmount(transaction.amount))}',
                                   style: AppTextStyles.body(context).copyWith(
                                     fontSize: 10,
                                     height: 14 / 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.danger,
                                     decoration: TextDecoration.none,
                                   ),
                                 ),
-                              ),
-                              Text(
-                                '₹${_formatAbsoluteFinanceAmount(_moneyMajorAmount(transaction.amount))}',
-                                style: AppTextStyles.body(context).copyWith(
-                                  fontSize: 10,
-                                  height: 14 / 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.danger,
-                                  decoration: TextDecoration.none,
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          if (widget.expenses.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 7),
-              child: Text(
-                'No expenses recorded',
-                style: AppTextStyles.body(context).copyWith(
-                  fontSize: 10,
-                  height: 14 / 10,
-                  color: AppColors.textSecondary,
-                  decoration: TextDecoration.none,
+            if (widget.expenses.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 7),
+                child: Text(
+                  'No expenses recorded',
+                  style: AppTextStyles.body(context).copyWith(
+                    fontSize: 10,
+                    height: 14 / 10,
+                    color: AppColors.textSecondary,
+                    decoration: TextDecoration.none,
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     ),
   );
@@ -1858,9 +1921,19 @@ class _FinanceTooltipPainter extends CustomPainter {
       path.lineTo(x + arrowWidth / 2, arrowHeight);
     }
     canvas.drawShadow(path, const Color(0x40000000), 8, false);
-    canvas.drawPath(path, Paint()..color = AppColors.surface);
-    // Keep the tooltip surface clean; the pointer and shadow provide enough
-    // separation from the heatmap without introducing a bright edge.
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = AppColors.surface
+        ..isAntiAlias = true,
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = AppColors.divider
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
   }
 
   @override
