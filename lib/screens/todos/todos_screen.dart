@@ -229,6 +229,7 @@ class _TodoRow extends ConsumerWidget {
           Checkbox(
             value: task.isCompleted,
             activeColor: AppColors.accent,
+            shape: const CircleBorder(),
             onChanged: (value) => ref
                 .read(taskDaoProvider)
                 .toggleCompleted(task.id, value ?? false),

@@ -1697,7 +1697,7 @@ class _MiniTaskRow extends StatelessWidget {
                             : AppColors.textSecondary,
                         width: 1.5,
                       ),
-                      borderRadius: BorderRadius.circular(6),
+                      shape: BoxShape.circle,
                     ),
                     child: task.isCompleted
                         ? const Icon(
