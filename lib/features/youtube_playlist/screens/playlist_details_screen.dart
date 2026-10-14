@@ -2308,32 +2308,6 @@ class _VideoRowState extends State<_VideoRow> {
                                 ),
                               ),
 
-                              // Amber overlay + centred amber check
-                              if (completed)
-                                Container(
-                                  color: AppColors.accent.withAlpha(38),
-                                  alignment: Alignment.center,
-                                  child: Container(
-                                    width: 28,
-                                    height: 28,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.accent,
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withAlpha(55),
-                                          blurRadius: 4,
-                                        ),
-                                      ],
-                                    ),
-                                    child: const Icon(
-                                      Icons.check_rounded,
-                                      color: Colors.white,
-                                      size: 17,
-                                    ),
-                                  ),
-                                ),
-
                               // Duration badge
                               Positioned(
                                 right: 3,

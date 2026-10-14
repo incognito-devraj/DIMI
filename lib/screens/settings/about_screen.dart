@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_config.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/dimi_hero.dart';
+import '../../widgets/dimi_social_links.dart';
 
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
@@ -116,7 +117,7 @@ class _AboutScreenState extends State<AboutScreen> {
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        '© 2026 incognito-devraj',
+                        '© 2026 Devraj',
                         style: TextStyle(
                           fontFamily: 'Inter',
                           fontSize: 12,
@@ -125,13 +126,15 @@ class _AboutScreenState extends State<AboutScreen> {
                       ),
                       const SizedBox(height: 2),
                       const Text(
-                        'Created by incognito-devraj',
+                        'Created by Devraj with ❤️',
                         style: TextStyle(
                           fontFamily: 'Inter',
                           fontSize: 12,
                           color: AppColors.textSecondary,
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      const DimiSocialLinks(),
                       const SizedBox(height: 12),
                       const Text(
                         'A local-first student productivity app.\n'

@@ -57,10 +57,6 @@ class _DimiAddActionButtonState extends State<DimiAddActionButton> {
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(22),
-                border: Border.all(
-                  color: Colors.white.withAlpha(150),
-                  width: 1,
-                ),
                 boxShadow: [
                   BoxShadow(
                     color: AppColors.accent.withAlpha(65),

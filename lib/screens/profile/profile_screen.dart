@@ -11,6 +11,8 @@ import '../../routing/app_router.dart';
 import '../../services/persistent_image_cache.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/dimi_hero.dart';
+import '../../widgets/dimi_pressable.dart';
+import '../../widgets/dimi_social_links.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -192,6 +194,10 @@ class _ProfileBody extends ConsumerWidget {
                     title: 'Profile',
                     subtitle: 'Good to see you back!',
                     height: 180,
+                    leading: DimiHeroCircleButton(
+                      icon: Icons.arrow_back_ios_new_rounded,
+                      onTap: () => Navigator.of(context).maybePop(),
+                    ),
                     trailing: DimiHeroCircleButton(
                       icon: Icons.settings_outlined,
                       onTap: () => context.push(AppRoutes.settings),
@@ -284,13 +290,15 @@ class _ProfileBody extends ConsumerWidget {
                   ),
                   SizedBox(height: 4),
                   Text(
-                    'Created by incognito-devraj',
+                    'Created by Devraj with ❤️',
                     style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 10,
                       color: AppColors.textSecondary,
                     ),
                   ),
+                  SizedBox(height: 8),
+                  DimiSocialLinks(),
                 ],
               ),
             ),
@@ -855,7 +863,7 @@ class _ProfileActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DimiSurface(
-      child: InkWell(
+      child: DimiPressable(
         onTap: onTap,
         borderRadius: BorderRadius.circular(17),
         child: Padding(

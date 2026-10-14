@@ -94,7 +94,13 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
   }
 
   void _openSearch() {
-    setState(() => _searchActive = true);
+    setState(() {
+      _searchActive = true;
+      // The keyboard owns the lower part of the screen while searching.
+      // Hide the floating action and remove its reserved list space so the
+      // transaction list reads as one continuous surface behind the keyboard.
+      _showAddButton = false;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _searchFocusNode.requestFocus();
     });
@@ -106,6 +112,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
     setState(() {
       _searchActive = false;
       _searchQuery = '';
+      _showAddButton = true;
     });
   }
 
@@ -191,6 +198,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      resizeToAvoidBottomInset: !_searchActive,
       body: NotificationListener<UserScrollNotification>(
         onNotification: (notification) {
           final visible = switch (notification.direction) {
@@ -216,7 +224,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                 ),
                 child: AnimatedSwitcher(
                   duration: DimiMotion.smooth,
-                  reverseDuration: DimiMotion.smooth,
+                  reverseDuration: DimiMotion.fast,
                   switchInCurve: DimiMotion.transitionCurve,
                   switchOutCurve: DimiMotion.transitionCurve,
                   transitionBuilder: (child, animation) {
@@ -298,28 +306,31 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
               const SizedBox(height: 12),
 
               // ── Tabs ──────────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenHorizontal,
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: PillSegmentedControl(
-                    options: _kTabs,
-                    selected: _tabIndex,
-                    onSelected: (i) => setState(() {
-                      _tabIndex = i;
-                      if (i != 1) {
-                        _categoryFilters.clear();
-                        _searchActive = false;
-                        _searchController.clear();
-                        _searchQuery = '';
-                      }
-                    }),
+              if (!_searchActive) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screenHorizontal,
+                  ),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: PillSegmentedControl(
+                      options: _kTabs,
+                      selected: _tabIndex,
+                      onSelected: (i) => setState(() {
+                        _tabIndex = i;
+                        if (i != 1) {
+                          _categoryFilters.clear();
+                          _searchActive = false;
+                          _searchController.clear();
+                          _searchQuery = '';
+                          _showAddButton = true;
+                        }
+                      }),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
+                const SizedBox(height: 12),
+              ],
 
               if (_tabIndex == 2)
                 Padding(
@@ -338,52 +349,57 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
               if (_tabIndex == 2) const SizedBox(height: 14),
 
               // ── Content ───────────────────────────────────────────────
-              if (_tabIndex == 1)
+              if (_tabIndex == 1 && !_searchActive)
                 _TransactionFilterToolbar(
                   selectedType: _transactionTypeFilter,
                   onTypeSelected: (type) =>
                       setState(() => _transactionTypeFilter = type),
                 ),
               Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) => ListView(
-                    padding: EdgeInsets.zero,
-                    children: [
-                      allAsync.when(
-                        data: (transactions) => switch (_tabIndex) {
-                          0 => _WalletContent(
-                            transactions: transactions,
-                            onSeeAll: () => setState(() => _tabIndex = 1),
+                child: ColoredBox(
+                  color: _searchActive ? AppColors.surface : Colors.transparent,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => ListView(
+                      padding: EdgeInsets.zero,
+                      children: [
+                        allAsync.when(
+                          data: (transactions) => switch (_tabIndex) {
+                            0 => _WalletContent(
+                              transactions: transactions,
+                              onSeeAll: () => setState(() => _tabIndex = 1),
+                            ),
+                            1 => _TransactionsContent(
+                              transactions: transactions,
+                              categoryFilters: _categoryFilters,
+                              searchQuery: _searchQuery,
+                              typeFilter: _transactionTypeFilter,
+                              selectedMonth: _transactionMonth,
+                              dateRange: _transactionDateRange,
+                              onMonthTap: _openMonthSelector,
+                              onClearSearch: _clearSearch,
+                              availableHeight: constraints.maxHeight,
+                            ),
+                            _ => _OverviewContent(
+                              tooltipOpen: _tooltipOpen,
+                              transactions: transactions,
+                              selectedMonth: _transactionMonth ?? DateTime.now(),
+                              onMonthTap: _openMonthSelector,
+                            ),
+                          },
+                          loading: () => const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: AppSpacing.screenHorizontal,
+                            ),
+                            child: _SkeletonCard(height: 270),
                           ),
-                          1 => _TransactionsContent(
-                            transactions: transactions,
-                            categoryFilters: _categoryFilters,
-                            searchQuery: _searchQuery,
-                            typeFilter: _transactionTypeFilter,
-                            selectedMonth: _transactionMonth,
-                            dateRange: _transactionDateRange,
-                            onMonthTap: _openMonthSelector,
-                            onClearSearch: _clearSearch,
-                            availableHeight: constraints.maxHeight,
-                          ),
-                          _ => _OverviewContent(
-                            tooltipOpen: _tooltipOpen,
-                            transactions: transactions,
-                            selectedMonth: _transactionMonth ?? DateTime.now(),
-                            onMonthTap: _openMonthSelector,
-                          ),
-                        },
-                        loading: () => const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: AppSpacing.screenHorizontal,
-                          ),
-                          child: _SkeletonCard(height: 270),
+                          error: (error, _) =>
+                              Center(child: Text('Error: $error')),
                         ),
-                        error: (error, _) =>
-                            Center(child: Text('Error: $error')),
-                      ),
-                      SizedBox(height: _showAddButton ? 80 : 0),
-                    ],
+                        SizedBox(
+                          height: (!_searchActive && _showAddButton) ? 80 : 0,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -391,23 +407,25 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
           ),
         ),
       ),
-      floatingActionButton: IgnorePointer(
-        ignoring: !_showAddButton,
-        child: AnimatedSlide(
-          offset: _showAddButton ? Offset.zero : const Offset(0, 1.4),
-          duration: DimiMotion.normal,
-          curve: DimiMotion.curve,
-          child: AnimatedOpacity(
-            opacity: _showAddButton ? 1 : 0,
-            duration: DimiMotion.fast,
-            child: DimiAddActionButton(
-              label: 'Add Transaction',
-              icon: Icons.currency_rupee_rounded,
-              onPressed: () => showAddExpenseSheet(context),
+      floatingActionButton: _searchActive
+          ? null
+          : IgnorePointer(
+              ignoring: !_showAddButton,
+              child: AnimatedSlide(
+                offset: _showAddButton ? Offset.zero : const Offset(0, 1.4),
+                duration: DimiMotion.normal,
+                curve: DimiMotion.curve,
+                child: AnimatedOpacity(
+                  opacity: _showAddButton ? 1 : 0,
+                  duration: DimiMotion.fast,
+                  child: DimiAddActionButton(
+                    label: 'Add Transaction',
+                    icon: Icons.currency_rupee_rounded,
+                    onPressed: () => showAddExpenseSheet(context),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
-      ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
@@ -719,7 +737,7 @@ class _TransactionsContent extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  searchQuery.isEmpty ? 'Transactions' : 'Search results',
+                  searchQuery.isEmpty ? 'Transactions' : 'Search Results',
                   style: const TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 16,
