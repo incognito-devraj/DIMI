@@ -20,7 +20,7 @@ import '../../widgets/dimi_blob_background.dart';
 //              background opacity 1→0             [0.688–0.797]
 // ─────────────────────────────────────────────────────────────────────────────
 
-const _kTotalMs = 1000;
+const _kTotalMs = 1200;
 
 // Entrance
 const _kLogoFadeIn = Interval(0.000, 0.078, curve: Curves.easeOut);
@@ -30,8 +30,8 @@ const _kSubFade = Interval(0.172, 0.294, curve: Curves.easeOut);
 const _kBarReveal = Interval(0.219, 0.640, curve: Curves.easeInOut);
 
 // Exit
-const _kExitContent = Interval(0.688, 0.797, curve: Curves.easeIn);
-const _kExitBg = Interval(0.719, 0.828, curve: Curves.easeIn);
+const _kExitContent = Interval(0.72, 0.86, curve: Curves.easeInOut);
+const _kExitBg = Interval(0.77, 0.92, curve: Curves.easeInOut);
 
 /// DIMI premium splash screen.
 ///
@@ -108,8 +108,10 @@ class _SplashScreenState extends State<SplashScreen>
       end: 1.04,
     ).animate(CurvedAnimation(parent: _seq, curve: _kExitContent));
     _exitBgOpacity = Tween<double>(
+      // Keep the cream canvas painted through the route handoff. Fading this
+      // layer exposes the platform window for a frame on slower devices.
       begin: 1.0,
-      end: 0.0,
+      end: 1.0,
     ).animate(CurvedAnimation(parent: _seq, curve: _kExitBg));
 
     // ── Blob drift — 18-second looping, tiny movement ────────────────────

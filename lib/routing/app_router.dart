@@ -113,7 +113,13 @@ final GoRouter appRouter = GoRouter(
     // screen and bottom navigation are reused unchanged after handoff.
     GoRoute(
       path: AppRoutes.splash,
-      pageBuilder: (context, state) => _fade(state, const SplashScreen()),
+      // The native launch screen already provides the handoff animation.
+      // Avoid fading this route from transparent, which can reveal a white
+      // platform frame before Flutter paints the splash canvas.
+      pageBuilder: (context, state) => NoTransitionPage(
+        key: state.pageKey,
+        child: const SplashScreen(),
+      ),
     ),
 
     GoRoute(

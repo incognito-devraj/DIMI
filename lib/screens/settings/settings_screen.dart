@@ -257,7 +257,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             // ── DIMI wordmark footer ──────────────────────────────────────
             const SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 28),
+                padding: EdgeInsets.only(top: 28, bottom: 24),
                 child: Column(
                   children: [
                     Text(
