@@ -86,6 +86,7 @@ class _YoutubePlaylistCardState
               durationISO: v.durationIso,
               durationSeconds: v.durationSeconds,
               isCompleted: v.completed,
+              watchedAt: v.watchedAt,
             ),
           )
           .toList(),
@@ -179,7 +180,7 @@ class _YoutubePlaylistCardState
 
                         if (context.mounted) {
                           context.push(
-                            AppRoutes.playlistDetails,
+                            '${AppRoutes.playlistDetails}?playlistId=${Uri.encodeComponent(full.playlistId)}',
                             extra: full,
                           );
                         }

@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../data/database.dart';
+import '../../../data/daos/youtube_playlist_dao.dart';
 import '../../../providers/database_provider.dart';
 import '../../../services/notification_service.dart';
 import '../../../theme/app_theme.dart';
@@ -49,6 +50,60 @@ class PlaylistDetailsScreen extends ConsumerWidget {
         videos: playlist.videos,
         initialFilter: initialFilter,
       ),
+    );
+  }
+}
+
+/// Route-restoration fallback. GoRouter can restore the URL without the
+/// in-memory `extra`; rebuild the complete playlist from Drift instead of
+/// showing the mock/empty playlist while the network is offline.
+class LocalPlaylistDetailsScreen extends ConsumerWidget {
+  const LocalPlaylistDetailsScreen({
+    super.key,
+    required this.playlistId,
+    this.initialFilter = 0,
+  });
+
+  final String playlistId;
+  final int initialFilter;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dao = ref.read(youtubePlaylistDaoProvider);
+    return FutureBuilder<YouTubePlaylist?>(
+      future: _loadLocalPlaylist(dao),
+      builder: (context, snapshot) {
+        final playlist = snapshot.data;
+        if (playlist == null) {
+          return const Scaffold(
+            backgroundColor: AppColors.background,
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        return PlaylistDetailsScreen(
+          playlist: playlist,
+          initialFilter: initialFilter,
+        );
+      },
+    );
+  }
+
+  Future<YouTubePlaylist?> _loadLocalPlaylist(
+    YoutubePlaylistDao dao,
+  ) async {
+    final row = await dao.getByYoutubeId('local', playlistId);
+    if (row == null) return null;
+    final videos = await dao.getVideos(row.id);
+    return YouTubePlaylist(
+      localId: row.id,
+      playlistId: row.youtubePlaylistId,
+      title: row.title,
+      channelTitle: row.channelTitle,
+      description: row.description,
+      thumbnailUrl: row.thumbnailUrl,
+      totalVideos: row.totalVideos,
+      totalDurationSeconds: row.totalDurationSeconds,
+      videos: videos.map(_toVideo).toList(),
     );
   }
 }
@@ -259,11 +314,8 @@ class _PlaylistPageState extends ConsumerState<_PlaylistPage> {
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   // 1. Large header
-                  _Header(playlist: widget.playlist),
-                  const SizedBox(height: 12),
-
-                  // 2. Progress card (ring + stats, no linear bar)
-                  _ProgressCard(
+                  _Header(
+                    playlist: widget.playlist,
                     watched: _watchedCount,
                     total: _totalCount,
                     ratio: _ratio,
@@ -275,7 +327,7 @@ class _PlaylistPageState extends ConsumerState<_PlaylistPage> {
                   _PlaylistHeatmap(videos: widget.videos),
                   const SizedBox(height: 12),
 
-                  // 4. Reminders (just under heatmap)
+                  // 4. Reminder controls (just under heatmap)
                   _PlaylistReminderSection(playlist: widget.playlist),
                   const SizedBox(height: 14),
 
@@ -496,26 +548,35 @@ class _PlaylistSheetButton extends StatelessWidget {
   );
 }
 
-class _Header extends StatefulWidget {
-  const _Header({required this.playlist});
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.playlist,
+    required this.watched,
+    required this.total,
+    required this.ratio,
+    required this.videos,
+  });
   final YouTubePlaylist playlist;
-
-  @override
-  State<_Header> createState() => _HeaderState();
-}
-
-class _HeaderState extends State<_Header> {
-  bool _descExpanded = false;
+  final int watched;
+  final int total;
+  final double ratio;
+  final List<YouTubeVideo> videos;
 
   @override
   Widget build(BuildContext context) {
-    final p = widget.playlist;
-    final hasDesc = p.description.trim().isNotEmpty;
+    final p = playlist;
     final totalDur = Duration(seconds: p.totalDurationSeconds);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
         // ── Full-width thumbnail ────────────────────────────────────────────
         ClipRRect(
           borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
@@ -524,15 +585,25 @@ class _HeaderState extends State<_Header> {
             child: PlaylistThumbnail(label: p.thumbnailUrl, large: true),
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 8),
 
         // ── Title ───────────────────────────────────────────────────────────
-        Text(
-          p.title,
-          style: Theme.of(context).textTheme.headlineMedium
-              ?.copyWith(fontWeight: FontWeight.w800, height: 1.25),
-        ),
-        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                p.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  height: 1.1,
+                ),
+              ),
+              const SizedBox(height: 8),
 
         // ── Channel row ─────────────────────────────────────────────────────
         Row(
@@ -551,82 +622,40 @@ class _HeaderState extends State<_Header> {
               ),
             ),
             const SizedBox(width: 6),
-            Text(
-              p.channelTitle,
-              style: Theme.of(context).textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-
-        // ── Meta row: video count · duration · YouTube ──────────────────────
-        Row(
-          children: [
-            _MetaBadge(
-              icon: Icons.video_library_outlined,
-              label: '${p.totalVideos} Videos',
-            ),
-            if (totalDur.inSeconds > 0) ...[
-              const SizedBox(width: 8),
-              _MetaBadge(
-                icon: Icons.access_time_rounded,
-                label: _fmt(totalDur),
+            Expanded(
+              child: Text(
+                p.channelTitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ],
-            const SizedBox(width: 8),
-            _MetaBadge(
-              icon: Icons.play_circle_outline_rounded,
-              label: 'YouTube',
+            ),
+            const SizedBox(width: 10),
+            _MetaGroup(
+              totalVideos: p.totalVideos,
+              totalDuration: totalDur,
             ),
           ],
         ),
+        const SizedBox(height: 10),
 
-        // ── Description (hidden by default) ─────────────────────────────────
-        if (hasDesc) ...[
-          const SizedBox(height: 10),
-          GestureDetector(
-            onTap: () => setState(() => _descExpanded = !_descExpanded),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _descExpanded ? 'Hide description' : 'Show description',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: AppColors.accent,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Icon(
-                  _descExpanded
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
-                  size: 18,
-                  color: AppColors.accent,
-                ),
+        // ── Compact progress summary ────────────────────────────────────────
+        _ProgressCard(
+          watched: watched,
+          total: total,
+          ratio: ratio,
+          videos: videos,
+        ),
               ],
             ),
           ),
-          if (_descExpanded) ...[
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: Text(
-                p.description,
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(height: 1.5),
-              ),
-            ),
-          ],
+
+        // ── Description (hidden by default) ─────────────────────────────────
         ],
-      ],
+      ),
     );
   }
 }
@@ -667,6 +696,47 @@ class _MetaBadge extends StatelessWidget {
 //    [ring+%] [7/10 watched] [▶badge 1h33m watched] [⏳badge 3h31m left]
 // ─────────────────────────────────────────────────────────────────────────────
 
+class _MetaGroup extends StatelessWidget {
+  const _MetaGroup({required this.totalVideos, required this.totalDuration});
+
+  final int totalVideos;
+  final Duration totalDuration;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.video_library_outlined, size: 14),
+          const SizedBox(width: 4),
+          Text(
+            '$totalVideos videos',
+            style: const TextStyle(fontSize: 10),
+          ),
+          if (totalDuration.inSeconds > 0) ...[
+            const SizedBox(width: 12),
+            Container(width: 1, height: 16, color: AppColors.divider),
+            const SizedBox(width: 8),
+            const Icon(Icons.access_time_rounded, size: 14),
+            const SizedBox(width: 4),
+            Text(
+              _fmt(totalDuration),
+              style: const TextStyle(fontSize: 10),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _ProgressCard extends StatelessWidget {
   const _ProgressCard({
     required this.watched,
@@ -695,19 +765,15 @@ class _ProgressCard extends StatelessWidget {
     final leftStr = leftSecs > 0 ? _fmt(Duration(seconds: leftSecs)) : '—';
     final pct = (ratio * 100).round();
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-        border: Border.all(color: AppColors.divider),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // 1. Ring gauge
           _ProgressRing(ratio: ratio, pct: pct),
+          const _ProgressDivider(),
 
           // 2. Videos watched count
           Column(
@@ -721,7 +787,7 @@ class _ProgressCard extends StatelessWidget {
                       text: '$watched',
                       style: const TextStyle(
                         fontFamily: 'Inter',
-                        fontSize: 22,
+                        fontSize: 16,
                         fontWeight: FontWeight.w800,
                         color: AppColors.textPrimary,
                       ),
@@ -730,7 +796,7 @@ class _ProgressCard extends StatelessWidget {
                       text: ' / $total',
                       style: TextStyle(
                         fontFamily: 'Inter',
-                        fontSize: 14,
+                        fontSize: 11,
                         fontWeight: FontWeight.w500,
                         color: AppColors.textSecondary.withAlpha(180),
                       ),
@@ -743,7 +809,7 @@ class _ProgressCard extends StatelessWidget {
                 'watched',
                 style: TextStyle(
                   fontFamily: 'Inter',
-                  fontSize: 11,
+                  fontSize: 9,
                   color: AppColors.textSecondary,
                 ),
               ),
@@ -751,6 +817,7 @@ class _ProgressCard extends StatelessWidget {
           ),
 
           // 3. Watched duration — icon in soft circle
+          const _ProgressDivider(),
           _DurationBadge(
             iconData: Icons.play_arrow_rounded,
             value: watchedStr,
@@ -760,6 +827,7 @@ class _ProgressCard extends StatelessWidget {
           ),
 
           // 4. Left duration — icon in soft circle
+          const _ProgressDivider(),
           _DurationBadge(
             iconData: Icons.hourglass_bottom_rounded,
             value: leftStr,
@@ -769,6 +837,19 @@ class _ProgressCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ProgressDivider extends StatelessWidget {
+  const _ProgressDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 60,
+      color: AppColors.divider,
     );
   }
 }
@@ -797,12 +878,12 @@ class _DurationBadge extends StatelessWidget {
       children: [
         // Soft circle icon badge
         Container(
-          width: 34,
-          height: 34,
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
-          child: Icon(iconData, size: 18, color: iconColor),
+          child: Icon(iconData, size: 15, color: iconColor),
         ),
-        const SizedBox(width: 7),
+        const SizedBox(width: 5),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -811,7 +892,7 @@ class _DurationBadge extends StatelessWidget {
               value,
               style: const TextStyle(
                 fontFamily: 'Inter',
-                fontSize: 17,
+                fontSize: 13,
                 fontWeight: FontWeight.w800,
                 color: AppColors.textPrimary,
                 height: 1.1,
@@ -821,7 +902,7 @@ class _DurationBadge extends StatelessWidget {
               label,
               style: const TextStyle(
                 fontFamily: 'Inter',
-                fontSize: 11,
+                fontSize: 9,
                 color: AppColors.textSecondary,
               ),
             ),
@@ -840,8 +921,8 @@ class _ProgressRing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 64,
-      height: 64,
+      width: 58,
+      height: 58,
       child: CustomPaint(
         painter: _RingPainter(ratio: ratio),
         child: Center(
@@ -849,7 +930,7 @@ class _ProgressRing extends StatelessWidget {
             '$pct%',
             style: const TextStyle(
               fontFamily: 'Inter',
-              fontSize: 14,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               color: AppColors.textPrimary,
             ),
@@ -1576,7 +1657,7 @@ const _heatLegendStyle = TextStyle(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. Reminders (just under heatmap)
+// 4. Reminder controls (just under heatmap)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PlaylistReminderSection extends ConsumerStatefulWidget {
@@ -1818,79 +1899,59 @@ class _PlaylistReminderSectionState
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(color: AppColors.divider),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section header
-          Row(
-            children: [
-              const Icon(
-                Icons.notifications_outlined,
-                size: 15,
-                color: AppColors.accent,
-              ),
-              const SizedBox(width: 6),
-              const Text(
-                'Reminders',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ],
+        // Daily watch reminder
+        _ReminderRow(
+          icon: Icons.wb_sunny_rounded,
+          iconColor: const Color(0xFFF5A623),
+          title: 'Daily watch reminder',
+          subtitle: 'Remind me to watch this playlist',
+          enabled: _watchEnabled,
+          time: _watchTime,
+          onToggle: _toggleWatch,
+          onTimeTap: () => _pickTime(
+            current: _watchTime,
+            key: _watchKey,
+            title: _watchTitle,
+            onPick: (t) => setState(() => _watchTime = t),
+            isEnabled: _watchEnabled,
+            existingId: _watchReminderId,
+            onSaved: (id) => setState(() => _watchReminderId = id),
           ),
-          const SizedBox(height: 12),
-
-          // Daily watch reminder
-          _ReminderRow(
-            icon: Icons.play_circle_outline_rounded,
-            title: 'Daily watch reminder',
-            subtitle: 'Remind me to watch this playlist',
-            enabled: _watchEnabled,
-            time: _watchTime,
-            onToggle: _toggleWatch,
-            onTimeTap: () => _pickTime(
-              current: _watchTime,
-              key: _watchKey,
-              title: _watchTitle,
-              onPick: (t) => setState(() => _watchTime = t),
-              isEnabled: _watchEnabled,
-              existingId: _watchReminderId,
-              onSaved: (id) => setState(() => _watchReminderId = id),
-            ),
-          ),
+        ),
 
           const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
+            padding: EdgeInsets.symmetric(vertical: 6),
             child: Divider(height: 1),
           ),
 
-          // End of Day reminder
-          _ReminderRow(
-            icon: Icons.check_circle_outline_rounded,
-            title: 'End of Day Reminder',
-            subtitle: 'Remind me to tick videos I\'ve watched',
-            enabled: _tickEnabled,
-            time: _tickTime,
-            onToggle: _toggleTick,
-            onTimeTap: () => _pickTime(
-              current: _tickTime,
-              key: _tickKey,
-              title: _tickTitle,
-              onPick: (t) => setState(() => _tickTime = t),
-              isEnabled: _tickEnabled,
-              existingId: _tickReminderId,
-              onSaved: (id) => setState(() => _tickReminderId = id),
-            ),
+        // End of Day reminder
+        _ReminderRow(
+          icon: Icons.nightlight_round,
+          iconColor: const Color(0xFF536DFE),
+          iconRotation: math.pi / 2,
+          title: 'End of day reminder',
+          subtitle: 'Remind me to tick videos I\'ve watched',
+          enabled: _tickEnabled,
+          time: _tickTime,
+          onToggle: _toggleTick,
+          onTimeTap: () => _pickTime(
+            current: _tickTime,
+            key: _tickKey,
+            title: _tickTitle,
+            onPick: (t) => setState(() => _tickTime = t),
+            isEnabled: _tickEnabled,
+            existingId: _tickReminderId,
+            onSaved: (id) => setState(() => _tickReminderId = id),
           ),
+        ),
         ],
       ),
     );
@@ -1900,6 +1961,8 @@ class _PlaylistReminderSectionState
 class _ReminderRow extends StatelessWidget {
   const _ReminderRow({
     required this.icon,
+    required this.iconColor,
+    this.iconRotation = 0,
     required this.title,
     required this.subtitle,
     required this.enabled,
@@ -1909,6 +1972,8 @@ class _ReminderRow extends StatelessWidget {
   });
 
   final IconData icon;
+  final Color iconColor;
+  final double iconRotation;
   final String title;
   final String subtitle;
   final bool enabled;
@@ -1920,15 +1985,39 @@ class _ReminderRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: AppColors.textSecondary),
+        Container(
+          width: 42,
+          height: 42,
+          decoration: const BoxDecoration(
+            color: AppColors.accentSoft,
+            shape: BoxShape.circle,
+          ),
+          child: Transform.rotate(
+            angle: iconRotation,
+            child: Icon(icon, size: 23, color: iconColor),
+          ),
+        ),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: Theme.of(context).textTheme.titleSmall),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               const SizedBox(height: 1),
-              Text(subtitle, style: Theme.of(context).textTheme.labelSmall),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontSize: 10,
+                ),
+              ),
             ],
           ),
         ),

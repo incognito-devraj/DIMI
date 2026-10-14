@@ -184,14 +184,24 @@ final GoRouter appRouter = GoRouter(
       path: AppRoutes.playlistDetails,
       pageBuilder: (context, state) => _slide(
         state,
-        PlaylistDetailsScreen(
-          playlist: state.extra is YouTubePlaylist
-              ? state.extra! as YouTubePlaylist
-              : mockYouTubePlaylist,
-          initialFilter: state.uri.queryParameters['filter'] == 'unwatched'
-              ? 2
-              : 0,
-        ),
+        state.extra is YouTubePlaylist
+            ? PlaylistDetailsScreen(
+                playlist: state.extra! as YouTubePlaylist,
+                initialFilter:
+                    state.uri.queryParameters['filter'] == 'unwatched'
+                        ? 2
+                        : 0,
+              )
+            : (state.uri.queryParameters['playlistId'] == null
+                  ? PlaylistDetailsScreen(playlist: mockYouTubePlaylist)
+                  : LocalPlaylistDetailsScreen(
+                      playlistId:
+                          state.uri.queryParameters['playlistId']!,
+                      initialFilter:
+                          state.uri.queryParameters['filter'] == 'unwatched'
+                              ? 2
+                              : 0,
+                    )),
       ),
     ),
     GoRoute(
