@@ -169,7 +169,7 @@ class _HomeHeatmapCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return DimiActivityHeatmap(
       tasks: tasks,
-      title: 'Completion rhythm',
+      title: 'Completion Rhythm',
       subtitle: 'Activity over the last year',
       onViewDetails: (date) => context.go(
         '${AppRoutes.planner}?focusDateMs=${date.millisecondsSinceEpoch}',
@@ -383,7 +383,7 @@ class _HomeContentGrid extends ConsumerWidget {
                   child: taskItems.isEmpty
                       ? _HomeEmptyCard(
                           asset: 'assets/illustrations/Todo.png',
-                          icon: Icons.checklist_rounded,
+                          icon: Icons.check_circle_outline_rounded,
                           title: 'To-Do\'s',
                           emptyTitle: 'No to-dos yet',
                           subtitle: 'Add a task to get started',
@@ -398,8 +398,9 @@ class _HomeContentGrid extends ConsumerWidget {
                   child: plannerItems.isEmpty
                       ? _HomeEmptyCard(
                           asset: 'assets/illustrations/Planner.png',
-                          icon: Icons.calendar_today_rounded,
+                          icon: Icons.calendar_today_outlined,
                           title: 'Planner',
+                          iconSize: 26,
                           emptyTitle: 'No plans for today',
                           subtitle: 'Add an event to plan your day',
                           action: 'Add Event',
@@ -416,7 +417,7 @@ class _HomeContentGrid extends ConsumerWidget {
                   child: allItems.isEmpty
                       ? _HomeEmptyCard(
                           asset: 'assets/illustrations/Finance.png',
-                          icon: Icons.account_balance_wallet_rounded,
+                          icon: Icons.account_balance_wallet_outlined,
                           title: 'Finance',
                           emptyTitle: 'No transactions yet',
                           subtitle: 'Add income or expenses to track finances',
@@ -434,8 +435,9 @@ class _HomeContentGrid extends ConsumerWidget {
                   child: noReminders
                       ? _HomeEmptyCard(
                           asset: 'assets/illustrations/Reminder.png',
-                          icon: Icons.notifications_active_rounded,
+                          icon: Icons.notifications_none_outlined,
                           title: 'Reminders',
+                          iconSize: 27,
                           emptyTitle: 'No reminders yet',
                           subtitle:
                               'Add a reminder so you do not miss anything',
@@ -502,6 +504,7 @@ class _HomeEmptyCard extends StatelessWidget {
     required this.subtitle,
     required this.action,
     required this.onAction,
+    this.iconSize,
   });
   final String asset;
   final IconData icon;
@@ -510,6 +513,7 @@ class _HomeEmptyCard extends StatelessWidget {
   final String subtitle;
   final String action;
   final VoidCallback onAction;
+  final double? iconSize;
 
   @override
   Widget build(BuildContext context) => SectionCard(
@@ -519,15 +523,7 @@ class _HomeEmptyCard extends StatelessWidget {
       children: [
         Row(
           children: [
-            Container(
-              width: 26,
-              height: 26,
-              decoration: BoxDecoration(
-                color: AppColors.accentSoft,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, size: 15, color: AppColors.accent),
-            ),
+            Icon(icon, size: iconSize ?? 27, color: AppColors.accent),
             const SizedBox(width: 7),
             Expanded(
               child: Text(
@@ -1148,6 +1144,7 @@ class _HomeCardHeader extends StatelessWidget {
     this.trailing,
     this.onTap,
     this.compact = false,
+    this.iconSize,
   });
 
   final IconData icon;
@@ -1155,19 +1152,16 @@ class _HomeCardHeader extends StatelessWidget {
   final Widget? trailing;
   final VoidCallback? onTap;
   final bool compact;
+  final double? iconSize;
 
   @override
   Widget build(BuildContext context) {
     final header = Row(
       children: [
-        Container(
-          width: compact ? 24 : 30,
-          height: compact ? 24 : 30,
-          decoration: BoxDecoration(
-            color: AppColors.accentSoft,
-            borderRadius: BorderRadius.circular(compact ? 8 : 10),
-          ),
-          child: Icon(icon, size: compact ? 14 : 17, color: AppColors.accent),
+        Icon(
+          icon,
+          size: iconSize ?? (compact ? 27 : 29),
+          color: AppColors.accent,
         ),
         SizedBox(width: compact ? 6 : 8),
         Expanded(
@@ -1423,7 +1417,7 @@ class _TodayTasksCard extends ConsumerWidget {
             compact: compact,
             onTap: () => context.go(AppRoutes.todos),
             trailing: Text(
-              '$done/${tasks.length} done',
+              '$done/${tasks.length} Done',
               style: TextStyle(
                 fontFamily: 'Poppins',
                 fontSize: compact ? 8 : 11,
@@ -1711,40 +1705,60 @@ class _MiniTaskRow extends StatelessWidget {
                 ),
               ),
               SizedBox(width: compact ? 5 : 10),
-              Container(
-                width: compact ? 3 : 4,
-                decoration: BoxDecoration(
-                  color: AppColors.accent,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              SizedBox(width: compact ? 7 : 10),
               Expanded(
-                child: Text(
-                  task.title,
-                  maxLines: compact ? 2 : null,
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: compact ? 12.5 : 13,
-                    color: task.isCompleted
-                        ? AppColors.textSecondary
-                        : AppColors.textPrimary,
-                    decoration: task.isCompleted
-                        ? TextDecoration.lineThrough
-                        : null,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: compact ? 25 : 30,
                   ),
-                  overflow: TextOverflow.ellipsis,
+                  child: IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          width: compact ? 3 : 4,
+                          decoration: BoxDecoration(
+                            color: AppColors.accent,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        SizedBox(width: compact ? 7 : 10),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              task.title,
+                              maxLines: compact ? 2 : null,
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: compact ? 12.5 : 13,
+                                color: task.isCompleted
+                                    ? AppColors.textSecondary
+                                    : AppColors.textPrimary,
+                                decoration: task.isCompleted
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                        if (!compact && task.dueTime != null)
+                          Align(
+                            alignment: Alignment.center,
+                            child: Text(
+                              formatTime12Hour(task.dueTime),
+                              style: const TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              if (!compact && task.dueTime != null)
-                Text(
-                  formatTime12Hour(task.dueTime),
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
             ],
           ),
         ),
@@ -1920,18 +1934,10 @@ class _PlannerPreviewCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                width: compact ? 24 : 30,
-                height: compact ? 24 : 30,
-                decoration: BoxDecoration(
-                  color: AppColors.accentSoft,
-                  borderRadius: BorderRadius.circular(compact ? 8 : 10),
-                ),
-                child: Icon(
-                  Icons.calendar_today_outlined,
-                  size: compact ? 14 : 17,
-                  color: AppColors.accent,
-                ),
+              Icon(
+                Icons.calendar_today_outlined,
+                size: compact ? 26 : 28,
+                color: AppColors.accent,
               ),
               SizedBox(width: compact ? 6 : 8),
               Expanded(
@@ -2525,6 +2531,7 @@ class _RemindersCard extends StatelessWidget {
             icon: Icons.notifications_none_rounded,
             title: 'Reminders',
             compact: compact,
+            iconSize: compact ? 27 : 29,
             onTap: () => context.go(AppRoutes.reminders),
             trailing: Text(
               '${upcoming.length} upcoming',
