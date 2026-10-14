@@ -215,15 +215,16 @@ class UpdateService {
 
     // 5. Build model.
     final release = GitHubRelease.fromJson(json);
+    if (release.version.isEmpty || release.htmlUrl.isEmpty) {
+      return UpdateResultError(message: 'Release information is incomplete.');
+    }
+
     final localSemVer = SemanticVersion.tryParse(localVersion);
     final latestSemVer = SemanticVersion.tryParse(release.version);
     if (localSemVer == null || latestSemVer == null) {
       return UpdateResultError(
         message: 'The installed or released version is invalid.',
       );
-    }
-    if (release.version.isEmpty || release.htmlUrl.isEmpty) {
-      return UpdateResultError(message: 'Release information is incomplete.');
     }
 
     // 6. Compare versions.
@@ -257,6 +258,7 @@ class UpdateService {
   ///
   /// Returns the saved [File] on success.
   Future<File> downloadApk({
+    required String apkUrl,
     required void Function(double progress) onProgress,
     bool Function()? isCancelled,
   }) async {
@@ -277,7 +279,7 @@ class UpdateService {
     try {
       final request = http.Request(
         'GET',
-        Uri.parse(AppConfig.githubLatestApkUrl),
+        Uri.parse(apkUrl),
       );
       final response = await client.send(request);
       if (response.statusCode != HttpStatus.ok) {

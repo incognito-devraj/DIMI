@@ -92,10 +92,10 @@ flutter build appbundle --release `
 ## GitHub Release checklist
 
 1. Commit all changes on `main`.
-2. Tag: `git tag v1.0.0 && git push origin v1.0.0`
-3. Attach `dimi-arm64.apk` and `dimi-arm64.apk.sha256` to the GitHub Release.
+2. Tag: `git tag v1.0.2 && git push origin v1.0.2`
+3. Attach `DIMI.apk` and `DIMI.apk.sha256` to the GitHub Release.
 4. Permanent latest download link (use on website):
-   `https://github.com/incognito-devraj/DIMI/releases/latest/download/dimi-arm64.apk`
+   `https://github.com/incognito-devraj/DIMI/releases/latest/download/DIMI.apk`
 
 ---
 
