@@ -565,9 +565,6 @@ class _PlaylistPageItemState
     final pct =
         (progress * 100).round();
 
-    final left =
-        totalVideos - watched;
-
     final remainingSecs = videos != null
         ? videos
             .where(
@@ -694,7 +691,22 @@ class _PlaylistPageItemState
                   // YouTube logo + playlist title
                   // ───────────────────────────────────────────────────────────
 
-                  Row(
+                  Padding(
+                    padding: const EdgeInsets.only(right: 48),
+                    child: Text(
+                      row.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                        height: 1.18,
+                      ),
+                    ),
+                  ),
+                  /* Row(
                     children: [
 
                       Container(
@@ -755,7 +767,7 @@ class _PlaylistPageItemState
                         ),
                       ),
                     ],
-                  ),
+                  ), */
 
                   const SizedBox(height: 3),
 
@@ -770,28 +782,39 @@ class _PlaylistPageItemState
                       right: 48,
                     ),
 
-                    child: Text(
-                      row.channelTitle,
-
-                      maxLines: 1,
-
-                      overflow:
-                          TextOverflow
-                              .ellipsis,
-
-                      style:
-                          const TextStyle(
-                        fontFamily:
-                            'Inter',
-                        fontSize: 11,
-                        color:
-                            AppColors
-                                .textSecondary,
-                      ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 18,
+                          height: 13,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF0000),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: const Icon(
+                            Icons.play_arrow_rounded,
+                            color: Colors.white,
+                            size: 11,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            row.channelTitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 24),
 
                   // ───────────────────────────────────────────────────────────
                   // Progress bar + percentage
@@ -855,49 +878,32 @@ class _PlaylistPageItemState
                   // ───────────────────────────────────────────────────────────
 
                   Text(
-                    '$watched of $totalVideos videos watched',
-
+                    remainingStr.isNotEmpty
+                        ? '• $remainingStr Remaining'
+                        : '• No time Remaining',
                     maxLines: 1,
-
-                    overflow:
-                        TextOverflow
-                            .ellipsis,
-
-                    style:
-                        const TextStyle(
-                    fontFamily:
-                        'Inter',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Inter',
                       fontSize: 10,
-                      color:
-                          AppColors
-                              .textSecondary,
+                      color: AppColors.textSecondary,
                     ),
                   ),
 
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
 
                   // ───────────────────────────────────────────────────────────
                   // Remaining
                   // ───────────────────────────────────────────────────────────
 
                   Text(
-                    '$left ${left == 1 ? 'video' : 'videos'} left'
-                    '${remainingStr.isNotEmpty ? ' · $remainingStr remaining' : ''}',
-
+                    '• $watched/$totalVideos Videos Watched',
                     maxLines: 1,
-
-                    overflow:
-                        TextOverflow
-                            .ellipsis,
-
-                    style:
-                        const TextStyle(
-                    fontFamily:
-                        'Inter',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Inter',
                       fontSize: 10,
-                      color:
-                          AppColors
-                              .textSecondary,
+                      color: AppColors.textSecondary,
                     ),
                   ),
                 ],

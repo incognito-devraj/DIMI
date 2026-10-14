@@ -1694,7 +1694,7 @@ class _CompletionHeatmap extends StatelessWidget {
             Row(
               children: [
                 const Text(
-                  'Completion rhythm',
+                  'Completion Rhythm',
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 12,

@@ -23,7 +23,7 @@ const heatmapColors = [
 class DimiActivityHeatmap extends StatefulWidget {
   const DimiActivityHeatmap({
     required this.tasks,
-    this.title = 'Completion rhythm',
+    this.title = 'Completion Rhythm',
     this.subtitle = 'Activity over the last year',
     this.showCard = true,
     this.onViewDetails,
