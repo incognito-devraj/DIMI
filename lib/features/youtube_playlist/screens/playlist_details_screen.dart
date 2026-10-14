@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../data/database.dart';
 import '../../../data/daos/youtube_playlist_dao.dart';
@@ -1673,8 +1674,8 @@ class _PlaylistReminderSectionState
     extends ConsumerState<_PlaylistReminderSection> {
   bool _watchEnabled = false;
   bool _tickEnabled = false;
-  TimeOfDay _watchTime = const TimeOfDay(hour: 20, minute: 0);
-  TimeOfDay _tickTime = const TimeOfDay(hour: 22, minute: 30);
+  TimeOfDay _watchTime = const TimeOfDay(hour: 9, minute: 0);
+  TimeOfDay _tickTime = const TimeOfDay(hour: 18, minute: 0);
 
   int? _watchReminderId;
   int? _tickReminderId;
@@ -1937,6 +1938,11 @@ class _PlaylistReminderSectionState
           icon: Icons.nightlight_round,
           iconColor: const Color(0xFF536DFE),
           iconRotation: math.pi / 2,
+          customIcon: SvgPicture.asset(
+            'assets/logos/day_end_reminder.svg',
+            width: 42,
+            height: 42,
+          ),
           title: 'End of day reminder',
           subtitle: 'Remind me to tick videos I\'ve watched',
           enabled: _tickEnabled,
@@ -1969,6 +1975,7 @@ class _ReminderRow extends StatelessWidget {
     required this.time,
     required this.onToggle,
     required this.onTimeTap,
+    this.customIcon,
   });
 
   final IconData icon;
@@ -1980,6 +1987,7 @@ class _ReminderRow extends StatelessWidget {
   final TimeOfDay time;
   final ValueChanged<bool> onToggle;
   final VoidCallback onTimeTap;
+  final Widget? customIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -1988,14 +1996,15 @@ class _ReminderRow extends StatelessWidget {
         Container(
           width: 42,
           height: 42,
-          decoration: const BoxDecoration(
-            color: AppColors.accentSoft,
+          decoration: BoxDecoration(
+            color: customIcon == null ? AppColors.accentSoft : Colors.transparent,
             shape: BoxShape.circle,
           ),
-          child: Transform.rotate(
-            angle: iconRotation,
-            child: Icon(icon, size: 23, color: iconColor),
-          ),
+          child: customIcon ??
+              Transform.rotate(
+                angle: iconRotation,
+                child: Icon(icon, size: 23, color: iconColor),
+              ),
         ),
         const SizedBox(width: 10),
         Expanded(
