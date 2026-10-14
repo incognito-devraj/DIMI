@@ -758,9 +758,9 @@ class _TransactionsContent extends StatelessWidget {
         ),
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 240),
-          reverseDuration: const Duration(milliseconds: 170),
+          reverseDuration: const Duration(milliseconds: 90),
           switchInCurve: DimiMotion.transitionCurve,
-          switchOutCurve: Curves.easeInCubic,
+          switchOutCurve: Curves.easeOutCubic,
           layoutBuilder: (currentChild, previousChildren) => Stack(
             alignment: Alignment.topCenter,
             children: <Widget>[
@@ -776,17 +776,13 @@ class _TransactionsContent extends StatelessWidget {
             );
             return ClipRect(
               child: FadeTransition(
-                opacity: Tween<double>(begin: 0.2, end: 1).animate(curved),
+                opacity: curved,
                 child: SlideTransition(
                   position: Tween<Offset>(
-                    begin: const Offset(0, 0.07),
+                    begin: const Offset(0, 0.035),
                     end: Offset.zero,
                   ).animate(curved),
-                  child: ScaleTransition(
-                    scale: Tween<double>(begin: 0.985, end: 1).animate(curved),
-                    alignment: Alignment.topCenter,
-                    child: child,
-                  ),
+                  child: child,
                 ),
               ),
             );
@@ -794,9 +790,9 @@ class _TransactionsContent extends StatelessWidget {
           child: searchQuery.isNotEmpty && filtered.isEmpty
               ? SizedBox(
                   key: const ValueKey('search-empty'),
-                  height: (availableHeight - 64)
-                      .clamp(300.0, double.infinity)
-                      .toDouble(),
+                  // Keep the empty-state layout compact so removing the last
+                  // result does not animate a full viewport-sized child.
+                  height: 260,
                   child: Center(
                     child: _FinanceSearchEmptyState(onClear: onClearSearch),
                   ),

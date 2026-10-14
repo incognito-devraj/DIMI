@@ -264,7 +264,7 @@ class _ProfileBody extends ConsumerWidget {
           child: Align(
             alignment: Alignment.bottomCenter,
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 32),
+              padding: const EdgeInsets.only(bottom: 28),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: const [

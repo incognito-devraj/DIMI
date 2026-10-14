@@ -63,8 +63,8 @@ class _SocialButton extends StatelessWidget {
         color: Colors.transparent,
         shape: const CircleBorder(),
         child: Ink(
-          width: 52,
-          height: 52,
+          width: 36,
+          height: 36,
           decoration: BoxDecoration(
             color: Colors.transparent,
             shape: BoxShape.circle,
@@ -76,7 +76,7 @@ class _SocialButton extends StatelessWidget {
             child: Center(
               child: FaIcon(
                 icon,
-                size: 26,
+                size: 16,
                 color: AppColors.textPrimary,
               ),
             ),
