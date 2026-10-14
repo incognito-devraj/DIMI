@@ -87,6 +87,7 @@ class _UpdateScreenState extends State<UpdateScreen> {
 
     try {
       final file = await UpdateService.instance.downloadApk(
+        apkUrl: release.apkAssetUrl!,
         onProgress: (p) {
           if (mounted) setState(() => _downloadProgress = p);
         },
