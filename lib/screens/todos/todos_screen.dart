@@ -18,6 +18,13 @@ import '../../widgets/dimi_success_dialog.dart';
 import '../../widgets/dimi_delete_dialog.dart';
 import '../../widgets_modals/fixed_dialog.dart';
 
+const _todosPageTitleStyle = TextStyle(
+  fontFamily: 'Poppins',
+  fontSize: 26,
+  fontWeight: FontWeight.w600,
+  color: AppColors.textPrimary,
+);
+
 class TodosScreen extends ConsumerStatefulWidget {
   const TodosScreen({super.key});
 
@@ -59,12 +66,7 @@ class _TodosScreenState extends ConsumerState<TodosScreen> {
                   children: [
                     const Text(
                       "To-Do's",
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 26,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
+                      style: _todosPageTitleStyle,
                     ),
                   ],
                 ),
@@ -204,7 +206,7 @@ class _TodosTaskList extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Long-term tasks',
+                'Long-Term Tasks',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               Text(
@@ -245,13 +247,16 @@ class _TodoRow extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: [
-          Checkbox(
-            value: task.isCompleted,
-            activeColor: AppColors.accent,
-            shape: const CircleBorder(),
-            onChanged: (value) => ref
-                .read(taskDaoProvider)
-                .toggleCompleted(task.id, value ?? false),
+          Transform.scale(
+            scale: 1.2,
+            child: Checkbox(
+              value: task.isCompleted,
+              activeColor: AppColors.accent,
+              shape: const CircleBorder(),
+              onChanged: (value) => ref
+                  .read(taskDaoProvider)
+                  .toggleCompleted(task.id, value ?? false),
+            ),
           ),
           Expanded(
             child: Column(
@@ -259,8 +264,8 @@ class _TodoRow extends ConsumerWidget {
               children: [
                 Text(
                   task.title,
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
                     color: task.isCompleted
                         ? AppColors.textSecondary
                         : AppColors.textPrimary,
@@ -286,7 +291,14 @@ class _TodoRow extends ConsumerWidget {
             tooltip: 'Delete To-Do',
             icon: const Icon(Icons.delete_outline_rounded),
             color: AppColors.textSecondary,
-            onPressed: () => ref.read(taskDaoProvider).deleteTask(task.id),
+            onPressed: () async {
+              final confirmed = await showDimiDeleteConfirmation(
+                context,
+                itemLabel: 'To-Do',
+              );
+              if (!confirmed || !context.mounted) return;
+              await ref.read(taskDaoProvider).deleteTask(task.id);
+            },
           ),
         ],
       ),
@@ -308,7 +320,7 @@ class _TodosNotesList extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Saved notes',
+                'Saved Notes',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               Text(
@@ -374,9 +386,9 @@ class _NoteCard extends ConsumerWidget {
                   children: [
                     Text(
                       note.title,
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 3),

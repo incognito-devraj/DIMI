@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/motion/dimi_motion.dart';
 import '../theme/app_theme.dart';
 
 /// Shared sunrise hero treatment for the Profile and Settings experiences.
@@ -78,11 +79,14 @@ class DimiHero extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: const Color.fromARGB(255, 0, 0, 0),
-                        fontSize: 12,
+                    Padding(
+                      padding: EdgeInsets.only(left: leading != null ? 56 : 0),
+                      child: Text(
+                        subtitle,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: const Color.fromARGB(255, 0, 0, 0),
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                     if (quote != null && quote!.trim().isNotEmpty) ...[
@@ -191,17 +195,31 @@ class DimiSurface extends StatelessWidget {
   }
 }
 
-class DimiHeroCircleButton extends StatelessWidget {
+class DimiHeroCircleButton extends StatefulWidget {
   const DimiHeroCircleButton({super.key, required this.icon, required this.onTap});
 
   final IconData icon;
   final VoidCallback onTap;
 
   @override
+  State<DimiHeroCircleButton> createState() => _DimiHeroCircleButtonState();
+}
+
+class _DimiHeroCircleButtonState extends State<DimiHeroCircleButton> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
+      onTap: widget.onTap,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? .93 : 1,
+        duration: DimiMotion.fast,
+        curve: DimiMotion.curve,
+        child: Container(
         width: 44,
         height: 44,
         decoration: BoxDecoration(
@@ -211,7 +229,8 @@ class DimiHeroCircleButton extends StatelessWidget {
             BoxShadow(color: Color(0x14000000), blurRadius: 10),
           ],
         ),
-        child: Icon(icon, size: 18, color: AppColors.textPrimary),
+        child: Icon(widget.icon, size: 18, color: AppColors.textPrimary),
+        ),
       ),
     );
   }

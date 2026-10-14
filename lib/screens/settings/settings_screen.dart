@@ -10,6 +10,7 @@ import '../../services/notification_service.dart';
 import '../../providers/database_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/dimi_hero.dart';
+import '../../widgets/dimi_social_links.dart';
 import 'notification_type_sheet.dart';
 
 // ─── Settings screen ──────────────────────────────────────────────────────────
@@ -54,7 +55,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             SliverToBoxAdapter(
               child: DimiHero(
                 title: 'Settings',
-                subtitle: '        Small settings. Big progress.',
+                subtitle: 'Small settings. Big progress.',
                 height: 200,
                 leading: DimiHeroCircleButton(
                   icon: Icons.arrow_back_ios_new_rounded,
@@ -281,13 +282,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'Created by incognito-devraj',
+                      'Created by Devraj with ❤️',
                       style: TextStyle(
                         fontFamily: 'Inter',
                         fontSize: 10,
                         color: AppColors.textSecondary,
                       ),
                     ),
+                    SizedBox(height: 8),
+                    DimiSocialLinks(),
                   ],
                 ),
               ),
@@ -622,59 +625,63 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
+    return Material(
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            // Icon container
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: iconColor.withAlpha(26),
-                shape: BoxShape.circle,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              // Icon container
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: iconColor.withAlpha(26),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 22, color: iconColor),
               ),
-              child: Icon(icon, size: 22, color: iconColor),
-            ),
-            const SizedBox(width: 14),
-            // Labels
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: labelColor ?? AppColors.textPrimary,
-                    ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 1),
+              const SizedBox(width: 14),
+              // Labels
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      subtitle!,
-                      style: const TextStyle(
+                      label,
+                      style: TextStyle(
                         fontFamily: 'Inter',
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: labelColor ?? AppColors.textPrimary,
                       ),
                     ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 1),
+                      Text(
+                        subtitle!,
+                        style: const TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            if (showChevron)
-              const Icon(
-                Icons.chevron_right_rounded,
-                size: 18,
-                color: AppColors.textSecondary,
-              ),
-          ],
+              if (showChevron)
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: AppColors.textSecondary,
+                ),
+            ],
+          ),
         ),
       ),
     );
