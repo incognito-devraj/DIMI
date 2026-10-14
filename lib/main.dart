@@ -241,7 +241,7 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
     final videos = await db.youtubePlaylistDao.getVideos(row.id);
     if (!mounted) return;
     appRouter.go(
-      '${AppRoutes.playlistDetails}?filter=unwatched',
+      '${AppRoutes.playlistDetails}?playlistId=${Uri.encodeComponent(row.youtubePlaylistId)}&filter=unwatched',
       extra: YouTubePlaylist(
         localId: row.id,
         playlistId: row.youtubePlaylistId,
