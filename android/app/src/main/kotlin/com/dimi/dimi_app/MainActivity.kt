@@ -14,6 +14,23 @@ class MainActivity : FlutterActivity() {
     private val updateChannel = "com.dimi.dimi_app/update_installer"
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (isFullScreenNotificationLaunch(intent)) {
+            // Redirect to DimiReminderActivity BEFORE super.onCreate()
+            // so Flutter engine never initialises in this process.
+            // finish() first suppresses the window, then start the target.
+            val redirect = Intent(this, DimiReminderActivity::class.java).apply {
+                action = intent.action
+                intent.extras?.let { putExtras(it) }
+                // NEW_TASK so it doesn't inherit MainActivity's back stack
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_NO_ANIMATION
+            }
+            finish()
+            startActivity(redirect)
+            overridePendingTransition(0, 0)
+            return
+        }
         configureNotificationWindow(intent)
         super.onCreate(savedInstanceState)
     }
@@ -75,6 +92,28 @@ class MainActivity : FlutterActivity() {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    /**
+     * Returns true when this activity was launched by the flutter_local_notifications
+     * plugin's full-screen intent (which always targets the launcher activity).
+     * We detect this by checking for the notification payload extra that the
+     * plugin attaches to every notification tap / full-screen launch intent.
+     */
+    private fun isFullScreenNotificationLaunch(source: Intent?): Boolean {
+        if (source == null) return false
+        val action = source.action ?: return false
+        // The plugin sets SELECT_NOTIFICATION as the action for all notification
+        // intents. If the payload contains a type that uses full-screen mode,
+        // redirect to DimiReminderActivity instead.
+        if (action != NOTIFICATION_SELECT_ACTION) return false
+        val payload = source.getStringExtra("payload") ?: return false
+        // Match both "type":"planner" and "type": "planner" (with/without space)
+        val fullScreenTypes = listOf("planner", "reminder", "playlist", "watch")
+        return fullScreenTypes.any { type ->
+            payload.contains("\"type\":\"$type\"") ||
+            payload.contains("\"type\": \"$type\"")
         }
     }
 

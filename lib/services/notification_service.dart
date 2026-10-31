@@ -74,7 +74,6 @@ abstract final class _Channel {
   static const youtubeId = 'dimi_youtube_v2';
   static const plannerId = 'dimi_planner_v2';
   static const financeId = 'dimi_finance_v2';
-  static const todoId = 'dimi_todo_v2';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -172,7 +171,21 @@ class NotificationService {
     _ready = true;
     if (launchDetails?.didNotificationLaunchApp == true &&
         launchDetails?.notificationResponse != null) {
-      await _processAction(launchDetails!.notificationResponse!);
+      final response = launchDetails!.notificationResponse!;
+      final data = response.payload == null
+          ? const <String, dynamic>{}
+          : jsonDecode(response.payload!) as Map<String, dynamic>;
+      final type = data[_Key.type] as String?;
+      // For full-screen notification types the DimiReminderScreen is already
+      // shown as the entry point — do NOT also navigate inside the main app.
+      final isFullScreenType =
+          type == DimiNotificationType.reminder.name ||
+          type == DimiNotificationType.planner.name ||
+          type == DimiNotificationType.playlist.name ||
+          type == DimiNotificationType.watch.name;
+      if (!isFullScreenType) {
+        await _processAction(response);
+      }
     }
     if (kDebugMode) debugPrint('[NotificationService] initialised');
   }
@@ -215,11 +228,19 @@ class NotificationService {
 
     final sound = await _soundForReminder(reminder.id);
     final type = await _typeForReminder(reminder);
-    final fullScreen = await isFullScreenModeEnabled();
+    // Respect the user's notification mode setting.
+    final fullScreenEnabled = await isFullScreenModeEnabled();
+    final fullScreen = fullScreenEnabled && _usesRedesignedFullScreen(type);
     final notificationTitle = _notificationTitleForReminder(reminder.title);
     final detail = _detailFromReminderTitle(reminder.title, type: type);
     final playlist = await _playlistForReminder(reminder.title);
     final playlistId = playlist?.id;
+    final playlistVideos = playlist == null
+        ? const <YoutubeVideo>[]
+        : await _db?.youtubePlaylistDao.getVideos(playlist.id) ??
+              const <YoutubeVideo>[];
+    final watched = playlistVideos.where((video) => video.completed).length;
+    final total = playlist?.totalVideos ?? playlistVideos.length;
     final thumbnailPath = await _cacheThumbnail(
       playlist?.thumbnailUrl,
       reminder.notificationId,
@@ -235,6 +256,11 @@ class NotificationService {
       taskId: reminder.taskId,
       playlistId: playlistId,
       accountId: reminder.localAccountId,
+      channel: playlist?.channelTitle,
+      playlistProgress: total == 0 ? 0 : (watched * 100 ~/ total),
+      videosWatched: watched,
+      videosTotal: total,
+      thumbnailUrl: playlist?.thumbnailUrl,
     );
 
     await _scheduleAt(
@@ -247,10 +273,8 @@ class NotificationService {
         sound: sound,
         bigText: detail,
         bigPicturePath: thumbnailPath,
-        fullScreenIntent:
-            fullScreen &&
-            (type == DimiNotificationType.reminder ||
-                type == DimiNotificationType.planner),
+        // fullScreen already encodes type-check + user setting.
+        fullScreenIntent: fullScreen,
       ),
       payload: payload,
     );
@@ -280,6 +304,7 @@ class NotificationService {
     if (!_ready) return;
     if (dueAt.isBefore(DateTime.now())) return;
 
+    const fullScreen = true;
     final thumbnailPath = await _cacheThumbnail(thumbnailUrl, notificationId);
     final payload = _buildPayload(
       type: DimiNotificationType.playlist,
@@ -297,6 +322,7 @@ class NotificationService {
       scheduled: tz.TZDateTime.from(dueAt, tz.local),
       details: _buildDetails(
         type: DimiNotificationType.playlist,
+        fullScreenIntent: fullScreen,
         bigPicturePath: thumbnailPath,
         bigText:
             'You have $unwatchedCount unwatched videos in "$playlistTitle". Keep the momentum going! 🎯',
@@ -338,6 +364,7 @@ class NotificationService {
     final thumbnailPath = isPlaylistTickOff
         ? await _cacheThumbnail(thumbnailUrl, notificationId)
         : null;
+    final fullScreen = isPlaylistTickOff;
     final payload = _buildPayload(
       type: type,
       title: displayTitle,
@@ -355,6 +382,7 @@ class NotificationService {
       scheduled: tz.TZDateTime.from(dueAt, tz.local),
       details: _buildDetails(
         type: type,
+        fullScreenIntent: fullScreen,
         bigText: displayBody,
         bigPicturePath: thumbnailPath,
       ),
@@ -375,6 +403,7 @@ class NotificationService {
     if (!_ready) return;
     if (dueAt.isBefore(DateTime.now())) return;
 
+    const fullScreen = true;
     final thumbnailPath = await _cacheThumbnail(thumbnailUrl, notificationId);
     final payload = _buildPayload(
       type: DimiNotificationType.watch,
@@ -393,6 +422,7 @@ class NotificationService {
       scheduled: tz.TZDateTime.from(dueAt, tz.local),
       details: _buildDetails(
         type: DimiNotificationType.watch,
+        fullScreenIntent: fullScreen,
         bigPicturePath: thumbnailPath,
         bigText:
             'You wanted to watch/read:\n"$contentTitle"\n\nTap Open to get started 📺',
@@ -413,6 +443,21 @@ class NotificationService {
     }
   }
 
+  /// Completes a notification from the in-app full-screen experience while
+  /// preserving the same local-first path used by shade actions.
+  Future<void> completeFromFullScreen(Map<String, dynamic> data) async {
+    final id = data[_Key.notificationId] as int?;
+    if (id != null) await _plugin.cancel(id);
+    await _markDone(data);
+  }
+
+  /// Snoozes a full-screen notification through the existing Drift-backed
+  /// rescheduling logic.
+  Future<void> snoozeFromFullScreen(
+    int notificationId,
+    Map<String, dynamic> data,
+  ) => _snoozeReminder(notificationId, data);
+
   Future<void> showTestNotification() async {
     if (!_ready) return;
     await _plugin.show(
@@ -424,11 +469,15 @@ class NotificationService {
           _Channel.reminderId,
           'Reminders',
           channelDescription: 'Reminder notifications',
-          importance: Importance.defaultImportance,
-          priority: Priority.defaultPriority,
+          importance: Importance.max,
+          priority: Priority.max,
           icon: _kNotifIcon,
           color: const Color(0xFFF5A623),
           largeIcon: const DrawableResourceAndroidBitmap('dimi_reminder_large'),
+          fullScreenIntent: true,
+          sound: const UriAndroidNotificationSound(
+            'content://settings/system/ringtone',
+          ),
           autoCancel: true,
         ),
       ),
@@ -447,9 +496,17 @@ class NotificationService {
 
   Future<bool> isFullScreenModeEnabled() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_notificationModeKey) ==
-        DimiNotificationMode.fullScreen.name;
+    // Full-screen is DIMI's default notification experience. A user can
+    // still explicitly switch back to normal notifications in Settings.
+    return prefs.getString(_notificationModeKey) !=
+        DimiNotificationMode.normal.name;
   }
+
+  bool _usesRedesignedFullScreen(DimiNotificationType type) =>
+      type == DimiNotificationType.reminder ||
+      type == DimiNotificationType.planner ||
+      type == DimiNotificationType.playlist ||
+      type == DimiNotificationType.watch;
 
   /// Persists the mode and reapplies it to already scheduled reminders so a
   /// setting change takes effect without waiting for the next edit or reboot.
@@ -630,9 +687,10 @@ class NotificationService {
       // ── Body tap (null actionId) — navigate to the relevant screen ────────
       default:
         // Full-screen mode for reminder/planner types.
-        if (await isFullScreenModeEnabled() &&
-            (type == DimiNotificationType.reminder.name ||
-                type == DimiNotificationType.planner.name)) {
+        if ((type == DimiNotificationType.reminder.name ||
+            type == DimiNotificationType.planner.name ||
+            type == DimiNotificationType.playlist.name ||
+            type == DimiNotificationType.watch.name)) {
           final openFullScreen = onOpenFullScreenReminder;
           if (openFullScreen != null) {
             await openFullScreen(data);
@@ -715,9 +773,10 @@ class NotificationService {
     }
 
     // Body-tap replay — check for full-screen first.
-    if (await isFullScreenModeEnabled() &&
-        (type == DimiNotificationType.reminder.name ||
-            type == DimiNotificationType.planner.name)) {
+    if (type == DimiNotificationType.reminder.name ||
+        type == DimiNotificationType.planner.name ||
+        type == DimiNotificationType.playlist.name ||
+        type == DimiNotificationType.watch.name) {
       final openFullScreen = onOpenFullScreenReminder;
       if (openFullScreen != null) {
         await openFullScreen(pending);
@@ -869,6 +928,9 @@ class NotificationService {
           priority: Priority.defaultPriority,
           icon: _kNotifIcon,
           color: const Color(0xFFF5A623),
+          sound: const UriAndroidNotificationSound(
+            'content://settings/system/ringtone',
+          ),
           autoCancel: true,
         ),
       ),
@@ -879,7 +941,7 @@ class NotificationService {
 
   AndroidNotificationDetails _buildDetails({
     required DimiNotificationType type,
-    String sound = 'default',
+    String sound = 'ringtone',
     String? bigText,
     String? bigPicturePath,
     bool fullScreenIntent = false,
@@ -942,6 +1004,16 @@ class NotificationService {
       sound: soundUri,
       category: AndroidNotificationCategory.reminder,
       fullScreenIntent: fullScreenIntent,
+      // Loop the ringtone until the user acts (taps, swipes, or uses an
+      // action button). This gives the user time to see the full-screen UI
+      // before the sound stops. autoCancel still dismisses on interaction.
+      playSound: true,
+      enableVibration: true,
+      // FLAG_INSISTENT (0x00000004) makes Android repeat the sound/vibration
+      // until the notification is cancelled or the user interacts with it.
+      additionalFlags: fullScreenIntent
+          ? Int32List.fromList([4]) // FLAG_INSISTENT
+          : null,
       autoCancel: true,
       // Expanded big-text style for richer information when pulled down
       styleInformation: bigPicturePath != null
@@ -987,9 +1059,9 @@ class NotificationService {
         _Action.markDone,
         'Mark Done',
         titleColor: Color(0xFF1B1B1B),
-        // Run completion in the main app isolate so the live Drift streams
-        // emit immediately and Planner updates without waiting for sync.
-        showsUserInterface: true,
+        // Do NOT bring the app to foreground when tapping Mark Done from the
+        // shade — handle silently in the background isolate instead.
+        showsUserInterface: false,
         cancelNotification: true,
       ),
       AndroidNotificationAction(
@@ -1049,6 +1121,11 @@ class NotificationService {
     int? taskId,
     int? playlistId,
     int? accountId,
+    String? channel,
+    int? playlistProgress,
+    int? videosWatched,
+    int? videosTotal,
+    String? thumbnailUrl,
   }) {
     final map = <String, dynamic>{
       _Key.type: type.name,
@@ -1064,6 +1141,13 @@ class NotificationService {
     if (taskId != null) map[_Key.taskId] = taskId;
     if (playlistId != null) map[_Key.playlistId] = playlistId;
     if (accountId != null && accountId > 0) map[_Key.accountId] = accountId;
+    if (channel != null && channel.isNotEmpty) map['channel'] = channel;
+    if (playlistProgress != null) map['playlist_progress'] = playlistProgress;
+    if (videosWatched != null) map['videos_watched'] = videosWatched;
+    if (videosTotal != null) map['videos_total'] = videosTotal;
+    if (thumbnailUrl != null && thumbnailUrl.isNotEmpty) {
+      map['thumbnail_url'] = thumbnailUrl;
+    }
     return jsonEncode(map);
   }
 
@@ -1071,7 +1155,8 @@ class NotificationService {
 
   Future<String> _soundForReminder(int id) async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('dimi_reminder_sound_$id') ?? 'default';
+    final sound = prefs.getString('dimi_reminder_sound_$id');
+    return sound == null || sound == 'default' ? 'ringtone' : sound;
   }
 
   Future<String?> _cacheThumbnail(String? url, int notificationId) async {
@@ -1256,7 +1341,6 @@ class NotificationService {
     if (title.startsWith('Tick off: ')) return 'End of Day Reminder';
     return title;
   }
-
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
