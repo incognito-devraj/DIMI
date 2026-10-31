@@ -90,6 +90,13 @@
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
             android:exported="false"/>
 
+        <!-- DIMI native alarm receiver — fires full-screen notifications
+             directly targeting DimiReminderActivity without opening MainActivity. -->
+        <receiver
+            android:name=".DimiScheduledReceiver"
+            android:exported="false"
+            android:permission="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
         <!-- Boot-completed receiver to reschedule notifications after reboot.
              android:exported="true" is REQUIRED on Android 12+ — the OS will
              not deliver BOOT_COMPLETED to an unexported receiver. -->
