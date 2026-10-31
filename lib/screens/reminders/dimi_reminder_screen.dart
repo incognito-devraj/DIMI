@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:math' as math;
 
-import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,19 +10,10 @@ import '../../providers/database_provider.dart';
 import '../../services/notification_service.dart';
 import '../../services/sync_service.dart';
 
+enum DimiNotificationKind { reminder, planner, youtube }
+
 // ─────────────────────────────────────────────────────────────────────────────
-// DimiReminderScreen
-//
-// Full-screen reminder experience. Launched by DimiReminderActivity when the
-// user has Full-screen notification mode enabled. Receives reminder data as
-// route query parameters (reminderId, accountId, title, body, timeMillis,
-// notifId) — all content is available immediately on first frame with no
-// async DB load needed for display.
-//
-// Actions:
-//   Mark Done  — disables reminder in Drift → cancels notification → sync
-//   Snooze     — updates dueAt +5 min in Drift → reschedules → sync
-//   Dismiss    — cancels notification only (reminder stays enabled)
+// Screen widget
 // ─────────────────────────────────────────────────────────────────────────────
 
 class DimiReminderScreen extends ConsumerStatefulWidget {
@@ -36,123 +25,105 @@ class DimiReminderScreen extends ConsumerStatefulWidget {
     required this.body,
     required this.scheduledTime,
     required this.notifId,
+    this.kind = DimiNotificationKind.reminder,
+    this.taskId,
+    this.channel = '',
+    this.note = '',
+    this.startTime = '',
+    this.endTime = '',
+    this.durationMinutes = 0,
+    this.playlistId,
+    this.playlistProgress = 0,
+    this.videosWatched = 0,
+    this.videosTotal = 0,
+    this.thumbnailUrl = '',
   });
 
   final int reminderId;
   final int accountId;
+  final int notifId;
+  final int? taskId;
+  final int? playlistId;
   final String title;
   final String body;
+  final String channel;
+  final String note;
+  final String startTime;
+  final String endTime;
+  final String thumbnailUrl;
   final DateTime scheduledTime;
-  final int notifId;
+  final int durationMinutes;
+  final int playlistProgress;
+  final int videosWatched;
+  final int videosTotal;
+  final DimiNotificationKind kind;
 
   @override
   ConsumerState<DimiReminderScreen> createState() => _DimiReminderScreenState();
 }
 
-class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen>
-    with TickerProviderStateMixin {
-  // Bell ring animation
-  late final AnimationController _bellCtrl;
-  late final Animation<double> _bellRing;
-
-  // Glow pulse animation
-  late final AnimationController _glowCtrl;
-  late final Animation<double> _glowPulse;
-
-  // Entrance animation
-  late final AnimationController _entranceCtrl;
-  late final Animation<double> _entranceFade;
-  late final Animation<Offset> _entranceSlide;
-
+class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
   bool _busy = false;
-  String? _feedback;
+  String? _result;
+
+  AppDatabase get _db => ref.read(databaseProvider);
 
   @override
   void initState() {
     super.initState();
-
-    // Keep status bar hidden — full-screen experience
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-
-    // Bell: rocks left-right 5° then back, repeats
-    _bellCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    )..repeat(reverse: true);
-    _bellRing = Tween<double>(
-      begin: -0.09,
-      end: 0.09,
-    ).animate(CurvedAnimation(parent: _bellCtrl, curve: Curves.easeInOut));
-
-    // Glow: outer ring pulses in opacity 0.3→0.7
-    _glowCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    )..repeat(reverse: true);
-    _glowPulse = Tween<double>(
-      begin: 0.3,
-      end: 0.7,
-    ).animate(CurvedAnimation(parent: _glowCtrl, curve: Curves.easeInOut));
-
-    // Entrance: content slides up from 24 px below + fades in
-    _entranceCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 480),
-    )..forward();
-    _entranceFade = CurvedAnimation(
-      parent: _entranceCtrl,
-      curve: const Interval(0.0, 0.8, curve: Curves.easeOut),
-    );
-    _entranceSlide =
-        Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero).animate(
-          CurvedAnimation(parent: _entranceCtrl, curve: Curves.easeOutCubic),
-        );
-  }
-
-  @override
-  void dispose() {
-    _bellCtrl.dispose();
-    _glowCtrl.dispose();
-    _entranceCtrl.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    super.dispose();
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        systemNavigationBarColor: Color(0xFFFAF5ED),
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+    );
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-
-  AppDatabase get _db => ref.read(databaseProvider);
-
-  /// Restore account context so account-scoped DAO methods work correctly.
   void _restoreAccount() {
-    if (widget.accountId > 0) {
-      _db.setActiveAccountId(widget.accountId);
-    }
+    if (widget.accountId > 0) _db.setActiveAccountId(widget.accountId);
   }
 
-  // ── Actions ────────────────────────────────────────────────────────────────
-
-  Future<void> _markDone() async {
+  Future<void> _complete() async {
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      _restoreAccount();
-      // 1. Update Drift first — local-first
-      await _db.reminderDao.toggleEnabled(widget.reminderId, false);
-      NotificationService.instance.onLocalActionCommitted?.call();
-      // 2. Cancel the notification immediately
-      await NotificationService.instance.cancelReminder(widget.notifId);
-      // 3. Sync in background — never block UI on network
-      unawaited(SyncService(_db).syncNow());
-      if (mounted) {
-        setState(() => _feedback = 'Done! ✓');
-        await Future.delayed(const Duration(milliseconds: 600));
-        if (mounted) _closeActivity();
+      if (widget.kind == DimiNotificationKind.youtube) {
+        await NotificationService.instance.completeFromFullScreen({
+          'notification_id': widget.notifId,
+          'playlist_id': widget.playlistId,
+          'reminder_id': widget.reminderId,
+          'account_id': widget.accountId,
+        });
+      } else {
+        _restoreAccount();
+        if (widget.kind == DimiNotificationKind.planner &&
+            widget.taskId != null) {
+          await _db.taskDao.completeFromNotification(widget.taskId!);
+        } else {
+          await _db.reminderDao.toggleEnabled(widget.reminderId, false);
+        }
+        NotificationService.instance.onLocalActionCommitted?.call();
+        await NotificationService.instance.cancelReminder(widget.notifId);
+        unawaited(SyncService(_db).syncNow());
       }
-    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _result = switch (widget.kind) {
+          DimiNotificationKind.planner => 'Session started',
+          DimiNotificationKind.youtube => 'Playlist updated',
+          DimiNotificationKind.reminder => 'Marked as done',
+        };
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      if (mounted) _closeActivity();
+    } catch (_) {
       if (mounted) {
         setState(() {
           _busy = false;
-          _feedback = 'Could not mark done.';
+          _result = 'Could not complete this notification.';
         });
       }
     }
@@ -162,38 +133,20 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen>
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      _restoreAccount();
-      final newDue = DateTime.now().add(const Duration(minutes: 5));
-      // 1. Update Drift first — local-first
-      final changed = await _db.reminderDao.updateReminder(
-        RemindersCompanion(
-          id: Value(widget.reminderId),
-          dueAt: Value(newDue),
-          isEnabled: const Value(true),
-        ),
-      );
-      if (changed) {
-        // The local row is the source of truth. Refresh visible Planner and
-        // Reminder streams before doing any notification or network work.
-        NotificationService.instance.onLocalActionCommitted?.call();
-        // 2. Cancel current notification
-        unawaited(NotificationService.instance.cancelReminder(widget.notifId));
-        // 3. Reschedule at new time
-        final updated = await _db.reminderDao.getById(widget.reminderId);
-        if (updated != null) unawaited(NotificationService.instance.scheduleReminder(updated));
-        // 4. Sync in background
-        unawaited(SyncService(_db).syncNow());
-      }
-      if (mounted) {
-        setState(() => _feedback = 'Snoozed 5 min ⏰');
-        await Future.delayed(const Duration(milliseconds: 700));
-        if (mounted) _closeActivity();
-      }
-    } catch (e) {
+      await NotificationService.instance.snoozeFromFullScreen(widget.notifId, {
+        'reminder_id': widget.reminderId,
+        'task_id': widget.taskId,
+        'account_id': widget.accountId,
+      });
+      if (!mounted) return;
+      setState(() => _result = 'Snoozed for 5 minutes');
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      if (mounted) _closeActivity();
+    } catch (_) {
       if (mounted) {
         setState(() {
           _busy = false;
-          _feedback = 'Could not snooze.';
+          _result = 'Could not snooze this notification.';
         });
       }
     }
@@ -202,553 +155,1166 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen>
   Future<void> _dismiss() async {
     if (_busy) return;
     setState(() => _busy = true);
-    // Cancel notification only — reminder stays enabled for future scheduling
     await NotificationService.instance.cancelReminder(widget.notifId);
-    _closeActivity();
+    if (mounted) _closeActivity();
   }
 
   void _closeActivity() {
-    // Pop back to whatever was below, or close the activity entirely if this
-    // is the root route of DimiReminderActivity.
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     } else {
-      // DimiReminderActivity is a standalone task — finish it.
       SystemNavigator.pop();
     }
   }
 
-  // ── Build ──────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
+    final red = widget.kind == DimiNotificationKind.youtube;
     return Scaffold(
-      // Warm cream background — fills entire screen including under status bar
-      backgroundColor: const Color(0xFFFAF3EB),
-      body: FadeTransition(
-        opacity: _entranceFade,
-        child: SlideTransition(
-          position: _entranceSlide,
-          child: SafeArea(child: _buildContent()),
-        ),
+      backgroundColor: const Color(0xFFFAF5ED),
+      body: SafeArea(
+        child: _result == null
+            ? SizedBox.expand(child: _activeContent(red))
+            : SizedBox.expand(child: _resultContent(red)),
       ),
     );
   }
 
-  Widget _buildContent() {
-    final timeStr = DateFormat('h:mm a').format(widget.scheduledTime);
+  Widget _activeContent(bool red) {
+    final action = switch (widget.kind) {
+      DimiNotificationKind.planner => 'Slide to start session',
+      DimiNotificationKind.youtube => 'Slide to continue learning',
+      DimiNotificationKind.reminder => 'Slide to mark as done',
+    };
+    final accent = red ? const Color(0xFFE53935) : const Color(0xFFF5A623);
+    final isYoutube = widget.kind == DimiNotificationKind.youtube;
 
-    return Column(
-      children: [
-        // ── Top: DIMI logo + "DIMI REMINDER" label ─────────────────────────
-        const SizedBox(height: 28),
-        _DimiLogoLabel(),
+    Widget padded(Widget child) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: child,
+    );
 
-        const SizedBox(height: 32),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availH = constraints.maxHeight;
+        // Mountain height: 24% of available, clamped
+        final mountainH = (availH * 0.24).clamp(120.0, 180.0);
 
-        // ── Reminder title ─────────────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Text(
-            widget.title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1C1C1E),
-              height: 1.2,
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 8),
-
-        // ── Reminder body / description ────────────────────────────────────
-        if (widget.body.isNotEmpty && widget.body != widget.title)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Text(
-              widget.body,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: Color(0xFF8A8A8E),
-                height: 1.45,
-              ),
-            ),
-          ),
-
-        const SizedBox(height: 16),
-
-        // ── Time display ───────────────────────────────────────────────────
-        Text(
-          timeStr,
-          style: const TextStyle(
-            fontFamily: 'Poppins',
-            fontSize: 36,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFFF5A623),
-            letterSpacing: 1,
-          ),
-        ),
-
-        const SizedBox(height: 32),
-
-        // ── Animated bell with glow ────────────────────────────────────────
-        Expanded(
-          child: Center(
-            child: AnimatedBuilder(
-              animation: Listenable.merge([_bellCtrl, _glowCtrl]),
-              builder: (context, _) => _GlowingBell(
-                ringAngle: _bellRing.value,
-                glowOpacity: _glowPulse.value,
-              ),
-            ),
-          ),
-        ),
-
-        // ── Motivational tagline ───────────────────────────────────────────
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 40),
-          child: Text(
-            'Stay consistent.\nSmall steps make big progress.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
-              color: Color(0xFF8A8A8E),
-              height: 1.6,
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 32),
-
-        // ── Feedback chip (shows briefly after action) ─────────────────────
-        if (_feedback != null) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5A623).withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(99),
-            ),
-            child: Text(
-              _feedback!,
-              style: const TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFFF5A623),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-
-        // ── Action buttons ─────────────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-          child: Column(
-            children: [
-              // Mark Done — filled dark pill
-              _ReminderButton(
-                label: 'Mark Done',
-                icon: Icons.check_circle_rounded,
-                filled: true,
-                onPressed: _busy ? null : _markDone,
-              ),
-              const SizedBox(height: 12),
-              // Snooze — outlined amber pill
-              _ReminderButton(
-                label: 'Snooze 5 min',
-                icon: Icons.access_time_rounded,
-                filled: false,
-                onPressed: _busy ? null : _snooze,
-              ),
-              const SizedBox(height: 20),
-              // Dismiss — text link
-              GestureDetector(
-                onTap: _busy ? null : _dismiss,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(
-                    'Dismiss',
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: _busy
-                          ? const Color(0xFF8A8A8E).withValues(alpha: 0.5)
-                          : const Color(0xFF8A8A8E),
-                      decoration: TextDecoration.none,
-                    ),
-                  ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(height: availH * 0.012),
+            padded(const _DimiBrand()),
+            SizedBox(height: availH * 0.010),
+            if (!isYoutube) ...[
+              _MountainArt(height: mountainH),
+              SizedBox(height: availH * 0.008),
+            ] else
+              SizedBox(height: availH * 0.016),
+            padded(_HeroHeadline(red: red, kind: widget.kind)),
+            SizedBox(height: availH * 0.010),
+            // Card — shared for all 3 variants
+            padded(
+              _NotifCard(
+                kind: widget.kind,
+                title: widget.title,
+                body: widget.body,
+                note: widget.note,
+                channel: widget.channel,
+                thumbnailUrl: widget.thumbnailUrl,
+                scheduledTime: widget.scheduledTime,
+                progress: widget.playlistProgress,
+                watched: widget.videosWatched,
+                total: widget.videosTotal,
+                actions: _ActionRow(
+                  busy: _busy,
+                  onSnooze: _snooze,
+                  onDismiss: _dismiss,
                 ),
               ),
-              const SizedBox(height: 12),
-            ],
-          ),
-        ),
-      ],
+            ),
+            const Spacer(),
+            _BottomDecor(height: (availH * 0.06).clamp(28.0, 52.0)),
+            SizedBox(height: availH * 0.008),
+            padded(
+              DimiSlideToAction(
+                label: action,
+                color: accent,
+                onComplete: _complete,
+              ),
+            ),
+            SizedBox(height: availH * 0.020),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _resultContent(bool red) {
+    final color = red ? const Color(0xFFE53935) : const Color(0xFFF5A623);
+    final isSnoozed = _result!.startsWith('Snoozed');
+    final icon = isSnoozed ? Icons.access_time_rounded : Icons.check_rounded;
+    final label = switch (widget.kind) {
+      DimiNotificationKind.planner =>
+        isSnoozed ? 'Snoozed 5 min' : 'Session started!',
+      DimiNotificationKind.youtube =>
+        isSnoozed ? 'Snoozed 5 min' : 'Playlist updated!',
+      DimiNotificationKind.reminder =>
+        isSnoozed ? 'Snoozed 5 min' : 'Marked as done!',
+    };
+    final sublabel = isSnoozed
+        ? "We'll remind you again in 5 minutes."
+        : switch (widget.kind) {
+            DimiNotificationKind.planner =>
+              "Let's make it count. You've got this.",
+            DimiNotificationKind.youtube => 'Keep up the great learning habit.',
+            DimiNotificationKind.reminder =>
+              'Great job staying on top of things.',
+          };
+    return _ResultScreen(
+      color: color,
+      icon: icon,
+      label: label,
+      sublabel: sublabel,
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DIMI logo + label at the top
+// Mountain art
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _DimiLogoLabel extends StatelessWidget {
-  const _DimiLogoLabel();
+class _MountainArt extends StatelessWidget {
+  const _MountainArt({this.height = 165});
+  final double height;
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Rounded square badge with DIMI orange "D" logo
-        Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF8EE),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFF5A623).withValues(alpha: 0.25),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Image.asset(
-              'assets/logos/dimi_splash_logo.png',
-              width: 56,
-              height: 56,
-              fit: BoxFit.contain,
-              // Graceful fallback if asset is missing
-              errorBuilder: (_, _, _) => const Icon(
-                Icons.notifications_active_rounded,
-                color: Color(0xFFF5A623),
-                size: 28,
-              ),
-            ),
+  Widget build(BuildContext context) => SizedBox(
+    width: double.infinity,
+    height: height,
+    child: ShaderMask(
+      shaderCallback: (bounds) => const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Colors.transparent,
+          Colors.black,
+          Colors.black,
+          Colors.transparent,
+        ],
+        stops: [0.0, 0.14, 0.84, 1.0],
+      ).createShader(bounds),
+      blendMode: BlendMode.dstIn,
+      child: Image.asset(
+        'assets/Greeting/GreetingsBG.png',
+        fit: BoxFit.cover,
+        alignment: const Alignment(-0.35, -0.1),
+        width: double.infinity,
+        height: height,
+      ),
+    ),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Brand
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DimiBrand extends StatelessWidget {
+  const _DimiBrand();
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Image.asset(
+        'assets/logos/dimi_splash_logo.png',
+        width: 62,
+        height: 62,
+        fit: BoxFit.contain,
+      ),
+      Transform.translate(
+        offset: const Offset(0, -6),
+        child: const Text(
+          'DIMI',
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            color: Color(0xFF302A24),
+            height: 1.0,
           ),
         ),
-        const SizedBox(height: 10),
-        const Text(
-          'DIMI REMINDER',
+      ),
+      Transform.translate(
+        offset: const Offset(0, -6),
+        child: const Text(
+          'Plan  ·  Track  ·  Grow',
           style: TextStyle(
             fontFamily: 'Poppins',
             fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF8A8A8E),
-            letterSpacing: 2.5,
+            fontWeight: FontWeight.w400,
+            color: Color(0xFF81766B),
+            height: 1.2,
           ),
         ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Glowing animated bell
+// Hero headline
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _GlowingBell extends StatelessWidget {
-  const _GlowingBell({required this.ringAngle, required this.glowOpacity});
-
-  final double ringAngle; // radians, bell rock angle
-  final double glowOpacity; // 0.3 → 0.7 pulsing
+class _HeroHeadline extends StatelessWidget {
+  const _HeroHeadline({required this.red, required this.kind});
+  final bool red;
+  final DimiNotificationKind kind;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 200,
-      height: 200,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Outer glow ring (largest, most transparent)
-          Opacity(
-            opacity: glowOpacity * 0.35,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFFF5A623).withValues(alpha: 0.15),
-              ),
-            ),
-          ),
+    final accent = red ? const Color(0xFFE53935) : const Color(0xFFF5A623);
+    final lines = switch (kind) {
+      DimiNotificationKind.planner => ['Your', 'session', 'starts now.'],
+      DimiNotificationKind.youtube => ['Ready to', 'continue', 'learning?'],
+      DimiNotificationKind.reminder => ['A', 'reminder', 'for you.'],
+    };
+    final asset = switch (kind) {
+      DimiNotificationKind.planner => 'assets/illustrations/Planner.png',
+      DimiNotificationKind.youtube => 'assets/illustrations/Todo.png',
+      DimiNotificationKind.reminder => 'assets/illustrations/Reminder.png',
+    };
 
-          // Middle glow ring
-          Opacity(
-            opacity: glowOpacity * 0.55,
-            child: Container(
+    return SizedBox(
+      height: 148,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 40,
+                    height: 1.06,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF27221D),
+                  ),
+                  children: [
+                    TextSpan(text: '${lines[0]}\n'),
+                    TextSpan(
+                      text: '${lines[1]}\n',
+                      style: TextStyle(color: accent),
+                    ),
+                    TextSpan(text: lines[2]),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                width: 44,
+                height: 3.5,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5A623),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ],
+          ),
+          Positioned(
+            right: -10,
+            top: -10,
+            child: Image.asset(
+              asset,
               width: 160,
               height: 160,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFFF5A623).withValues(alpha: 0.18),
-              ),
+              fit: BoxFit.contain,
             ),
           ),
-
-          // Inner white circle (card-like)
-          Container(
-            width: 118,
-            height: 118,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFF5A623).withValues(alpha: 0.22),
-                  blurRadius: 28,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-          ),
-
-          // Bell icon — rocks left-right
-          Transform.rotate(angle: ringAngle, child: const _BellIcon()),
-
-          // Sound wave dots top-left and top-right of bell
-          ..._buildSoundWaves(ringAngle),
         ],
       ),
     );
   }
-
-  /// Three small arc dots either side of the bell to indicate ringing.
-  List<Widget> _buildSoundWaves(double angle) {
-    final waveColor = const Color(0xFFF5A623).withValues(alpha: 0.7);
-    return [
-      // Left arc dot
-      Positioned(
-        left: 34,
-        top: 58,
-        child: Transform.rotate(
-          angle: angle * 1.5,
-          child: Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: waveColor),
-          ),
-        ),
-      ),
-      // Right arc dot
-      Positioned(
-        right: 34,
-        top: 58,
-        child: Transform.rotate(
-          angle: -angle * 1.5,
-          child: Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: waveColor),
-          ),
-        ),
-      ),
-    ];
-  }
 }
 
-class _BellIcon extends StatelessWidget {
-  const _BellIcon();
+// ─────────────────────────────────────────────────────────────────────────────
+// Unified notification card — same design for planner, reminder, youtube
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _NotifCard extends StatelessWidget {
+  const _NotifCard({
+    required this.kind,
+    required this.title,
+    required this.body,
+    required this.note,
+    required this.channel,
+    required this.thumbnailUrl,
+    required this.scheduledTime,
+    required this.progress,
+    required this.watched,
+    required this.total,
+    required this.actions,
+  });
+
+  final DimiNotificationKind kind;
+  final String title, body, note, channel, thumbnailUrl;
+  final DateTime scheduledTime;
+  final int progress, watched, total;
+  final Widget actions;
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(size: const Size(52, 52), painter: _BellPainter());
-  }
-}
-
-/// Hand-painted bell shape in DIMI amber to match the reference design.
-class _BellPainter extends CustomPainter {
-  static const _amber = Color(0xFFF5A623);
-  static const _amberDark = Color(0xFFD4861A);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    final fillPaint = Paint()
-      ..color = _amber
-      ..style = PaintingStyle.fill;
-
-    final shadowPaint = Paint()
-      ..color = _amberDark.withValues(alpha: 0.4)
-      ..style = PaintingStyle.fill;
-
-    // Bell body path
-    final body = Path()
-      ..moveTo(w * 0.50, h * 0.05)
-      ..cubicTo(w * 0.28, h * 0.05, w * 0.15, h * 0.20, w * 0.15, h * 0.42)
-      ..lineTo(w * 0.08, h * 0.75)
-      ..quadraticBezierTo(w * 0.06, h * 0.82, w * 0.14, h * 0.82)
-      ..lineTo(w * 0.86, h * 0.82)
-      ..quadraticBezierTo(w * 0.94, h * 0.82, w * 0.92, h * 0.75)
-      ..lineTo(w * 0.85, h * 0.42)
-      ..cubicTo(w * 0.85, h * 0.20, w * 0.72, h * 0.05, w * 0.50, h * 0.05)
-      ..close();
-
-    // Shadow bottom of bell
-    final shadow = Path()
-      ..moveTo(w * 0.08, h * 0.73)
-      ..lineTo(w * 0.92, h * 0.73)
-      ..lineTo(w * 0.92, h * 0.82)
-      ..lineTo(w * 0.08, h * 0.82)
-      ..close();
-
-    canvas.drawPath(body, fillPaint);
-    canvas.drawPath(shadow, shadowPaint);
-
-    // Clapper (small circle at bottom centre)
-    canvas.drawCircle(Offset(w * 0.50, h * 0.90), w * 0.09, fillPaint);
-
-    // Handle (small arc at top centre)
-    final handlePaint = Paint()
-      ..color = _amberDark
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.07
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawArc(
-      Rect.fromCenter(
-        center: Offset(w * 0.50, h * 0.08),
-        width: w * 0.22,
-        height: h * 0.16,
+    return Container(
+      clipBehavior: Clip.hardEdge,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(32),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x22000000),
+            blurRadius: 24,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
-      math.pi,
-      math.pi,
-      false,
-      handlePaint,
+      child: kind == DimiNotificationKind.youtube
+          ? _YoutubeCardContent(
+              title: title,
+              channel: channel,
+              thumbnailUrl: thumbnailUrl,
+              progress: progress,
+              watched: watched,
+              total: total,
+              actions: actions,
+            )
+          : _DimiNotifCard(
+              title: title,
+              scheduledTime: scheduledTime,
+              actions: actions,
+            ),
     );
   }
-
-  @override
-  bool shouldRepaint(_BellPainter old) => false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Action button
+// Planner + Reminder card content (shared design)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _ReminderButton extends StatefulWidget {
-  const _ReminderButton({
-    required this.label,
-    required this.icon,
-    required this.filled,
-    required this.onPressed,
+class _DimiNotifCard extends StatelessWidget {
+  const _DimiNotifCard({
+    required this.title,
+    required this.scheduledTime,
+    required this.actions,
   });
 
-  final String label;
-  final IconData icon;
-  final bool filled;
-  final VoidCallback? onPressed;
+  final String title;
+  final DateTime scheduledTime;
+  final Widget actions;
 
   @override
-  State<_ReminderButton> createState() => _ReminderButtonState();
+  Widget build(BuildContext context) {
+    final timeStr = DateFormat('h:mm').format(scheduledTime);
+    final ampm = DateFormat('a').format(scheduledTime);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        // Title font: responsive to card width
+        final titleFontSize = w < 300 ? 20.0 : 28.0;
+        // Cap title to ~42 chars to prevent overflow without "..."
+        final raw = title.trim().isEmpty ? 'Reminder' : title.trim();
+        final displayTitle = raw.length > 42
+            ? '${raw.substring(0, 42).trimRight()}…'
+            : raw;
+
+        return Stack(
+          children: [
+            // Decorative blobs fill the full card (clipped by container)
+            Positioned.fill(child: CustomPaint(painter: _CardBlobPainter())),
+
+            // Content with its own padding
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Orange /// accent marks
+                  CustomPaint(
+                    size: const Size(28, 20),
+                    painter: _AccentHashPainter(),
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Title — dark, bold
+                  Text(
+                    displayTitle,
+                    maxLines: 2,
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: titleFontSize,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF171717),
+                      height: 1.15,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Time — centered with cream capsule
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF5EDD8),
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            timeStr,
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: w < 320 ? 50.0 : 62.0,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF171717),
+                              height: 1.0,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            ampm,
+                            style: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF8A8A8A),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Buttons
+                  actions,
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
-class _ReminderButtonState extends State<_ReminderButton>
+// ─────────────────────────────────────────────────────────────────────────────
+// YouTube card content
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _YoutubeCardContent extends StatelessWidget {
+  const _YoutubeCardContent({
+    required this.title,
+    required this.channel,
+    required this.thumbnailUrl,
+    required this.progress,
+    required this.watched,
+    required this.total,
+    required this.actions,
+  });
+
+  final String title, channel, thumbnailUrl;
+  final int progress, watched, total;
+  final Widget actions;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      Positioned.fill(child: CustomPaint(painter: _CardBlobPainter())),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CustomPaint(
+              size: const Size(28, 20),
+              painter: _AccentHashPainter(),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 20,
+                          height: 1.18,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF171717),
+                        ),
+                      ),
+                      if (channel.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          channel,
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 13,
+                            color: Color(0xFF81766B),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (thumbnailUrl.isNotEmpty)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      thumbnailUrl,
+                      width: 100,
+                      height: 66,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: (progress / 100).clamp(0, 1),
+                      minHeight: 8,
+                      backgroundColor: const Color(0xFFF0E8DF),
+                      color: const Color(0xFFE53935),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  '$progress%',
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 5),
+            Text(
+              '$watched of $total videos watched',
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 12,
+                color: Color(0xFF81766B),
+              ),
+            ),
+            const SizedBox(height: 16),
+            actions,
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Action buttons
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PillButton extends StatelessWidget {
+  const _PillButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.destructive = false,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 50,
+    child: OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 17),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: destructive ? Colors.white : const Color(0xFF3A332C),
+        backgroundColor: destructive
+            ? const Color(0xFFE5242A)
+            : Colors.white.withValues(alpha: .90),
+        side: BorderSide(
+          color: destructive
+              ? const Color(0xFFE5242A)
+              : const Color(0xFFE4D9CF),
+        ),
+        shape: const StadiumBorder(),
+        textStyle: const TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ),
+  );
+}
+
+class _ActionRow extends StatelessWidget {
+  const _ActionRow({
+    required this.busy,
+    required this.onSnooze,
+    required this.onDismiss,
+  });
+  final bool busy;
+  final VoidCallback onSnooze;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: _PillButton(
+          icon: Icons.access_time_rounded,
+          label: 'Snooze 5 min',
+          onPressed: busy ? null : onSnooze,
+        ),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: _PillButton(
+          icon: Icons.close_rounded,
+          label: 'Not now',
+          destructive: true,
+          onPressed: busy ? null : onDismiss,
+        ),
+      ),
+    ],
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Slide-to-action
+// ─────────────────────────────────────────────────────────────────────────────
+
+class DimiSlideToAction extends StatefulWidget {
+  const DimiSlideToAction({
+    super.key,
+    required this.label,
+    required this.color,
+    required this.onComplete,
+  });
+  final String label;
+  final Color color;
+  final VoidCallback onComplete;
+
+  @override
+  State<DimiSlideToAction> createState() => _DimiSlideToActionState();
+}
+
+class _DimiSlideToActionState extends State<DimiSlideToAction> {
+  double _progress = 0;
+  bool _dragging = false;
+  bool _done = false;
+
+  void _setProgress(Offset local, double width) {
+    final max = width - 64;
+    setState(() => _progress = ((local.dx - 32) / max).clamp(0, 1));
+  }
+
+  void _finish() {
+    if (_done) return;
+    setState(() {
+      _done = true;
+      _progress = 1;
+    });
+    Future<void>.delayed(const Duration(milliseconds: 280), widget.onComplete);
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => GestureDetector(
+      onHorizontalDragStart: _done
+          ? null
+          : (_) => setState(() => _dragging = true),
+      onHorizontalDragUpdate: _done
+          ? null
+          : (details) => _setProgress(
+              (context.findRenderObject() as RenderBox).globalToLocal(
+                details.globalPosition,
+              ),
+              constraints.maxWidth,
+            ),
+      onHorizontalDragEnd: _done
+          ? null
+          : (_) {
+              setState(() => _dragging = false);
+              if (_progress >= .92) {
+                _finish();
+              } else {
+                setState(() => _progress = 0);
+              }
+            },
+      // Tap intentionally removed — slide only.
+      child: Container(
+        height: 64,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [widget.color.withValues(alpha: .65), widget.color],
+          ),
+          borderRadius: BorderRadius.circular(32),
+          boxShadow: [
+            BoxShadow(
+              color: widget.color.withValues(alpha: .3),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Opacity(
+              opacity: (1 - _progress * 1.6).clamp(0, 1),
+              child: Text(
+                widget.label,
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            AnimatedPositioned(
+              duration: _dragging
+                  ? Duration.zero
+                  : const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
+              left: 4 + _progress * (constraints.maxWidth - 64),
+              top: 4,
+              child: Container(
+                width: 56,
+                height: 56,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 27,
+                  color: Color(0xFF3A332C),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Result screen — session started / snoozed / done
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ResultScreen extends StatefulWidget {
+  const _ResultScreen({
+    required this.color,
+    required this.icon,
+    required this.label,
+    required this.sublabel,
+  });
+  final Color color;
+  final IconData icon;
+  final String label;
+  final String sublabel;
+
+  @override
+  State<_ResultScreen> createState() => _ResultScreenState();
+}
+
+class _ResultScreenState extends State<_ResultScreen>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _press;
+  late final AnimationController _ctrl;
   late final Animation<double> _scale;
+  late final Animation<double> _fade;
+  late final Animation<double> _slideUp;
 
   @override
   void initState() {
     super.initState();
-    _press = AnimationController(
+    _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 90),
-      reverseDuration: const Duration(milliseconds: 180),
+      duration: const Duration(milliseconds: 620),
     );
-    _scale = Tween<double>(
-      begin: 1.0,
-      end: 0.96,
-    ).animate(CurvedAnimation(parent: _press, curve: Curves.easeIn));
+    _scale = CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut);
+    _fade = CurvedAnimation(
+      parent: _ctrl,
+      curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
+    );
+    _slideUp = Tween<double>(begin: 24, end: 0).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        curve: const Interval(0.2, 0.7, curve: Curves.easeOut),
+      ),
+    );
+    _ctrl.forward();
   }
 
   @override
   void dispose() {
-    _press.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
-  void _down(_) {
-    if (widget.onPressed != null) _press.forward();
-  }
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      // Decorative blob background
+      Positioned.fill(
+        child: CustomPaint(painter: _ResultBlobPainter(color: widget.color)),
+      ),
+      // Centered content
+      Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ScaleTransition(
+              scale: _scale,
+              child: Icon(widget.icon, size: 88, color: widget.color),
+            ),
+            const SizedBox(height: 28),
+            AnimatedBuilder(
+              animation: _ctrl,
+              builder: (context, child) => Opacity(
+                opacity: _fade.value,
+                child: Transform.translate(
+                  offset: Offset(0, _slideUp.value),
+                  child: child,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    widget.label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF27221D),
+                      height: 1.15,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 40),
+                    child: Text(
+                      widget.sublabel,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                        color: Color(0xFF81766B),
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(
+                      3,
+                      (i) => _Dot(
+                        color: widget.color,
+                        delay: i * 0.12,
+                        controller: _ctrl,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
 
-  void _up(_) {
-    _press.reverse().then((_) => widget.onPressed?.call());
-  }
-
-  void _cancel() => _press.reverse();
+class _Dot extends StatelessWidget {
+  const _Dot({
+    required this.color,
+    required this.delay,
+    required this.controller,
+  });
+  final Color color;
+  final double delay;
+  final AnimationController controller;
 
   @override
   Widget build(BuildContext context) {
-    final enabled = widget.onPressed != null;
-    final amber = const Color(0xFFF5A623);
-
-    return GestureDetector(
-      onTapDown: enabled ? _down : null,
-      onTapUp: enabled ? _up : null,
-      onTapCancel: _cancel,
-      child: AnimatedBuilder(
-        animation: _press,
-        builder: (_, child) =>
-            Transform.scale(scale: _scale.value, child: child),
-        child: Container(
-          width: double.infinity,
-          height: 56,
-          decoration: BoxDecoration(
-            color: widget.filled
-                ? (enabled ? const Color(0xFF1C1C1E) : const Color(0xFF8A8A8E))
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(28),
-            border: widget.filled
-                ? null
-                : Border.all(
-                    color: enabled ? amber : amber.withValues(alpha: 0.4),
-                    width: 1.5,
-                  ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                widget.icon,
-                size: 20,
-                color: widget.filled
-                    ? Colors.white
-                    : (enabled ? amber : amber.withValues(alpha: 0.4)),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: widget.filled
-                      ? Colors.white
-                      : (enabled ? amber : amber.withValues(alpha: 0.4)),
-                ),
-              ),
-            ],
-          ),
+    final anim = CurvedAnimation(
+      parent: controller,
+      curve: Interval(delay, (delay + 0.4).clamp(0, 1), curve: Curves.easeOut),
+    );
+    return AnimatedBuilder(
+      animation: anim,
+      builder: (context, _) => Container(
+        width: 7,
+        height: 7,
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color.withValues(alpha: anim.value),
         ),
       ),
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bottom decorative strip above slider
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BottomDecor extends StatelessWidget {
+  const _BottomDecor({this.height = 40});
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    child: SizedBox(
+      height: height,
+      child: CustomPaint(painter: _BottomBlobPainter()),
+    ),
+  );
+}
+
+class _BottomBlobPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final orange = Paint()
+      ..color = const Color(0xFFF5A623).withValues(alpha: .18);
+    final peach = Paint()
+      ..color = const Color(0xFFFFCB8E).withValues(alpha: .22);
+    final lavender = Paint()
+      ..color = const Color(0xFFBBA6F4).withValues(alpha: .20);
+
+    canvas.drawCircle(Offset(size.width * 0.12, size.height * 0.6), 38, peach);
+    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.5), 44, orange);
+    canvas.drawCircle(
+      Offset(size.width * 0.5, size.height * 0.3),
+      18,
+      lavender,
+    );
+
+    final paint = Paint()
+      ..color = const Color(0xFFF5A623).withValues(alpha: .25)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawPath(
+      Path()
+        ..moveTo(size.width * 0.18, size.height * 0.8)
+        ..quadraticBezierTo(
+          size.width * 0.3,
+          size.height * 0.2,
+          size.width * 0.42,
+          size.height * 0.7,
+        ),
+      paint,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(size.width * 0.62, size.height * 0.9)
+        ..quadraticBezierTo(
+          size.width * 0.75,
+          size.height * 0.3,
+          size.width * 0.85,
+          size.height * 0.75,
+        ),
+      paint,
+    );
+
+    final dot = Paint()..color = const Color(0xFFF5A623).withValues(alpha: .40);
+    canvas.drawCircle(Offset(size.width * 0.55, size.height * 0.25), 4, dot);
+    canvas.drawCircle(Offset(size.width * 0.22, size.height * 0.35), 3, dot);
+    canvas.drawCircle(Offset(size.width * 0.78, size.height * 0.7), 5, dot);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => false;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Card blob background painter
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CardBlobPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Large peach blob — top right
+    canvas.drawCircle(
+      Offset(size.width * 1.05, size.height * 0.05),
+      size.width * 0.42,
+      Paint()..color = const Color(0xFFFBD7C0).withValues(alpha: .65),
+    );
+    // Cream blob — bottom left
+    canvas.drawCircle(
+      Offset(size.width * -0.08, size.height * 0.85),
+      size.width * 0.38,
+      Paint()..color = const Color(0xFFFFF0DC).withValues(alpha: .70),
+    );
+    // Pale orange — center right
+    canvas.drawCircle(
+      Offset(size.width * 0.92, size.height * 0.60),
+      size.width * 0.20,
+      Paint()..color = const Color(0xFFF5C88A).withValues(alpha: .30),
+    );
+    // Swirl stroke
+    final swirl = Paint()
+      ..color = const Color(0xFFF5A623).withValues(alpha: .12)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 28
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(
+      Path()
+        ..moveTo(size.width * 0.72, size.height * 0.90)
+        ..quadraticBezierTo(
+          size.width * 0.92,
+          size.height * 0.80,
+          size.width * 1.02,
+          size.height * 0.95,
+        ),
+      swirl,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => false;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Orange /// accent hash marks (top-left of card title)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AccentHashPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = const Color(0xFFF5A623)
+      ..strokeWidth = 3.0
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    for (var i = 0; i < 3; i++) {
+      final x = 4.0 + i * 9.0;
+      canvas.drawLine(Offset(x, size.height), Offset(x + 5, 0), p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => false;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Result screen blob background
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ResultBlobPainter extends CustomPainter {
+  const _ResultBlobPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawCircle(
+      Offset(-40, size.height * 0.2),
+      130,
+      Paint()..color = const Color(0xFFFFCB8E).withValues(alpha: .18),
+    );
+    canvas.drawCircle(
+      Offset(size.width + 40, size.height * 0.15),
+      110,
+      Paint()..color = color.withValues(alpha: .12),
+    );
+    canvas.drawCircle(
+      Offset(size.width + 50, size.height * 0.35),
+      160,
+      Paint()..color = const Color(0xFFBBA6F4).withValues(alpha: .16),
+    );
+    canvas.drawCircle(
+      Offset(-30, size.height * 0.85),
+      140,
+      Paint()..color = color.withValues(alpha: .12),
+    );
+    canvas.drawCircle(
+      Offset(size.width * 0.5, size.height + 60),
+      150,
+      Paint()..color = const Color(0xFFFFCB8E).withValues(alpha: .18),
+    );
+
+    final stroke = Paint()
+      ..color = color.withValues(alpha: .20)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawPath(
+      Path()
+        ..moveTo(size.width * 0.6, size.height * 0.1)
+        ..quadraticBezierTo(
+          size.width * 0.8,
+          size.height * 0.18,
+          size.width * 0.9,
+          size.height * 0.12,
+        ),
+      stroke,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(size.width * 0.08, size.height * 0.72)
+        ..quadraticBezierTo(
+          size.width * 0.18,
+          size.height * 0.65,
+          size.width * 0.28,
+          size.height * 0.73,
+        ),
+      stroke,
+    );
+
+    final dot = Paint()..color = color.withValues(alpha: .35);
+    canvas.drawCircle(Offset(size.width * 0.72, size.height * 0.22), 5, dot);
+    canvas.drawCircle(Offset(size.width * 0.18, size.height * 0.55), 4, dot);
+    canvas.drawCircle(Offset(size.width * 0.85, size.height * 0.6), 6, dot);
+    canvas.drawCircle(Offset(size.width * 0.35, size.height * 0.88), 4, dot);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ResultBlobPainter old) => old.color != color;
 }
