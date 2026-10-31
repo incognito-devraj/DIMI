@@ -15,6 +15,7 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../data/database.dart';
+import 'dimi_alarm_service.dart';
 
 // ─── Notification icon ───────────────────────────────────────────────────────
 // Small status-bar icon must be a monochrome (white/transparent) PNG.
@@ -436,10 +437,10 @@ class NotificationService {
   Future<void> cancelReminder(int id) async {
     if (!_ready) return;
     await _plugin.cancel(id);
-    // Playlist reminders also keep a separately scheduled next-day
-    // occurrence. Disabling/deleting the reminder must remove both.
+    await DimiAlarmService.instance.cancel(id);
     for (var day = 1; day <= _dailyOccurrenceDays; day++) {
       await _plugin.cancel(id + _dailyOccurrenceOffset + day);
+      await DimiAlarmService.instance.cancel(id + _dailyOccurrenceOffset + day);
     }
   }
 
@@ -1083,6 +1084,35 @@ class NotificationService {
     required AndroidNotificationDetails details,
     required String payload,
   }) async {
+    // For full-screen notification types, use DimiAlarmScheduler (native path)
+    // which creates a PendingIntent directly targeting DimiReminderActivity.
+    // This avoids flutter_local_notifications' hard-coded getLaunchIntentForPackage()
+    // which always targets MainActivity and causes the app-open flash.
+    if (details.fullScreenIntent) {
+      // Extract type from payload for the native receiver
+      String notifType = 'reminder';
+      try {
+        final decoded = jsonDecode(payload) as Map<String, dynamic>;
+        notifType = (decoded['type'] as String?) ?? 'reminder';
+      } catch (_) {}
+
+      await DimiAlarmService.instance.schedule(
+        notifId: id,
+        triggerAt: scheduled.toLocal(),
+        payload: payload,
+        title: title,
+        body: body,
+        type: notifType,
+      );
+      if (kDebugMode) {
+        debugPrint(
+          '[NotificationService] native alarm #$id "$title" at $scheduled',
+        );
+      }
+      return;
+    }
+
+    // Non-full-screen notifications (finance, todo) still use the plugin.
     try {
       await _plugin.zonedSchedule(
         id,
@@ -1101,7 +1131,6 @@ class NotificationService {
         );
       }
     } catch (e, st) {
-      // Never let a notification failure block the UI or DB write.
       if (kDebugMode) {
         debugPrint('[NotificationService] schedule failed #$id: $e\n$st');
       }
