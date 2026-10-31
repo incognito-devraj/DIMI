@@ -271,18 +271,33 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
   }
 
   Future<void> _openFullScreenReminder(Map<String, dynamic> data) async {
+    final type = data['type'];
     final reminderId = data['reminder_id'];
     final accountId = data['account_id'];
+    final taskId = data['task_id'];
+    final playlistId = data['playlist_id'];
     final title = data['title'];
     final body = data['body'];
     final timeMillis = data['time_millis'];
     final notificationId = data['notification_id'];
-    if (reminderId is! int || title is! String || body is! String) return;
+    if (title is! String || body is! String) return;
 
     final query = Uri(
       queryParameters: {
         'reminderId': '$reminderId',
         'accountId': '${accountId is int ? accountId : 0}',
+        'taskId': '${taskId is int ? taskId : ''}',
+        'playlistId': '${playlistId is int ? playlistId : ''}',
+        'channel': '${data['channel'] is String ? data['channel'] : ''}',
+        'playlistProgress': '${data['playlist_progress'] is int ? data['playlist_progress'] : 0}',
+        'videosWatched': '${data['videos_watched'] is int ? data['videos_watched'] : 0}',
+        'videosTotal': '${data['videos_total'] is int ? data['videos_total'] : 0}',
+        'thumbnailUrl': '${data['thumbnail_url'] is String ? data['thumbnail_url'] : ''}',
+        'kind': type == 'planner'
+            ? 'planner'
+            : type == 'playlist' || type == 'watch'
+            ? 'youtube'
+            : 'reminder',
         'title': title,
         'body': body,
         'timeMillis':

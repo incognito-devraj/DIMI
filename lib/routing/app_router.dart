@@ -258,6 +258,11 @@ final GoRouter appRouter = GoRouter(
       path: AppRoutes.fullScreenReminder,
       pageBuilder: (ctx, state) {
         final query = state.uri.queryParameters;
+        final kind = switch (query['kind']) {
+          'planner' => DimiNotificationKind.planner,
+          'youtube' => DimiNotificationKind.youtube,
+          _ => DimiNotificationKind.reminder,
+        };
         return _fade(
           state,
           DimiReminderScreen(
@@ -270,6 +275,18 @@ final GoRouter appRouter = GoRouter(
                   DateTime.now().millisecondsSinceEpoch,
             ),
             notifId: int.tryParse(query['notifId'] ?? '') ?? 0,
+            kind: kind,
+            taskId: int.tryParse(query['taskId'] ?? ''),
+            playlistId: int.tryParse(query['playlistId'] ?? ''),
+            channel: query['channel'] ?? '',
+            note: query['note'] ?? '',
+            startTime: query['startTime'] ?? '',
+            endTime: query['endTime'] ?? '',
+            durationMinutes: int.tryParse(query['durationMinutes'] ?? '') ?? 0,
+            playlistProgress: int.tryParse(query['playlistProgress'] ?? '') ?? 0,
+            videosWatched: int.tryParse(query['videosWatched'] ?? '') ?? 0,
+            videosTotal: int.tryParse(query['videosTotal'] ?? '') ?? 0,
+            thumbnailUrl: query['thumbnailUrl'] ?? '',
           ),
         );
       },
