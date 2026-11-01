@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,7 +14,7 @@ import '../../services/sync_service.dart';
 enum DimiNotificationKind { reminder, planner, youtube }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Screen widget — all logic untouched
+// Screen widget
 // ─────────────────────────────────────────────────────────────────────────────
 
 class DimiReminderScreen extends ConsumerStatefulWidget {
@@ -90,6 +91,9 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
     if (_busy) return;
     setState(() => _busy = true);
     try {
+      // Cancel the notification first so it vanishes immediately
+      await NotificationService.instance.cancelReminder(widget.notifId);
+
       if (widget.kind == DimiNotificationKind.youtube) {
         await NotificationService.instance.completeFromFullScreen({
           'notification_id': widget.notifId,
@@ -106,7 +110,6 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
           await _db.reminderDao.toggleEnabled(widget.reminderId, false);
         }
         NotificationService.instance.onLocalActionCommitted?.call();
-        await NotificationService.instance.cancelReminder(widget.notifId);
         unawaited(SyncService(_db).syncNow());
       }
       if (!mounted) return;
@@ -120,12 +123,10 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
       await Future<void>.delayed(const Duration(milliseconds: 700));
       if (mounted) _closeActivity();
     } catch (_) {
-      if (mounted) {
+      if (mounted)
         setState(() {
           _busy = false;
-          _result = 'Could not complete this notification.';
         });
-      }
     }
   }
 
@@ -133,6 +134,9 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
     if (_busy) return;
     setState(() => _busy = true);
     try {
+      // Cancel current notification immediately
+      await NotificationService.instance.cancelReminder(widget.notifId);
+
       await NotificationService.instance.snoozeFromFullScreen(widget.notifId, {
         'reminder_id': widget.reminderId,
         'task_id': widget.taskId,
@@ -143,18 +147,17 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
       await Future<void>.delayed(const Duration(milliseconds: 700));
       if (mounted) _closeActivity();
     } catch (_) {
-      if (mounted) {
+      if (mounted)
         setState(() {
           _busy = false;
-          _result = 'Could not snooze this notification.';
         });
-      }
     }
   }
 
   Future<void> _dismiss() async {
     if (_busy) return;
     setState(() => _busy = true);
+    // Cancel notification and close — no DB change, just dismiss
     await NotificationService.instance.cancelReminder(widget.notifId);
     if (mounted) _closeActivity();
   }
@@ -172,10 +175,22 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
     final isYoutube = widget.kind == DimiNotificationKind.youtube;
     return Scaffold(
       backgroundColor: const Color(0xFFFAF5ED),
-      body: SafeArea(
-        child: _result == null
-            ? SizedBox.expand(child: _activeContent(isYoutube))
-            : SizedBox.expand(child: _resultContent(isYoutube)),
+      body: Stack(
+        children: [
+          // ── Full-page scribble background (task 2) ──────────────────────
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: _FullPageScribblePainter(kind: widget.kind),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: _result == null
+                ? SizedBox.expand(child: _activeContent(isYoutube))
+                : SizedBox.expand(child: _resultContent(isYoutube)),
+          ),
+        ],
       ),
     );
   }
@@ -198,27 +213,23 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final availH = constraints.maxHeight;
-        // YouTube has a large thumbnail so needs more card space — shrink other elements
         final mountainH = isYoutube
-            ? (availH * 0.19).clamp(90.0, 150.0)
-            : (availH * 0.235).clamp(110.0, 175.0);
+            ? (availH * 0.17).clamp(82.0, 136.0)
+            : (availH * 0.19).clamp(92.0, 150.0);
+        final headlineH = (availH * 0.16).clamp(122.0, 136.0);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            SizedBox(height: availH * 0.008),
             padded(const _DimiBrand()),
-            SizedBox(height: availH * 0.006),
             _MountainArt(height: mountainH),
-            SizedBox(height: availH * 0.005),
-            padded(_HeroHeadline(kind: widget.kind)),
-            SizedBox(height: availH * 0.008),
+            padded(_HeroHeadline(kind: widget.kind, height: headlineH)),
             padded(
               ConstrainedBox(
-                // Hard cap so the card + thumbnail never overflows the screen
                 constraints: BoxConstraints(
                   maxHeight: isYoutube
-                      ? (availH * 0.42).clamp(200.0, 340.0)
+                      ? (availH * 0.52).clamp(300.0, 430.0)
                       : double.infinity,
                 ),
                 child: _NotifCard(
@@ -240,8 +251,6 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
                 ),
               ),
             ),
-            const Spacer(),
-            SizedBox(height: availH * 0.005),
             padded(
               DimiSlideToAction(
                 label: action,
@@ -249,7 +258,7 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
                 onComplete: _complete,
               ),
             ),
-            SizedBox(height: availH * 0.016),
+            SizedBox(height: (availH * 0.014).clamp(10.0, 18.0)),
           ],
         );
       },
@@ -287,11 +296,148 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mountain art — shown on all 3 screens
+// Full-page decorative scribble background — task 2
+// Organic lines, loops, dots scattered across the warm cream background,
+// matching the reference design aesthetic.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _FullPageScribblePainter extends CustomPainter {
+  const _FullPageScribblePainter({required this.kind});
+  final DimiNotificationKind kind;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    final accent = kind == DimiNotificationKind.youtube
+        ? const Color(0xFFE53935)
+        : const Color(0xFFF5A623);
+
+    Paint stroke(Color c, double opacity, double width) => Paint()
+      ..color = c.withAlpha((255 * opacity).round())
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    Paint fill(Color c, double opacity) =>
+        Paint()..color = c.withAlpha((255 * opacity).round());
+
+    // ── Bottom-right large decorative loop ────────────────────────────────
+    final loopBR = Path()
+      ..moveTo(w * 0.78, h * 0.82)
+      ..cubicTo(w * 1.08, h * 0.72, w * 1.10, h * 0.95, w * 0.85, h * 0.98)
+      ..cubicTo(w * 0.65, h * 1.00, w * 0.60, h * 0.88, w * 0.78, h * 0.82);
+    canvas.drawPath(loopBR, stroke(accent, 0.13, 2.0));
+
+    // ── Bottom-left curl ──────────────────────────────────────────────────
+    final curlBL = Path()
+      ..moveTo(w * 0.05, h * 0.88)
+      ..cubicTo(w * -0.05, h * 0.82, w * -0.02, h * 0.94, w * 0.08, h * 0.96)
+      ..cubicTo(w * 0.14, h * 0.97, w * 0.16, h * 0.92, w * 0.10, h * 0.90);
+    canvas.drawPath(curlBL, stroke(accent, 0.15, 1.6));
+
+    // ── Right edge wavy line ──────────────────────────────────────────────
+    final waveR = Path()
+      ..moveTo(w * 0.92, h * 0.52)
+      ..quadraticBezierTo(w * 1.02, h * 0.60, w * 0.94, h * 0.68)
+      ..quadraticBezierTo(w * 0.86, h * 0.76, w * 0.95, h * 0.84);
+    canvas.drawPath(waveR, stroke(accent, 0.12, 1.4));
+
+    // ── Left edge gentle arc ──────────────────────────────────────────────
+    final arcL = Path()
+      ..moveTo(w * 0.04, h * 0.60)
+      ..quadraticBezierTo(w * -0.04, h * 0.70, w * 0.06, h * 0.78);
+    canvas.drawPath(arcL, stroke(accent, 0.11, 1.3));
+
+    // ── Bottom centre scallop ─────────────────────────────────────────────
+    final scallop = Path()
+      ..moveTo(w * 0.28, h * 0.96)
+      ..quadraticBezierTo(w * 0.38, h * 0.90, w * 0.50, h * 0.94)
+      ..quadraticBezierTo(w * 0.62, h * 0.98, w * 0.72, h * 0.93);
+    canvas.drawPath(scallop, stroke(accent, 0.10, 1.2));
+
+    // ── Small cross marks ─────────────────────────────────────────────────
+    void cross(double cx, double cy, double r, double op) {
+      final p = stroke(accent, op, 1.1);
+      canvas.drawLine(Offset(cx - r, cy - r), Offset(cx + r, cy + r), p);
+      canvas.drawLine(Offset(cx + r, cy - r), Offset(cx - r, cy + r), p);
+    }
+
+    cross(w * 0.12, h * 0.72, 5, 0.18);
+    cross(w * 0.88, h * 0.68, 4, 0.15);
+    cross(w * 0.50, h * 0.89, 4, 0.13);
+
+    // ── Scattered dots ────────────────────────────────────────────────────
+    final dots = [
+      (w * 0.08, h * 0.82, 3.0, 0.20),
+      (w * 0.18, h * 0.95, 2.0, 0.16),
+      (w * 0.32, h * 0.86, 2.5, 0.14),
+      (w * 0.66, h * 0.88, 2.0, 0.14),
+      (w * 0.82, h * 0.76, 3.0, 0.18),
+      (w * 0.94, h * 0.90, 2.2, 0.15),
+      (w * 0.44, h * 0.98, 1.8, 0.12),
+      (w * 0.90, h * 0.56, 2.0, 0.13),
+    ];
+    for (final (dx, dy, r, op) in dots) {
+      canvas.drawCircle(Offset(dx, dy), r, fill(accent, op));
+    }
+
+    // ── Tiny tick marks (like hand-drawn emphasis) ────────────────────────
+    final tick = stroke(accent, 0.14, 1.0);
+    for (var i = 0; i < 3; i++) {
+      final x = w * 0.76 + i * 8.0;
+      canvas.drawLine(Offset(x, h * 0.94), Offset(x + 4, h * 0.97), tick);
+    }
+    for (var i = 0; i < 3; i++) {
+      final x = w * 0.18 + i * 8.0;
+      canvas.drawLine(Offset(x, h * 0.86), Offset(x + 4, h * 0.89), tick);
+    }
+
+    // ── Purple/lavender accent blobs for reminder type ────────────────────
+    if (kind == DimiNotificationKind.reminder) {
+      canvas.drawCircle(
+        Offset(w * 0.88, h * 0.92),
+        28,
+        fill(const Color(0xFFBBA6F4), 0.10),
+      );
+      canvas.drawCircle(
+        Offset(w * 0.14, h * 0.96),
+        20,
+        fill(const Color(0xFFBBA6F4), 0.08),
+      );
+    }
+
+    // ── Warm amber blobs ──────────────────────────────────────────────────
+    canvas.drawCircle(
+      Offset(w * 0.96, h * 0.78),
+      36,
+      fill(const Color(0xFFFFCB8E), 0.13),
+    );
+    canvas.drawCircle(
+      Offset(w * 0.04, h * 0.90),
+      28,
+      fill(const Color(0xFFFFCB8E), 0.11),
+    );
+    canvas.drawCircle(
+      Offset(w * 0.50, h * 1.02),
+      42,
+      fill(const Color(0xFFFBD7C0), 0.12),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _FullPageScribblePainter old) =>
+      old.kind != kind;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mountain art
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _MountainArt extends StatelessWidget {
-  const _MountainArt({this.height = 155});
+  const _MountainArt({this.height = 140});
   final double height;
 
   @override
@@ -335,17 +481,17 @@ class _DimiBrand extends StatelessWidget {
     children: [
       Image.asset(
         'assets/logos/dimi_splash_logo.png',
-        width: 58,
-        height: 58,
+        width: 52,
+        height: 52,
         fit: BoxFit.contain,
       ),
       Transform.translate(
-        offset: const Offset(0, -5),
+        offset: const Offset(0, -4),
         child: const Text(
           'DIMI',
           style: TextStyle(
             fontFamily: 'Poppins',
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.5,
             color: Color(0xFF302A24),
@@ -354,12 +500,12 @@ class _DimiBrand extends StatelessWidget {
         ),
       ),
       Transform.translate(
-        offset: const Offset(0, -5),
+        offset: const Offset(0, -4),
         child: const Text(
           'Plan  ·  Track  ·  Grow',
           style: TextStyle(
             fontFamily: 'Poppins',
-            fontSize: 10,
+            fontSize: 9,
             fontWeight: FontWeight.w400,
             color: Color(0xFF81766B),
             height: 1.2,
@@ -375,8 +521,9 @@ class _DimiBrand extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _HeroHeadline extends StatelessWidget {
-  const _HeroHeadline({required this.kind});
+  const _HeroHeadline({required this.kind, this.height = 120});
   final DimiNotificationKind kind;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
@@ -397,10 +544,17 @@ class _HeroHeadline extends StatelessWidget {
     };
 
     return SizedBox(
-      height: 138,
+      height: height,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: _HeroDecorationPainter(kind: kind),
+              ),
+            ),
+          ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -410,8 +564,9 @@ class _HeroHeadline extends StatelessWidget {
                   style: const TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 38,
-                    height: 1.06,
+                    height: 1.03,
                     fontWeight: FontWeight.w800,
+                    letterSpacing: -0.8,
                     color: Color(0xFF27221D),
                   ),
                   children: [
@@ -424,9 +579,9 @@ class _HeroHeadline extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Container(
-                width: 40,
+                width: 36,
                 height: 3,
                 decoration: BoxDecoration(
                   color: const Color(0xFFF5A623),
@@ -436,12 +591,12 @@ class _HeroHeadline extends StatelessWidget {
             ],
           ),
           Positioned(
-            right: -10,
-            top: -8,
+            right: -8,
+            top: -4,
             child: Image.asset(
               asset,
-              width: 150,
-              height: 150,
+              width: 132,
+              height: 132,
               fit: BoxFit.contain,
             ),
           ),
@@ -451,8 +606,69 @@ class _HeroHeadline extends StatelessWidget {
   }
 }
 
+class _HeroDecorationPainter extends CustomPainter {
+  const _HeroDecorationPainter({required this.kind});
+  final DimiNotificationKind kind;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final accent = kind == DimiNotificationKind.youtube
+        ? const Color(0xFFE53935)
+        : const Color(0xFFF5A623);
+
+    Paint fill(Color color, double opacity) => Paint()
+      ..color = color.withValues(alpha: opacity)
+      ..style = PaintingStyle.fill;
+    Paint stroke(Color color, double opacity, double width) => Paint()
+      ..color = color.withValues(alpha: opacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width
+      ..strokeCap = StrokeCap.round;
+
+    // Soft, offset blobs echo the shapes inside the reminder card without
+    // competing with the headline or illustration.
+    canvas.drawCircle(
+      Offset(size.width * .88, size.height * .28),
+      size.width * .18,
+      fill(accent, .08),
+    );
+    canvas.drawCircle(
+      Offset(size.width * .78, size.height * .86),
+      size.width * .13,
+      fill(const Color(0xFFBBA6F4), .08),
+    );
+    canvas.drawCircle(
+      Offset(size.width * .06, size.height * .78),
+      size.width * .10,
+      fill(const Color(0xFFFFCB8E), .12),
+    );
+
+    final arc = Path()
+      ..moveTo(size.width * .62, size.height * .90)
+      ..quadraticBezierTo(
+        size.width * .78,
+        size.height * .64,
+        size.width * 1.02,
+        size.height * .72,
+      );
+    canvas.drawPath(arc, stroke(accent, .22, 1.5));
+
+    for (var i = 0; i < 3; i++) {
+      final x = size.width * (.72 + i * .055);
+      canvas.drawLine(
+        Offset(x, size.height * .12),
+        Offset(x + 5, size.height * .18),
+        stroke(accent, .28, 1.4),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _HeroDecorationPainter old) => old.kind != kind;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Unified notification card dispatcher
+// Notification card dispatcher
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _NotifCard extends StatelessWidget {
@@ -482,12 +698,18 @@ class _NotifCard extends StatelessWidget {
       clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(26),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x22000000),
-            blurRadius: 20,
-            offset: Offset(0, 8),
+            color: Color(0x26000000),
+            blurRadius: 30,
+            spreadRadius: 1,
+            offset: Offset(0, 12),
+          ),
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 8,
+            offset: Offset(0, 3),
           ),
         ],
       ),
@@ -501,13 +723,7 @@ class _NotifCard extends StatelessWidget {
           total: total,
           actions: actions,
         ),
-        DimiNotificationKind.planner => _PlannerReminderCard(
-          kind: kind,
-          title: title,
-          scheduledTime: scheduledTime,
-          actions: actions,
-        ),
-        DimiNotificationKind.reminder => _PlannerReminderCard(
+        _ => _PlannerReminderCard(
           kind: kind,
           title: title,
           scheduledTime: scheduledTime,
@@ -519,7 +735,7 @@ class _NotifCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Planner + Reminder: title left, floating time widget right
+// Planner + Reminder card — task 2 scribble blob inside card too
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PlannerReminderCard extends StatelessWidget {
@@ -538,7 +754,6 @@ class _PlannerReminderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPlanner = kind == DimiNotificationKind.planner;
-    // Planner: warm orange widget. Reminder: lavender/purple widget.
     final widgetBg = isPlanner
         ? const Color(0xFFFFF3E0)
         : const Color(0xFFF0EEFF);
@@ -551,77 +766,66 @@ class _PlannerReminderCard extends StatelessWidget {
     final ampmColor = isPlanner
         ? const Color(0xFFF5A623)
         : const Color(0xFF7B6FE8);
-    final indicatorIcon = isPlanner
-        ? Icons.wb_sunny_outlined
-        : Icons.nightlight_round;
 
-    final timeStr = DateFormat('h:mm').format(scheduledTime);
+    final hourStr = DateFormat('hh').format(scheduledTime);
+    final minStr = DateFormat('mm').format(scheduledTime);
     final ampm = DateFormat('a').format(scheduledTime);
 
-    // Strip any "category:" prefix the service might prepend
     final raw = title.trim().isEmpty
         ? (isPlanner ? 'Session' : 'Reminder')
         : title.trim();
-    // Truncate gracefully — never touch the DB value
-    final displayTitle = raw.length > 42
-        ? '${raw.substring(0, 42).trimRight()}…'
-        : raw;
-
     return Stack(
       children: [
-        // Card blob background
         Positioned.fill(child: CustomPaint(painter: _CardBlobPainter())),
-
         Padding(
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Header row: /// marks
               CustomPaint(
-                size: const Size(26, 18),
+                size: const Size(26, 16),
                 painter: _AccentHashPainter(),
               ),
               const SizedBox(height: 8),
-
-              // Title + floating time widget side by side
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Title — left side, takes available space
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: Text(
-                        displayTitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF171717),
-                          height: 1.25,
+                      padding: const EdgeInsets.only(right: 10),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          raw,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF171717),
+                            height: 1.25,
+                          ),
                         ),
                       ),
                     ),
                   ),
-
-                  // Floating time widget — right side
+                  // Time widget — hour stacked over minutes
                   Container(
-                    width: 88,
+                    width: 72,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
+                      horizontal: 8,
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
                       color: widgetBg,
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: widgetBorder, width: 1.2),
                       boxShadow: [
                         BoxShadow(
-                          color: widgetBorder.withValues(alpha: .4),
-                          blurRadius: 8,
+                          color: widgetBorder.withValues(alpha: .35),
+                          blurRadius: 6,
                           offset: const Offset(0, 3),
                         ),
                       ],
@@ -629,27 +833,49 @@ class _PlannerReminderCard extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(indicatorIcon, size: 16, color: ampmColor),
-                        const SizedBox(height: 2),
                         Text(
-                          timeStr,
+                          hourStr,
                           style: TextStyle(
                             fontFamily: 'Poppins',
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
+                            fontSize: 30,
+                            fontWeight: FontWeight.w900,
                             color: widgetTextColor,
                             height: 1.0,
+                            letterSpacing: -1,
                             fontFeatures: const [FontFeature.tabularFigures()],
                           ),
                         ),
+                        Container(
+                          margin: const EdgeInsets.symmetric(vertical: 2),
+                          height: 1.5,
+                          width: 32,
+                          decoration: BoxDecoration(
+                            color: widgetBorder,
+                            borderRadius: BorderRadius.circular(1),
+                          ),
+                        ),
+                        Text(
+                          minStr,
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: widgetTextColor,
+                            height: 1.0,
+                            letterSpacing: -0.5,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                        const SizedBox(height: 3),
                         Text(
                           ampm,
                           style: TextStyle(
                             fontFamily: 'Poppins',
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
                             color: ampmColor,
-                            height: 1.2,
+                            height: 1.0,
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ],
@@ -657,7 +883,7 @@ class _PlannerReminderCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               actions,
             ],
           ),
@@ -668,7 +894,9 @@ class _PlannerReminderCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// YouTube card — thumbnail in original 16:9 ratio, no crop
+// YouTube notification card — task 3 overflow fix
+// Compact layout: /// header + title + channel + ratio-preserving thumbnail +
+// progress row + watched count + action buttons.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _YoutubeCard extends StatelessWidget {
@@ -687,185 +915,169 @@ class _YoutubeCard extends StatelessWidget {
   final Widget actions;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      return Stack(
-        children: [
-          Positioned.fill(child: CustomPaint(painter: _CardBlobPainter())),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // /// accent
-                CustomPaint(
-                  size: const Size(26, 18),
-                  painter: _AccentHashPainter(),
-                ),
-                const SizedBox(height: 6),
-
-                // Title row with YouTube logo
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title.trim().isEmpty
-                            ? 'Daily Watch Reminder'
-                            : title.trim(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF171717),
-                          height: 1.2,
-                        ),
-                      ),
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(child: CustomPaint(painter: _CardBlobPainter())),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // /// accent + YouTube badge in same row
+              Row(
+                children: [
+                  CustomPaint(
+                    size: const Size(26, 16),
+                    painter: _AccentHashPainter(),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
                     ),
-                    const SizedBox(width: 8),
-                    // YouTube logo badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE53935),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Icon(
-                        Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 16,
-                      ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE53935),
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                  ],
-                ),
-
-                // Channel name
-                if (channel.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    channel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 12,
-                      color: Color(0xFF81766B),
-                      height: 1.3,
+                    child: const Icon(
+                      Icons.play_arrow_rounded,
+                      color: Colors.white,
+                      size: 14,
                     ),
                   ),
                 ],
-
-                const SizedBox(height: 10),
-
-                // Thumbnail — full card width, 16:9, cover (no black bars)
-                if (thumbnailUrl.isNotEmpty)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: Image.network(
-                        thumbnailUrl,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
-                          color: const Color(0xFFF0E8DF),
-                          child: const Center(
-                            child: Icon(
-                              Icons.play_circle_outline_rounded,
-                              size: 36,
-                              color: Color(0xFFE53935),
-                            ),
-                          ),
-                        ),
-                        loadingBuilder: (_, child, progress) {
-                          if (progress == null) return child;
-                          return Container(
-                            color: const Color(0xFFF5EDD8),
-                            child: const Center(
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Color(0xFFE53935),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  )
-                else
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: Container(
-                        color: const Color(0xFFF0E8DF),
-                        child: const Center(
-                          child: Icon(
-                            Icons.play_circle_outline_rounded,
-                            size: 36,
-                            color: Color(0xFFE53935),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                const SizedBox(height: 10),
-
-                // Progress bar + percentage
-                Row(
-                  children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: LinearProgressIndicator(
-                          value: (progress / 100).clamp(0, 1),
-                          minHeight: 7,
-                          backgroundColor: const Color(0xFFF0E8DF),
-                          color: const Color(0xFFE53935),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '$progress%',
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                        color: Color(0xFF3A332C),
-                      ),
-                    ),
-                  ],
+              ),
+              const SizedBox(height: 6),
+              // Title
+              Text(
+                title.trim().isEmpty ? 'Daily Watch Reminder' : title.trim(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF171717),
+                  height: 1.2,
                 ),
-                const SizedBox(height: 4),
+              ),
+              // Channel
+              if (channel.isNotEmpty) ...[
+                const SizedBox(height: 2),
                 Text(
-                  '$watched of $total video${total == 1 ? '' : 's'} watched',
+                  channel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 11,
                     color: Color(0xFF81766B),
+                    height: 1.3,
                   ),
                 ),
-
-                const SizedBox(height: 14),
-                actions,
               ],
-            ),
+              const SizedBox(height: 8),
+              // Keep the full thumbnail visible at its native 16:9 ratio.
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: FractionallySizedBox(
+                  widthFactor: 1.0,
+                  alignment: Alignment.center,
+                  child: AspectRatio(
+                    // Crop the source letterbox bars and use the normal
+                    // YouTube thumbnail ratio so the card stays compact.
+                    aspectRatio: 16 / 9,
+                    child: thumbnailUrl.isNotEmpty
+                        ? Image.network(
+                            thumbnailUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => _thumbPlaceholder(),
+                            loadingBuilder: (_, child, prog) {
+                              if (prog == null) return child;
+                              return _thumbLoading();
+                            },
+                          )
+                        : _thumbPlaceholder(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Progress bar + percentage
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(5),
+                      child: LinearProgressIndicator(
+                        value: (progress / 100).clamp(0.0, 1.0),
+                        minHeight: 6,
+                        backgroundColor: const Color(0xFFF0E8DF),
+                        color: const Color(0xFFE53935),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$progress%',
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11,
+                      color: Color(0xFF3A332C),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 3),
+              // Watched count
+              Text(
+                '$watched of $total video${total == 1 ? '' : 's'} watched',
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 10,
+                  color: Color(0xFF81766B),
+                ),
+              ),
+              const SizedBox(height: 10),
+              actions,
+            ],
           ),
-        ],
-      );
-    },
+        ),
+      ],
+    );
+  }
+
+  Widget _thumbPlaceholder() => Container(
+    color: const Color(0xFFF0E8DF),
+    child: const Center(
+      child: Icon(
+        Icons.play_circle_outline_rounded,
+        size: 32,
+        color: Color(0xFFE53935),
+      ),
+    ),
+  );
+
+  Widget _thumbLoading() => Container(
+    color: const Color(0xFFF5EDD8),
+    child: const Center(
+      child: SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: Color(0xFFE53935),
+        ),
+      ),
+    ),
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Action buttons — unchanged logic
+// Action buttons — task 5: cancel notification before acting
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PillButton extends StatelessWidget {
@@ -882,16 +1094,16 @@ class _PillButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    height: 48,
+    height: 46,
     child: OutlinedButton.icon(
       onPressed: onPressed,
-      icon: Icon(icon, size: 16),
+      icon: Icon(icon, size: 15),
       label: Text(label),
       style: OutlinedButton.styleFrom(
         foregroundColor: destructive ? Colors.white : const Color(0xFF3A332C),
         backgroundColor: destructive
             ? const Color(0xFFE5242A)
-            : Colors.white.withValues(alpha: .90),
+            : Colors.white.withValues(alpha: .92),
         side: BorderSide(
           color: destructive
               ? const Color(0xFFE5242A)
@@ -900,7 +1112,7 @@ class _PillButton extends StatelessWidget {
         shape: const StadiumBorder(),
         textStyle: const TextStyle(
           fontFamily: 'Poppins',
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -942,7 +1154,7 @@ class _ActionRow extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Slide-to-action — unchanged logic, slide-only
+// Slide to action
 // ─────────────────────────────────────────────────────────────────────────────
 
 class DimiSlideToAction extends StatefulWidget {
@@ -997,24 +1209,24 @@ class _DimiSlideToActionState extends State<DimiSlideToAction> {
           ? null
           : (_) {
               setState(() => _dragging = false);
-              if (_progress >= .92) {
+              if (_progress >= .88) {
                 _finish();
               } else {
                 setState(() => _progress = 0);
               }
             },
       child: Container(
-        height: 62,
+        height: 60,
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [widget.color.withValues(alpha: .65), widget.color],
+            colors: [widget.color.withValues(alpha: .70), widget.color],
           ),
-          borderRadius: BorderRadius.circular(31),
+          borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-              color: widget.color.withValues(alpha: .3),
-              blurRadius: 16,
-              offset: const Offset(0, 8),
+              color: widget.color.withValues(alpha: .28),
+              blurRadius: 14,
+              offset: const Offset(0, 7),
             ),
           ],
         ),
@@ -1038,18 +1250,18 @@ class _DimiSlideToActionState extends State<DimiSlideToAction> {
                   ? Duration.zero
                   : const Duration(milliseconds: 280),
               curve: Curves.easeOutCubic,
-              left: 4 + _progress * (constraints.maxWidth - 64),
+              left: 4 + _progress * (constraints.maxWidth - 62),
               top: 3,
               child: Container(
-                width: 56,
-                height: 56,
+                width: 54,
+                height: 54,
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.chevron_right_rounded,
-                  size: 26,
+                  size: 24,
                   color: Color(0xFF3A332C),
                 ),
               ),
@@ -1062,7 +1274,7 @@ class _DimiSlideToActionState extends State<DimiSlideToAction> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Result screen — centered, animated, with blob bg
+// Result screen
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ResultScreen extends StatefulWidget {
@@ -1093,14 +1305,14 @@ class _ResultScreenState extends State<_ResultScreen>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 620),
+      duration: const Duration(milliseconds: 600),
     );
     _scale = CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut);
     _fade = CurvedAnimation(
       parent: _ctrl,
       curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
     );
-    _slideUp = Tween<double>(begin: 24, end: 0).animate(
+    _slideUp = Tween<double>(begin: 20, end: 0).animate(
       CurvedAnimation(
         parent: _ctrl,
         curve: const Interval(0.2, 0.7, curve: Curves.easeOut),
@@ -1127,9 +1339,9 @@ class _ResultScreenState extends State<_ResultScreen>
           children: [
             ScaleTransition(
               scale: _scale,
-              child: Icon(widget.icon, size: 88, color: widget.color),
+              child: Icon(widget.icon, size: 80, color: widget.color),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
             AnimatedBuilder(
               animation: _ctrl,
               builder: (context, child) => Opacity(
@@ -1144,11 +1356,11 @@ class _ResultScreenState extends State<_ResultScreen>
                   Text(
                     widget.label,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: 'Poppins',
-                      fontSize: 30,
+                      fontSize: 28,
                       fontWeight: FontWeight.w800,
-                      color: const Color(0xFF27221D),
+                      color: Color(0xFF27221D),
                       height: 1.15,
                     ),
                   ),
@@ -1160,14 +1372,13 @@ class _ResultScreenState extends State<_ResultScreen>
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontFamily: 'Poppins',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
+                        fontSize: 13,
                         color: Color(0xFF81766B),
                         height: 1.5,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 28),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: List.generate(
@@ -1221,42 +1432,26 @@ class _Dot extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Card blob background painter (shared)
+// Card blob background painter
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _CardBlobPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawCircle(
-      Offset(size.width * 1.05, size.height * 0.05),
-      size.width * 0.40,
-      Paint()..color = const Color(0xFFFBD7C0).withValues(alpha: .55),
+      Offset(size.width * 1.04, size.height * 0.06),
+      size.width * 0.38,
+      Paint()..color = const Color(0xFFFBD7C0).withValues(alpha: .50),
     );
     canvas.drawCircle(
-      Offset(size.width * -0.08, size.height * 0.85),
-      size.width * 0.35,
-      Paint()..color = const Color(0xFFFFF0DC).withValues(alpha: .60),
+      Offset(size.width * -0.07, size.height * 0.86),
+      size.width * 0.32,
+      Paint()..color = const Color(0xFFFFF0DC).withValues(alpha: .55),
     );
     canvas.drawCircle(
-      Offset(size.width * 0.90, size.height * 0.65),
-      size.width * 0.18,
-      Paint()..color = const Color(0xFFF5C88A).withValues(alpha: .28),
-    );
-    final swirl = Paint()
-      ..color = const Color(0xFFF5A623).withValues(alpha: .10)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 24
-      ..strokeCap = StrokeCap.round;
-    canvas.drawPath(
-      Path()
-        ..moveTo(size.width * 0.74, size.height * 0.88)
-        ..quadraticBezierTo(
-          size.width * 0.92,
-          size.height * 0.78,
-          size.width * 1.02,
-          size.height * 0.94,
-        ),
-      swirl,
+      Offset(size.width * 0.88, size.height * 0.66),
+      size.width * 0.16,
+      Paint()..color = const Color(0xFFF5C88A).withValues(alpha: .25),
     );
   }
 
@@ -1273,12 +1468,12 @@ class _AccentHashPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final p = Paint()
       ..color = const Color(0xFFF5A623)
-      ..strokeWidth = 2.8
+      ..strokeWidth = 2.5
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
     for (var i = 0; i < 3; i++) {
-      final x = 3.0 + i * 8.5;
-      canvas.drawLine(Offset(x, size.height), Offset(x + 4.5, 0), p);
+      final x = 3.0 + i * 8.0;
+      canvas.drawLine(Offset(x, size.height), Offset(x + 4.0, 0), p);
     }
   }
 
@@ -1297,42 +1492,43 @@ class _ResultBlobPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawCircle(
-      Offset(-40, size.height * 0.2),
-      120,
-      Paint()..color = const Color(0xFFFFCB8E).withValues(alpha: .18),
+      Offset(-40, size.height * 0.20),
+      110,
+      Paint()..color = const Color(0xFFFFCB8E).withValues(alpha: .16),
     );
     canvas.drawCircle(
       Offset(size.width + 40, size.height * 0.15),
-      100,
-      Paint()..color = color.withValues(alpha: .12),
+      90,
+      Paint()..color = color.withValues(alpha: .10),
     );
     canvas.drawCircle(
-      Offset(size.width + 50, size.height * 0.35),
-      150,
-      Paint()..color = const Color(0xFFBBA6F4).withValues(alpha: .15),
+      Offset(size.width + 50, size.height * 0.36),
+      140,
+      Paint()..color = const Color(0xFFBBA6F4).withValues(alpha: .13),
     );
     canvas.drawCircle(
       Offset(-30, size.height * 0.85),
-      130,
-      Paint()..color = color.withValues(alpha: .11),
+      120,
+      Paint()..color = color.withValues(alpha: .09),
     );
     canvas.drawCircle(
-      Offset(size.width * 0.5, size.height + 55),
-      140,
-      Paint()..color = const Color(0xFFFFCB8E).withValues(alpha: .16),
+      Offset(size.width * 0.5, size.height + 50),
+      130,
+      Paint()..color = const Color(0xFFFFCB8E).withValues(alpha: .14),
     );
+    // scribble strokes on result screen too
     final stroke = Paint()
-      ..color = color.withValues(alpha: .18)
+      ..color = color.withValues(alpha: .16)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
+      ..strokeWidth = 1.8
       ..strokeCap = StrokeCap.round;
     canvas.drawPath(
       Path()
-        ..moveTo(size.width * 0.6, size.height * 0.1)
+        ..moveTo(size.width * 0.60, size.height * 0.10)
         ..quadraticBezierTo(
-          size.width * 0.8,
+          size.width * 0.80,
           size.height * 0.17,
-          size.width * 0.9,
+          size.width * 0.90,
           size.height * 0.11,
         ),
       stroke,
@@ -1348,13 +1544,17 @@ class _ResultBlobPainter extends CustomPainter {
         ),
       stroke,
     );
-    final dot = Paint()..color = color.withValues(alpha: .32);
-    canvas.drawCircle(Offset(size.width * 0.72, size.height * 0.22), 4, dot);
-    canvas.drawCircle(Offset(size.width * 0.18, size.height * 0.55), 3.5, dot);
-    canvas.drawCircle(Offset(size.width * 0.85, size.height * 0.6), 5, dot);
-    canvas.drawCircle(Offset(size.width * 0.35, size.height * 0.88), 3.5, dot);
+    final dot = Paint()..color = color.withValues(alpha: .28);
+    canvas.drawCircle(Offset(size.width * 0.72, size.height * 0.22), 3.5, dot);
+    canvas.drawCircle(Offset(size.width * 0.18, size.height * 0.55), 3.0, dot);
+    canvas.drawCircle(Offset(size.width * 0.85, size.height * 0.60), 4.0, dot);
+    canvas.drawCircle(Offset(size.width * 0.35, size.height * 0.88), 3.0, dot);
   }
 
   @override
   bool shouldRepaint(covariant _ResultBlobPainter old) => old.color != color;
 }
+
+// Keep the math import used by _FullPageScribblePainter
+// ignore: unused_element
+final _kPi = math.pi;

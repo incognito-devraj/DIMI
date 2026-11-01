@@ -170,23 +170,17 @@ class NotificationService {
     }
 
     _ready = true;
+
     if (launchDetails?.didNotificationLaunchApp == true &&
         launchDetails?.notificationResponse != null) {
       final response = launchDetails!.notificationResponse!;
       final data = response.payload == null
           ? const <String, dynamic>{}
           : jsonDecode(response.payload!) as Map<String, dynamic>;
-      final type = data[_Key.type] as String?;
-      // For full-screen notification types the DimiReminderScreen is already
-      // shown as the entry point — do NOT also navigate inside the main app.
-      final isFullScreenType =
-          type == DimiNotificationType.reminder.name ||
-          type == DimiNotificationType.planner.name ||
-          type == DimiNotificationType.playlist.name ||
-          type == DimiNotificationType.watch.name;
-      if (!isFullScreenType) {
-        await _processAction(response);
-      }
+      // DimiReminderActivity is a separate FlutterActivity. Its new engine
+      // still starts at the normal router entry point, so the launch payload
+      // must be replayed through the same handler that processes a tap.
+      await _processAction(response);
     }
     if (kDebugMode) debugPrint('[NotificationService] initialised');
   }
@@ -227,11 +221,16 @@ class NotificationService {
     }
     final notificationId = notificationIdOverride ?? reminder.notificationId;
 
-    final sound = await _soundForReminder(reminder.id);
     final type = await _typeForReminder(reminder);
     // Respect the user's notification mode setting.
     final fullScreenEnabled = await isFullScreenModeEnabled();
     final fullScreen = fullScreenEnabled && _usesRedesignedFullScreen(type);
+    // Full-screen alerts are alarm-like and always use the phone ringtone.
+    // Normal notifications retain the user's selected sound, defaulting to
+    // Android's standard notification sound.
+    final sound = fullScreen
+        ? 'ringtone'
+        : await _soundForReminder(reminder.id);
     final notificationTitle = _notificationTitleForReminder(reminder.title);
     final detail = _detailFromReminderTitle(reminder.title, type: type);
     final playlist = await _playlistForReminder(reminder.title);
@@ -242,8 +241,17 @@ class NotificationService {
               const <YoutubeVideo>[];
     final watched = playlistVideos.where((video) => video.completed).length;
     final total = playlist?.totalVideos ?? playlistVideos.length;
+    YoutubeVideo? nextVideo;
+    for (final video in playlistVideos) {
+      if (!video.completed) {
+        nextVideo = video;
+        break;
+      }
+    }
+    final notificationThumbnail =
+        nextVideo?.thumbnailUrl ?? playlist?.thumbnailUrl;
     final thumbnailPath = await _cacheThumbnail(
-      playlist?.thumbnailUrl,
+      notificationThumbnail,
       reminder.notificationId,
     );
     final payload = _buildPayload(
@@ -261,7 +269,7 @@ class NotificationService {
       playlistProgress: total == 0 ? 0 : (watched * 100 ~/ total),
       videosWatched: watched,
       videosTotal: total,
-      thumbnailUrl: playlist?.thumbnailUrl,
+      thumbnailUrl: notificationThumbnail,
     );
 
     await _scheduleAt(
@@ -305,7 +313,7 @@ class NotificationService {
     if (!_ready) return;
     if (dueAt.isBefore(DateTime.now())) return;
 
-    const fullScreen = true;
+    final fullScreen = await isFullScreenModeEnabled();
     final thumbnailPath = await _cacheThumbnail(thumbnailUrl, notificationId);
     final payload = _buildPayload(
       type: DimiNotificationType.playlist,
@@ -365,7 +373,8 @@ class NotificationService {
     final thumbnailPath = isPlaylistTickOff
         ? await _cacheThumbnail(thumbnailUrl, notificationId)
         : null;
-    final fullScreen = isPlaylistTickOff;
+    final fullScreen =
+        isPlaylistTickOff && await isFullScreenModeEnabled();
     final payload = _buildPayload(
       type: type,
       title: displayTitle,
@@ -404,7 +413,7 @@ class NotificationService {
     if (!_ready) return;
     if (dueAt.isBefore(DateTime.now())) return;
 
-    const fullScreen = true;
+    final fullScreen = await isFullScreenModeEnabled();
     final thumbnailPath = await _cacheThumbnail(thumbnailUrl, notificationId);
     final payload = _buildPayload(
       type: DimiNotificationType.watch,
@@ -862,7 +871,7 @@ class NotificationService {
     final playlistId = data[_Key.playlistId] as int?;
     final reminderId = data[_Key.reminderId] as int?;
     if (playlistId != null) {
-      await _db!.youtubePlaylistDao.markWatchedToday(playlistId);
+      await _db!.youtubePlaylistDao.markNextUnwatched(playlistId);
       final reminder = reminderId == null
           ? null
           : await _db!.reminderDao.getById(reminderId);
@@ -922,16 +931,13 @@ class NotificationService {
       body,
       NotificationDetails(
         android: AndroidNotificationDetails(
-          _Channel.reminderId,
+          '${_Channel.reminderId}_default',
           'Reminders',
           channelDescription: 'Reminder confirmations',
           importance: Importance.defaultImportance,
           priority: Priority.defaultPriority,
           icon: _kNotifIcon,
           color: const Color(0xFFF5A623),
-          sound: const UriAndroidNotificationSound(
-            'content://settings/system/ringtone',
-          ),
           autoCancel: true,
         ),
       ),
@@ -942,7 +948,7 @@ class NotificationService {
 
   AndroidNotificationDetails _buildDetails({
     required DimiNotificationType type,
-    String sound = 'ringtone',
+    String sound = 'default',
     String? bigText,
     String? bigPicturePath,
     bool fullScreenIntent = false,
@@ -1185,7 +1191,7 @@ class NotificationService {
   Future<String> _soundForReminder(int id) async {
     final prefs = await SharedPreferences.getInstance();
     final sound = prefs.getString('dimi_reminder_sound_$id');
-    return sound == null || sound == 'default' ? 'ringtone' : sound;
+    return sound == null || sound == 'default' ? 'default' : sound;
   }
 
   Future<String?> _cacheThumbnail(String? url, int notificationId) async {
