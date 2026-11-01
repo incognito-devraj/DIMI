@@ -63,6 +63,11 @@ Future<void> main() async {
 }
 
 Future<void> _finishStartup(AppDatabase db) async {
+  // Handle notification launches before auth/sync work. DimiReminderActivity
+  // uses a separate Flutter engine, and delaying this causes the home route to
+  // render first in debug mode.
+  await NotificationService.instance.init();
+
   // Establish a real local account before any account-scoped work.
   // Moved here from main() so runApp() is never blocked — the splash screen
   // draws immediately while this runs in the background.
@@ -70,8 +75,6 @@ Future<void> _finishStartup(AppDatabase db) async {
 
   await SupabaseBootstrap.initialize();
 
-  // Initialise notifications before anything else.
-  await NotificationService.instance.init();
 
   // Re-register all enabled alarms immediately after init — before any
   // network work — so that the window without live AlarmManager entries is

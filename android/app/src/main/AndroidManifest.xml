@@ -75,7 +75,8 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize"
             android:showWhenLocked="true"
-            android:turnScreenOn="true">
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true">
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
@@ -91,11 +92,12 @@
             android:exported="false"/>
 
         <!-- DIMI native alarm receiver — fires full-screen notifications
-             directly targeting DimiReminderActivity without opening MainActivity. -->
+             directly targeting DimiReminderActivity without opening MainActivity.
+             Must NOT have android:permission here — AlarmManager fires it as the
+             app itself and the extra permission attribute blocks delivery. -->
         <receiver
             android:name=".DimiScheduledReceiver"
-            android:exported="false"
-            android:permission="android.permission.RECEIVE_BOOT_COMPLETED"/>
+            android:exported="false"/>
 
         <!-- Boot-completed receiver to reschedule notifications after reboot.
              android:exported="true" is REQUIRED on Android 12+ — the OS will

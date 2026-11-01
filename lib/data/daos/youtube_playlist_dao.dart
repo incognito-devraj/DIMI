@@ -283,32 +283,21 @@ class YoutubePlaylistDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
-  /// Completes videos in this playlist that were watched today. This is used
-  /// by the notification action so "Mark done" performs the same local-first
-  /// completion write as the playlist screen.
-  Future<int> markWatchedToday(int playlistId) async {
-    final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day);
-    final end = start.add(const Duration(days: 1));
-    final videos = await (select(youtubeVideos).join([
-          innerJoin(
-            youtubePlaylists,
-            youtubePlaylists.id.equalsExp(youtubeVideos.playlistLocalId),
-          ),
-        ])
-          ..where(
-            youtubeVideos.playlistLocalId.equals(playlistId) &
-                youtubeVideos.deletedAt.isNull() &
-                youtubePlaylists.localAccountId.equals(db.activeAccountId) &
-                youtubePlaylists.deletedAt.isNull() &
-                youtubeVideos.watchedAt.isBiggerOrEqualValue(start) &
-                youtubeVideos.watchedAt.isSmallerThanValue(end),
-          ))
-        .get();
-    for (final row in videos.map((row) => row.readTable(youtubeVideos))) {
-      if (!row.completed) await setCompleted(row.id, true);
+  /// Completes exactly the next uncompleted video in playlist order.
+  /// Notification actions use this instead of bulk-completing today's videos,
+  /// so every daily reminder advances to the correct next item.
+  Future<YoutubeVideo?> markNextUnwatched(int playlistId) async {
+    final videos = await getVideos(playlistId);
+    YoutubeVideo? video;
+    for (final candidate in videos) {
+      if (!candidate.completed) {
+        video = candidate;
+        break;
+      }
     }
-    return videos.length;
+    if (video == null) return null;
+    await setCompleted(video.id, true);
+    return video;
   }
 
   Future<bool> hasUncompletedVideos(int playlistId) async {

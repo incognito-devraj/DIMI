@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
@@ -28,9 +29,9 @@ import androidx.core.app.NotificationManagerCompat
  */
 object DimiNotificationHelper {
 
-    private const val CHANNEL_REMINDER  = "dimi_fullscreen_reminder_v1"
-    private const val CHANNEL_PLANNER   = "dimi_fullscreen_planner_v1"
-    private const val CHANNEL_YOUTUBE   = "dimi_fullscreen_youtube_v1"
+    private const val CHANNEL_REMINDER  = "dimi_fullscreen_reminder_v2"
+    private const val CHANNEL_PLANNER   = "dimi_fullscreen_planner_v2"
+    private const val CHANNEL_YOUTUBE   = "dimi_fullscreen_youtube_v2"
 
     /** Call once at app startup (Application.onCreate or FlutterActivity.onCreate). */
     fun ensureChannels(context: Context) {
@@ -44,8 +45,17 @@ object DimiNotificationHelper {
                 enableLights(true)
                 lightColor = accent
                 enableVibration(true)
+                vibrationPattern = longArrayOf(0, 400, 200, 400)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 setBypassDnd(true)
+                // Phone's default ringtone — must be set on the channel on Android 8+.
+                // USAGE_NOTIFICATION keeps it audible even in priority DND modes.
+                val ringtone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+                val audioAttrs = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+                setSound(ringtone, audioAttrs)
             }
 
         nm.createNotificationChannel(make(CHANNEL_REMINDER, "Reminders",
@@ -89,22 +99,27 @@ object DimiNotificationHelper {
         // Build an intent that opens DimiReminderActivity directly.
         // The SELECT_NOTIFICATION action and "payload" extra make the
         // flutter_local_notifications response handler work normally.
-        fun makeIntent(flags: Int = 0): PendingIntent {
+        fun makeIntent(actionId: String? = null, requestCode: Int = notifId): PendingIntent {
             val i = Intent(context, DimiReminderActivity::class.java).apply {
                 action = "SELECT_NOTIFICATION"
                 putExtra("payload", payload)
-                putExtra("notification_id", notifId)
+                putExtra("notificationId", notifId)
+                if (actionId != null) putExtra("actionId", actionId)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or
                          Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
             val piFlags = PendingIntent.FLAG_UPDATE_CURRENT or
-                    PendingIntent.FLAG_IMMUTABLE or flags
-            return PendingIntent.getActivity(context, notifId, i, piFlags)
+                    PendingIntent.FLAG_IMMUTABLE
+            return PendingIntent.getActivity(context, requestCode, i, piFlags)
         }
 
         val fullScreenPi = makeIntent()
-        val contentPi    = makeIntent()
+        val contentPi    = makeIntent(requestCode = notifId + 1)
+        val markDonePi   = makeIntent("dimi_mark_done", notifId + 2)
+        val snoozePi     = makeIntent("dimi_snooze", notifId + 3)
 
+        // Always use the phone's default ringtone — users can override per-reminder
+        // from within DIMI Settings, but the system default is the baseline.
         val ringtone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
 
         val builder = NotificationCompat.Builder(context, channelId)
@@ -115,25 +130,39 @@ object DimiNotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setAutoCancel(true)
+            .setAutoCancel(false)           // user must interact, not swipe away
+            .setOngoing(true)               // prevent dismissal by swipe
             .setSound(ringtone)
             .setVibrate(longArrayOf(0, 400, 200, 400))
-            // Loops the ringtone until the user acts
-            .setOngoing(false)
-            // FLAG_INSISTENT makes the sound repeat
-            .apply {
-                extras.putInt("android.flags", Notification.FLAG_INSISTENT)
-            }
             // Full-screen intent — fires immediately when screen is off / locked
+            // highPriority=true tells the OS this must interrupt immediately
             .setFullScreenIntent(fullScreenPi, true)
             // Content intent — fires when user taps the shade banner
             .setContentIntent(contentPi)
-            // Make notification show on lock screen
+            .addAction(NotificationCompat.Action.Builder(
+                0, "Mark Done", markDonePi).build())
+            .addAction(NotificationCompat.Action.Builder(
+                0, "Snooze 5 min", snoozePi).build())
             .setShowWhen(true)
 
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE)
                 as NotificationManager
-        nm.notify(notifId, builder.build())
+        // Build the notification then stamp FLAG_INSISTENT onto it directly —
+        // the extras-based approach does not reliably propagate the flag.
+        val notif = builder.build()
+        notif.flags = notif.flags or Notification.FLAG_INSISTENT
+        nm.notify(notifId, notif)
+
+        // Android normally launches a full-screen intent only while the
+        // screen is locked or off. DIMI's full-screen mode is user-selected,
+        // so also deliver the same activity when the display is already on.
+        // The PendingIntent is identical to the notification's content path,
+        // keeping payload/action handling in one place.
+        try {
+            fullScreenPi.send()
+        } catch (_: PendingIntent.CanceledException) {
+            // The notification remains visible if the activity cannot launch.
+        }
     }
 
     /** Cancel a specific notification (mirrors flutter_local_notifications cancel). */
