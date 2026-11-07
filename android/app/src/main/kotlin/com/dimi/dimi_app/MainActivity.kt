@@ -115,6 +115,11 @@ class MainActivity : FlutterActivity() {
                         DimiAlarmScheduler.cancel(this, notifId)
                         result.success(null)
                     }
+                    "cancelRetry" -> {
+                        val notifId = call.argument<Int>("notifId") ?: 0
+                        DimiNotificationHelper.cancelRetry(this, notifId)
+                        result.success(null)
+                    }
                     "showImmediate" -> {
                         // For testing or snooze re-fire
                         val notifId = call.argument<Int>("notifId") ?: 0
