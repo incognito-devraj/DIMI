@@ -7,6 +7,7 @@ import 'dart:ui' show Color;
 import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
@@ -170,6 +171,29 @@ class NotificationService {
     }
 
     _ready = true;
+
+    // DimiReminderActivity uses a native PendingIntent so Android can deliver
+    // the alarm directly. Read that intent here instead of waiting for the
+    // flutter_local_notifications launch callback (which cannot see native
+    // notification intents).
+    try {
+      final native = await DimiAlarmService.reminderIntentChannel
+          .invokeMethod<Map<dynamic, dynamic>>('getReminderIntent');
+      if (native != null) {
+        final payload = native['payload'] as String?;
+        final id = native['notificationId'] as int? ?? 0;
+        if (payload != null && id != 0) {
+          await _processPayload(
+            id,
+            native['actionId'] as String?,
+            payload,
+          );
+        }
+      }
+    } on PlatformException {
+      // MainActivity has no native reminder channel; normal app launches use
+      // the plugin launch-details path below.
+    }
 
     if (launchDetails?.didNotificationLaunchApp == true &&
         launchDetails?.notificationResponse != null) {
@@ -447,6 +471,7 @@ class NotificationService {
     if (!_ready) return;
     await _plugin.cancel(id);
     await DimiAlarmService.instance.cancel(id);
+    await DimiAlarmService.instance.cancelRetry(id);
     for (var day = 1; day <= _dailyOccurrenceDays; day++) {
       await _plugin.cancel(id + _dailyOccurrenceOffset + day);
       await DimiAlarmService.instance.cancel(id + _dailyOccurrenceOffset + day);
@@ -456,6 +481,10 @@ class NotificationService {
   /// Completes a notification from the in-app full-screen experience while
   /// preserving the same local-first path used by shade actions.
   Future<void> completeFromFullScreen(Map<String, dynamic> data) async {
+    final accountId = data[_Key.accountId] as int?;
+    if (accountId != null && accountId > 0) {
+      _db?.setActiveAccountId(accountId);
+    }
     final id = data[_Key.notificationId] as int?;
     if (id != null) await _plugin.cancel(id);
     await _markDone(data);
@@ -466,7 +495,13 @@ class NotificationService {
   Future<void> snoozeFromFullScreen(
     int notificationId,
     Map<String, dynamic> data,
-  ) => _snoozeReminder(notificationId, data);
+  ) async {
+    final accountId = data[_Key.accountId] as int?;
+    if (accountId != null && accountId > 0) {
+      _db?.setActiveAccountId(accountId);
+    }
+    await _snoozeReminder(notificationId, data);
+  }
 
   Future<void> showTestNotification() async {
     if (!_ready) return;
@@ -632,9 +667,13 @@ class NotificationService {
     final actionId = response.actionId;
     if (id == null) return;
 
-    final data = response.payload == null
-        ? const <String, dynamic>{}
-        : jsonDecode(response.payload!) as Map<String, dynamic>;
+    await _processPayload(id, actionId, response.payload);
+  }
+
+  Future<void> _processPayload(int id, String? actionId, String? payload) async {
+    if (payload == null) return;
+
+    final data = jsonDecode(payload) as Map<String, dynamic>;
 
     final type = data[_Key.type] as String?;
 
@@ -1095,6 +1134,10 @@ class NotificationService {
     // This avoids flutter_local_notifications' hard-coded getLaunchIntentForPackage()
     // which always targets MainActivity and causes the app-open flash.
     if (details.fullScreenIntent) {
+      // A previous normal-mode schedule with the same ID may still be held by
+      // flutter_local_notifications. Remove it before installing the native
+      // full-screen alarm, otherwise both alarms can fire after a mode change.
+      await _plugin.cancel(id);
       // Extract type from payload for the native receiver
       String notifType = 'reminder';
       try {

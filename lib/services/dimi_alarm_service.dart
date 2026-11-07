@@ -11,6 +11,9 @@ class DimiAlarmService {
   static final DimiAlarmService instance = DimiAlarmService._();
 
   static const _channel = MethodChannel('com.dimi.dimi_app/alarm_scheduler');
+  static const reminderIntentChannel = MethodChannel(
+    'com.dimi.dimi_app/reminder_intent',
+  );
 
   /// Schedule a full-screen notification at [triggerAt].
   ///
@@ -51,6 +54,14 @@ class DimiAlarmService {
       if (kDebugMode) {
         debugPrint('[DimiAlarm] cancel failed #$notifId: $e');
       }
+    }
+  }
+
+  Future<void> cancelRetry(int notifId) async {
+    try {
+      await _channel.invokeMethod<void>('cancelRetry', {'notifId': notifId});
+    } catch (e) {
+      if (kDebugMode) debugPrint('[DimiAlarm] retry cancel failed #$notifId: $e');
     }
   }
 
