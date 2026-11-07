@@ -70,7 +70,7 @@
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
-            android:theme="@style/LaunchTheme"
+            android:theme="@style/ReminderTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize"
@@ -97,6 +97,9 @@
              app itself and the extra permission attribute blocks delivery. -->
         <receiver
             android:name=".DimiScheduledReceiver"
+            android:exported="false"/>
+        <receiver
+            android:name=".DimiRetryReceiver"
             android:exported="false"/>
 
         <!-- Boot-completed receiver to reschedule notifications after reboot.

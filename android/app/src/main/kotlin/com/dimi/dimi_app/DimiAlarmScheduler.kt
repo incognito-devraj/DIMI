@@ -18,6 +18,7 @@ import android.os.Build
  * via DimiNotificationHelper with DimiReminderActivity as the target.
  */
 object DimiAlarmScheduler {
+    private const val PAYLOAD_PREFIX = "dimi_alarm_payload_"
 
     /**
      * Schedule (or reschedule) a single notification.
@@ -46,6 +47,8 @@ object DimiAlarmScheduler {
         }
 
         val pi = buildPendingIntent(context, notifId, payload, title, body, type)
+        context.getSharedPreferences("dimi_alarms", Context.MODE_PRIVATE)
+            .edit().putString(PAYLOAD_PREFIX + notifId, payload).apply()
 
         // AlarmManager.AlarmClockInfo shows a clock in the status bar and
         // fires exactly on time even in Doze/power-saving mode.
@@ -63,7 +66,13 @@ object DimiAlarmScheduler {
         val pi = buildPendingIntent(context, notifId, "", "", "", "")
         am.cancel(pi)
         pi.cancel()
+        context.getSharedPreferences("dimi_alarms", Context.MODE_PRIVATE)
+            .edit().remove(PAYLOAD_PREFIX + notifId).apply()
     }
+
+    fun isCurrent(context: Context, notifId: Int, payload: String): Boolean =
+        context.getSharedPreferences("dimi_alarms", Context.MODE_PRIVATE)
+            .getString(PAYLOAD_PREFIX + notifId, null) == payload
 
     private fun buildPendingIntent(
         context: Context,

@@ -21,6 +21,7 @@ class DimiScheduledReceiver : BroadcastReceiver() {
         val title   = intent.getStringExtra(EXTRA_TITLE)   ?: return
         val body    = intent.getStringExtra(EXTRA_BODY)    ?: ""
         val type    = intent.getStringExtra(EXTRA_TYPE)    ?: "reminder"
+        if (!DimiAlarmScheduler.isCurrent(context, notifId, payload)) return
 
         // Acquire a wake lock so the CPU doesn't sleep before we finish.
         val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager

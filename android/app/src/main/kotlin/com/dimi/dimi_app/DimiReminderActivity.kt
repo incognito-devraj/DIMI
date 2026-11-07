@@ -3,11 +3,15 @@ package com.dimi.dimi_app
 import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
+import android.media.MediaPlayer
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
 
 /**
  * Dedicated full-screen entry point for reminder / planner notifications.
@@ -22,7 +26,13 @@ import io.flutter.embedding.android.FlutterActivity
  */
 class DimiReminderActivity : FlutterActivity() {
 
+    private val reminderChannel = "com.dimi.dimi_app/reminder_intent"
+    private val alarmChannel = "com.dimi.dimi_app/alarm_scheduler"
+
     private var _wakeLock: PowerManager.WakeLock? = null
+    private var ringtonePlayer: MediaPlayer? = null
+    private var alarmRingingFinished = false
+    private var shadeFallbackShown = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // ── 1. Transparent background before engine starts ────────────────
@@ -59,12 +69,92 @@ class DimiReminderActivity : FlutterActivity() {
             "dimi:reminder_wake"
         ).also { it.acquire(10_000L) } // 10-second safety cap
 
+        // Play only after the native alarm window exists, so Flutter engine
+        // startup cannot lead the audio by a second or two.
+        playThreeRings()
+
         super.onCreate(savedInstanceState)
+
+    }
+
+    private fun playThreeRings() {
+        val player = MediaPlayer()
+        ringtonePlayer = player
+        player.setAudioAttributes(AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build())
+        player.setDataSource(this, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE))
+        var count = 0
+        player.setOnCompletionListener {
+            count++
+            if (count >= 3) {
+                alarmRingingFinished = true
+                stopRingtone()
+            } else it.start()
+        }
+        player.prepare()
+        player.start()
+    }
+
+    private fun stopRingtone() {
+        ringtonePlayer?.let {
+            if (it.isPlaying) it.stop()
+            it.release()
+        }
+        ringtonePlayer = null
+        val notificationId = intent.getIntExtra("notificationId", 0)
+        val title = intent.getStringExtra("title") ?: "DIMI reminder"
+        val body = intent.getStringExtra("body") ?: "You have a reminder."
+        if (alarmRingingFinished && !shadeFallbackShown && notificationId != 0) {
+            shadeFallbackShown = true
+            DimiNotificationHelper.showShadeFallback(this, notificationId, title, body)
+            window.decorView.postDelayed({ finishAndRemoveTask() }, 250L)
+        }
+    }
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, reminderChannel)
+            .setMethodCallHandler { call, result ->
+                if (call.method != "getReminderIntent") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                val payload = intent.getStringExtra("payload")
+                if (payload.isNullOrBlank()) {
+                    result.success(null)
+                } else {
+                    result.success(mapOf(
+                        "payload" to payload,
+                        "notificationId" to intent.getIntExtra("notificationId", 0),
+                        "actionId" to intent.getStringExtra("actionId"),
+                    ))
+                    intent.removeExtra("payload")
+                }
+            }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, alarmChannel)
+            .setMethodCallHandler { call, result ->
+                val id = call.argument<Int>("notifId") ?: 0
+                when (call.method) {
+                    "cancel" -> {
+                        DimiAlarmScheduler.cancel(this, id)
+                        DimiNotificationHelper.cancel(this, id)
+                        result.success(null)
+                    }
+                    "cancelRetry" -> {
+                        DimiNotificationHelper.cancelRetry(this, id)
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
     }
 
     override fun onDestroy() {
         _wakeLock?.let { if (it.isHeld) it.release() }
         _wakeLock = null
+        stopRingtone()
         super.onDestroy()
     }
 
