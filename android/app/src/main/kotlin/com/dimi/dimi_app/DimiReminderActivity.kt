@@ -35,6 +35,8 @@ class DimiReminderActivity : FlutterActivity() {
     private var shadeFallbackShown = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val actionIntent = intent.getStringExtra("actionId") != null
+
         // ── 1. Transparent background before engine starts ────────────────
         // This is the single most effective way to prevent the white flash:
         // the window is invisible while Flutter renders its first frame.
@@ -69,9 +71,16 @@ class DimiReminderActivity : FlutterActivity() {
             "dimi:reminder_wake"
         ).also { it.acquire(10_000L) } // 10-second safety cap
 
-        // Play only after the native alarm window exists, so Flutter engine
-        // startup cannot lead the audio by a second or two.
-        playThreeRings()
+        // Action buttons use this activity as a direct PendingIntent so the
+        // payload can be handed to Flutter. They are not a new alarm event:
+        // never start the ringtone again when Mark Done/Snooze is pressed.
+        // Starting it here was the cause of the ringtone continuing after a
+        // normal notification action was tapped.
+        if (!actionIntent) {
+            // Play only after the native alarm window exists, so Flutter engine
+            // startup cannot lead the audio by a second or two.
+            playThreeRings()
+        }
 
         super.onCreate(savedInstanceState)
 
@@ -159,6 +168,12 @@ class DimiReminderActivity : FlutterActivity() {
     }
 
     override fun onNewIntent(intent: Intent) {
+        if (intent.getStringExtra("actionId") != null) {
+            // An action can arrive while the alarm activity is already open.
+            // Stop any existing alarm audio before forwarding the action.
+            alarmRingingFinished = false
+            stopRingtone()
+        }
         super.onNewIntent(intent)
         setIntent(intent)
     }

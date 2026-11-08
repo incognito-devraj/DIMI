@@ -52,7 +52,6 @@ enum DimiNotificationType {
 
 /// Controls whether reminder-class notifications are ordinary shade
 /// notifications or Android full-screen notifications.
-enum DimiNotificationMode { normal, fullScreen }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Action ID constants (must be stable — they survive process death)
@@ -139,7 +138,6 @@ class NotificationService {
   static const _confirmationIdOffset = 200000;
   static const _dailyOccurrenceOffset = 1000000000;
   static const _dailyOccurrenceDays = 30;
-  static const _notificationModeKey = 'dimi_notification_mode';
 
   // ── Init ─────────────────────────────────────────────────────────────────
 
@@ -183,11 +181,7 @@ class NotificationService {
         final payload = native['payload'] as String?;
         final id = native['notificationId'] as int? ?? 0;
         if (payload != null && id != 0) {
-          await _processPayload(
-            id,
-            native['actionId'] as String?,
-            payload,
-          );
+          await _processPayload(id, native['actionId'] as String?, payload);
         }
       }
     } on PlatformException {
@@ -246,15 +240,12 @@ class NotificationService {
     final notificationId = notificationIdOverride ?? reminder.notificationId;
 
     final type = await _typeForReminder(reminder);
-    // Respect the user's notification mode setting.
-    final fullScreenEnabled = await isFullScreenModeEnabled();
-    final fullScreen = fullScreenEnabled && _usesRedesignedFullScreen(type);
-    // Full-screen alerts are alarm-like and always use the phone ringtone.
-    // Normal notifications retain the user's selected sound, defaulting to
-    // Android's standard notification sound.
-    final sound = fullScreen
-        ? 'ringtone'
-        : await _soundForReminder(reminder.id);
+    // Android chooses a heads-up popup while active and the full-screen
+    // activity while the display is off or locked.
+    final fullScreen = _usesRedesignedFullScreen(type);
+    // Normal popups use the phone notification sound. The native full-screen
+    // activity owns the phone ringtone while the display is off.
+    final sound = fullScreen ? 'ringtone' : 'default';
     final notificationTitle = _notificationTitleForReminder(reminder.title);
     final detail = _detailFromReminderTitle(reminder.title, type: type);
     final playlist = await _playlistForReminder(reminder.title);
@@ -337,7 +328,7 @@ class NotificationService {
     if (!_ready) return;
     if (dueAt.isBefore(DateTime.now())) return;
 
-    final fullScreen = await isFullScreenModeEnabled();
+    final fullScreen = true;
     final thumbnailPath = await _cacheThumbnail(thumbnailUrl, notificationId);
     final payload = _buildPayload(
       type: DimiNotificationType.playlist,
@@ -397,8 +388,7 @@ class NotificationService {
     final thumbnailPath = isPlaylistTickOff
         ? await _cacheThumbnail(thumbnailUrl, notificationId)
         : null;
-    final fullScreen =
-        isPlaylistTickOff && await isFullScreenModeEnabled();
+    final fullScreen = isPlaylistTickOff;
     final payload = _buildPayload(
       type: type,
       title: displayTitle,
@@ -437,7 +427,7 @@ class NotificationService {
     if (!_ready) return;
     if (dueAt.isBefore(DateTime.now())) return;
 
-    final fullScreen = await isFullScreenModeEnabled();
+    final fullScreen = true;
     final thumbnailPath = await _cacheThumbnail(thumbnailUrl, notificationId);
     final payload = _buildPayload(
       type: DimiNotificationType.watch,
@@ -476,6 +466,19 @@ class NotificationService {
       await _plugin.cancel(id + _dailyOccurrenceOffset + day);
       await DimiAlarmService.instance.cancel(id + _dailyOccurrenceOffset + day);
     }
+  }
+
+  /// Fast path for the full-screen activity. It cancels only the notification
+  /// that is currently visible; cancelling every future daily occurrence here
+  /// made slider actions feel blocked. The normal cancel path remains
+  /// responsible for deleting an entire reminder.
+  Future<void> cancelCurrentNotification(int id) async {
+    if (!_ready) return;
+    await Future.wait<void>([
+      _plugin.cancel(id),
+      DimiAlarmService.instance.cancel(id),
+      DimiAlarmService.instance.cancelRetry(id),
+    ]);
   }
 
   /// Completes a notification from the in-app full-screen experience while
@@ -539,14 +542,6 @@ class NotificationService {
     }
   }
 
-  Future<bool> isFullScreenModeEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
-    // Full-screen is DIMI's default notification experience. A user can
-    // still explicitly switch back to normal notifications in Settings.
-    return prefs.getString(_notificationModeKey) !=
-        DimiNotificationMode.normal.name;
-  }
-
   bool _usesRedesignedFullScreen(DimiNotificationType type) =>
       type == DimiNotificationType.reminder ||
       type == DimiNotificationType.planner ||
@@ -555,21 +550,6 @@ class NotificationService {
 
   /// Persists the mode and reapplies it to already scheduled reminders so a
   /// setting change takes effect without waiting for the next edit or reboot.
-  Future<void> setNotificationMode(DimiNotificationMode mode) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_notificationModeKey, mode.name);
-    if (mode == DimiNotificationMode.fullScreen && _ready) {
-      await _plugin
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >()
-          ?.requestFullScreenIntentPermission();
-    }
-    if (_ready && _db != null) {
-      await rescheduleAll(await _db!.reminderDao.getAllEnabled());
-    }
-  }
-
   Future<void> setReminderSound(int id, String sound) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('dimi_reminder_sound_$id', sound);
@@ -670,7 +650,11 @@ class NotificationService {
     await _processPayload(id, actionId, response.payload);
   }
 
-  Future<void> _processPayload(int id, String? actionId, String? payload) async {
+  Future<void> _processPayload(
+    int id,
+    String? actionId,
+    String? payload,
+  ) async {
     if (payload == null) return;
 
     final data = jsonDecode(payload) as Map<String, dynamic>;
@@ -858,10 +842,12 @@ class NotificationService {
       // daily time (and every future occurrence) by five minutes.
       if (_isDailyPlaylistReminder(reminder)) {
         await _plugin.cancel(notificationId);
-        await scheduleReminder(
-          reminder,
-          notificationIdOverride: notificationId,
-          dueAtOverride: DateTime.now().add(const Duration(minutes: 5)),
+        unawaited(
+          scheduleReminder(
+            reminder,
+            notificationIdOverride: notificationId,
+            dueAtOverride: DateTime.now().add(const Duration(minutes: 5)),
+          ),
         );
         return;
       }
@@ -886,7 +872,7 @@ class NotificationService {
             debugPrint('[NotificationService] snooze cancel failed: $e\n$st');
           }
         }
-        await scheduleReminder(updated);
+        unawaited(scheduleReminder(updated));
       }
     } catch (e, st) {
       if (kDebugMode) {
@@ -919,11 +905,13 @@ class NotificationService {
             .hasUncompletedVideos(playlistId);
         if (!playlistHasWork) {
           await _db!.reminderDao.toggleEnabled(reminder.id, false);
-          await cancelReminder(reminder.notificationId);
-          await _showConfirmation(
-            id: (reminderId ?? playlistId) + _confirmationIdOffset,
-            title: 'Playlist complete',
-            body: 'All videos in this playlist are complete.',
+          unawaited(cancelCurrentNotification(reminder.notificationId));
+          unawaited(
+            _showConfirmation(
+              id: (reminderId ?? playlistId) + _confirmationIdOffset,
+              title: 'Playlist complete',
+              body: 'All videos in this playlist are complete.',
+            ),
           );
           return;
         }
@@ -938,12 +926,17 @@ class NotificationService {
           ),
         );
         final updated = await _db!.reminderDao.getById(reminder.id);
-        if (updated != null) await scheduleReminder(updated);
+        // The local completion is the user-visible operation. Thumbnail
+        // downloads and the next daily alarm can finish after the action UI
+        // has closed.
+        if (updated != null) unawaited(scheduleReminder(updated));
       }
-      await _showConfirmation(
-        id: (reminderId ?? playlistId) + _confirmationIdOffset,
-        title: 'Playlist updated',
-        body: "Today's watched videos have been marked done.",
+      unawaited(
+        _showConfirmation(
+          id: (reminderId ?? playlistId) + _confirmationIdOffset,
+          title: 'Playlist updated',
+          body: "Today's watched videos have been marked done.",
+        ),
       );
       return;
     }

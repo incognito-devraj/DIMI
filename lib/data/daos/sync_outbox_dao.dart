@@ -85,6 +85,7 @@ class SyncOutboxDao extends DatabaseAccessor<AppDatabase>
             baseRemoteUpdatedAt: Value(baseRemoteUpdatedAt?.toUtc()),
             updatedAt: Value(effectiveLocalMutationAt),
           ));
+      db.scheduleLocalMutationSync();
       return;
     }
 
@@ -106,6 +107,7 @@ class SyncOutboxDao extends DatabaseAccessor<AppDatabase>
         lastError: const Value(null),
       ),
     );
+    db.scheduleLocalMutationSync();
   }
 
   Stream<List<SyncOutboxData>> watchReady({int? localAccountId}) {

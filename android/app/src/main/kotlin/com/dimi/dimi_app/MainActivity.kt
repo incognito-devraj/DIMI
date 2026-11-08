@@ -120,6 +120,10 @@ class MainActivity : FlutterActivity() {
                         DimiNotificationHelper.cancelRetry(this, notifId)
                         result.success(null)
                     }
+                    "cleanupStaleEntries" -> {
+                        DimiAlarmScheduler.cleanupStaleEntries(this)
+                        result.success(null)
+                    }
                     "showImmediate" -> {
                         // For testing or snooze re-fire
                         val notifId = call.argument<Int>("notifId") ?: 0

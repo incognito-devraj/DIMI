@@ -15,6 +15,7 @@ import 'providers/note_providers.dart';
 import 'features/youtube_playlist/providers.dart';
 import 'routing/app_router.dart';
 import 'services/notification_service.dart';
+import 'services/dimi_alarm_service.dart';
 import 'theme/app_theme.dart';
 import 'services/auth_service.dart';
 import 'config/supabase_config.dart';
@@ -33,11 +34,25 @@ Future<void> main() async {
   // offline users.
   await SupabaseBootstrap.loadOfflineMode();
 
+  // Register Supabase's deep-link observer before the first route exists so
+  // a cold-start Google OAuth callback is consumed reliably by PKCE.
+  await SupabaseBootstrap.initialize();
+
   // Create and expose the local database before the first frame. All other
   // startup work continues in the background so Android never shows a blank
   // window while Supabase, notifications, sync, and rescheduling initialize.
   final db = AppDatabase();
+  db.onLocalMutationSync = () => SyncService(db).syncNow();
   NotificationService.instance.attachDatabase(db);
+
+  // Restore the local account context before the first frame. This is a
+  // SQLite-only operation and prevents a signed-in user's rows from being
+  // queried through a newly-created offline account after a restart.
+  await db.localAccountDao.ensureOfflineAccount();
+  final restoredUser = SupabaseBootstrap.client?.auth.currentUser;
+  if (restoredUser != null) {
+    await AuthService.instance.syncLocalProfile(db, user: restoredUser);
+  }
 
   // Run the app immediately — no awaits before runApp so Flutter draws its
   // first frame (the splash screen) as fast as possible. Account setup and
@@ -68,13 +83,8 @@ Future<void> _finishStartup(AppDatabase db) async {
   // render first in debug mode.
   await NotificationService.instance.init();
 
-  // Establish a real local account before any account-scoped work.
-  // Moved here from main() so runApp() is never blocked — the splash screen
-  // draws immediately while this runs in the background.
-  await db.localAccountDao.ensureOfflineAccount();
-
-  await SupabaseBootstrap.initialize();
-
+  // Clean up stale alarm entries before rescheduling to prevent ghost alarms
+  await DimiAlarmService.instance.cleanupStaleEntries();
 
   // Re-register all enabled alarms immediately after init — before any
   // network work — so that the window without live AlarmManager entries is
@@ -93,7 +103,7 @@ Future<void> _finishStartup(AppDatabase db) async {
   if (restoredUser != null) {
     await AuthService.instance.synchronizeAuthState(db, restoredUser);
     try {
-      await SyncService(db).syncNow(forceFullPull: true);
+      await SyncService(db).syncNow();
     } catch (error, stackTrace) {
       // A remote/RLS outage must not prevent the local-first UI from opening.
       // SyncService has already logged the detailed remote error; preserve
@@ -147,13 +157,10 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
           authState.event != AuthChangeEvent.signedOut) {
         return;
       }
-      final hydrateAccount =
-          authState.event == AuthChangeEvent.initialSession ||
-          authState.event == AuthChangeEvent.signedIn;
       unawaited(
         AuthService.instance
             .synchronizeAuthState(db, authState.session?.user)
-            .then((_) => _syncAndRefresh(forceFullPull: hydrateAccount)),
+            .then((_) => _syncAndRefresh(forceFullPull: false)),
       );
     });
   }
@@ -198,7 +205,7 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
       );
     }
     try {
-      await _syncAndRefresh(forceFullPull: true);
+      await _syncAndRefresh(forceFullPull: false);
     } catch (error, stackTrace) {
       // Resume must remain local-first when the network/session is transient.
       debugPrint('[DIMI sync] resume sync failed; keeping local data: $error');
@@ -206,14 +213,17 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _syncAndRefresh({bool forceFullPull = false}) async {
+  Future<void> _syncAndRefresh({
+    bool forceFullPull = false,
+    bool refreshProviders = true,
+  }) async {
     try {
       await _syncService.syncNow(forceFullPull: forceFullPull);
     } finally {
       // Home is kept alive by the shell while other pages are opened. Refresh
       // all local-data providers after hydration so its cards cannot retain
       // the pre-sync empty state.
-      _refreshLocalNotificationState();
+      if (refreshProviders) _refreshLocalNotificationState();
     }
   }
 
@@ -292,10 +302,14 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
         'taskId': '${taskId is int ? taskId : ''}',
         'playlistId': '${playlistId is int ? playlistId : ''}',
         'channel': '${data['channel'] is String ? data['channel'] : ''}',
-        'playlistProgress': '${data['playlist_progress'] is int ? data['playlist_progress'] : 0}',
-        'videosWatched': '${data['videos_watched'] is int ? data['videos_watched'] : 0}',
-        'videosTotal': '${data['videos_total'] is int ? data['videos_total'] : 0}',
-        'thumbnailUrl': '${data['thumbnail_url'] is String ? data['thumbnail_url'] : ''}',
+        'playlistProgress':
+            '${data['playlist_progress'] is int ? data['playlist_progress'] : 0}',
+        'videosWatched':
+            '${data['videos_watched'] is int ? data['videos_watched'] : 0}',
+        'videosTotal':
+            '${data['videos_total'] is int ? data['videos_total'] : 0}',
+        'thumbnailUrl':
+            '${data['thumbnail_url'] is String ? data['thumbnail_url'] : ''}',
         'kind': type == 'planner'
             ? 'planner'
             : type == 'playlist' || type == 'watch'
@@ -358,7 +372,7 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
     _syncTimer?.cancel();
     _syncTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       unawaited(_expirePastReminders());
-      unawaited(_syncAndRefresh());
+      unawaited(_syncAndRefresh(refreshProviders: false));
     });
   }
 

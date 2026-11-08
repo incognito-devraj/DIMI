@@ -92,7 +92,9 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
     setState(() => _busy = true);
     try {
       // Cancel the notification first so it vanishes immediately
-      await NotificationService.instance.cancelReminder(widget.notifId);
+      await NotificationService.instance.cancelCurrentNotification(
+        widget.notifId,
+      );
 
       if (widget.kind == DimiNotificationKind.youtube) {
         await NotificationService.instance.completeFromFullScreen({
@@ -120,8 +122,7 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
           DimiNotificationKind.reminder => 'Marked as done',
         };
       });
-      await Future<void>.delayed(const Duration(milliseconds: 700));
-      if (mounted) _closeActivity();
+      _closeActivity();
     } catch (_) {
       if (mounted)
         setState(() {
@@ -135,7 +136,9 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
     setState(() => _busy = true);
     try {
       // Cancel current notification immediately
-      await NotificationService.instance.cancelReminder(widget.notifId);
+      await NotificationService.instance.cancelCurrentNotification(
+        widget.notifId,
+      );
 
       await NotificationService.instance.snoozeFromFullScreen(widget.notifId, {
         'reminder_id': widget.reminderId,
@@ -144,8 +147,7 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
       });
       if (!mounted) return;
       setState(() => _result = 'Snoozed for 5 minutes');
-      await Future<void>.delayed(const Duration(milliseconds: 700));
-      if (mounted) _closeActivity();
+      _closeActivity();
     } catch (_) {
       if (mounted)
         setState(() {
@@ -158,7 +160,9 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
     if (_busy) return;
     setState(() => _busy = true);
     // Cancel notification and close — no DB change, just dismiss
-    await NotificationService.instance.cancelReminder(widget.notifId);
+    await NotificationService.instance.cancelCurrentNotification(
+      widget.notifId,
+    );
     if (mounted) _closeActivity();
   }
 
@@ -550,9 +554,7 @@ class _HeroHeadline extends StatelessWidget {
         children: [
           Positioned.fill(
             child: IgnorePointer(
-              child: CustomPaint(
-                painter: _HeroDecorationPainter(kind: kind),
-              ),
+              child: CustomPaint(painter: _HeroDecorationPainter(kind: kind)),
             ),
           ),
           Column(

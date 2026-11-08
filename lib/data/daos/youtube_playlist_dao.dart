@@ -103,7 +103,7 @@ class YoutubePlaylistDao extends DatabaseAccessor<AppDatabase>
     required YoutubePlaylistsCompanion playlist,
     required List<YoutubeVideosCompanion> videos,
   }) async {
-    return transaction(() async {
+    final localId = await transaction(() async {
       final existing =
           await (select(youtubePlaylists)..where(
                 (p) =>
@@ -198,6 +198,7 @@ class YoutubePlaylistDao extends DatabaseAccessor<AppDatabase>
       }
       return localId;
     });
+    return localId;
   }
 
   Future<void> setCompleted(int videoId, bool value) async {

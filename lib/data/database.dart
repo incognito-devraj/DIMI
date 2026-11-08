@@ -62,6 +62,8 @@ class AppDatabase extends _$AppDatabase {
   // Zero means no account context has been activated yet. Callers must await
   // account initialization instead of accidentally reading local account 1.
   int _activeAccountId = 0;
+  Future<void> Function()? onLocalMutationSync;
+  Timer? _localMutationSyncTimer;
   final StreamController<int> _activeAccountChanges =
       StreamController<int>.broadcast();
   int get activeAccountId => _activeAccountId;
@@ -76,8 +78,21 @@ class AppDatabase extends _$AppDatabase {
     _activeAccountChanges.add(id);
   }
 
+  /// Debounces outbox-triggered cloud pushes until the surrounding Drift
+  /// transaction has committed. This keeps writes local-first while avoiding
+  /// one network request per row in a playlist import.
+  void scheduleLocalMutationSync() {
+    final callback = onLocalMutationSync;
+    if (callback == null) return;
+    _localMutationSyncTimer?.cancel();
+    _localMutationSyncTimer = Timer(const Duration(milliseconds: 150), () {
+      unawaited(callback().catchError((_) {}));
+    });
+  }
+
   @override
   Future<void> close() async {
+    _localMutationSyncTimer?.cancel();
     await _activeAccountChanges.close();
     await super.close();
   }

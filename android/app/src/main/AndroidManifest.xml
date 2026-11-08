@@ -68,6 +68,7 @@
         <activity
             android:name=".DimiReminderActivity"
             android:exported="true"
+            android:directBootAware="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
             android:theme="@style/ReminderTheme"
@@ -97,10 +98,27 @@
              app itself and the extra permission attribute blocks delivery. -->
         <receiver
             android:name=".DimiScheduledReceiver"
-            android:exported="false"/>
+            android:exported="false"
+            android:directBootAware="true"/>
         <receiver
             android:name=".DimiRetryReceiver"
-            android:exported="false"/>
+            android:exported="false"
+            android:directBootAware="true"/>
+
+        <!-- Restores DIMI native AlarmManager entries after reboot/update.
+             It does not start Flutter or a background service. -->
+        <receiver
+            android:name=".DimiBootReceiver"
+            android:exported="true"
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
 
         <!-- Boot-completed receiver to reschedule notifications after reboot.
              android:exported="true" is REQUIRED on Android 12+ — the OS will

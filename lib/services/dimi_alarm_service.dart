@@ -57,11 +57,27 @@ class DimiAlarmService {
     }
   }
 
+  /// Remove all alarm metadata older than 24 hours.
+  /// Called during app startup to prevent ghost alarms after reboot.
+  Future<void> cleanupStaleEntries() async {
+    try {
+      await _channel.invokeMethod<void>('cleanupStaleEntries');
+      if (kDebugMode) {
+        debugPrint('[DimiAlarm] cleaned up stale alarm entries');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[DimiAlarm] cleanup failed: $e');
+      }
+    }
+  }
+
   Future<void> cancelRetry(int notifId) async {
     try {
       await _channel.invokeMethod<void>('cancelRetry', {'notifId': notifId});
     } catch (e) {
-      if (kDebugMode) debugPrint('[DimiAlarm] retry cancel failed #$notifId: $e');
+      if (kDebugMode)
+        debugPrint('[DimiAlarm] retry cancel failed #$notifId: $e');
     }
   }
 

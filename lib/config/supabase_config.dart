@@ -17,7 +17,6 @@ class SupabaseAuthRefreshNotifier extends ChangeNotifier {
     super.dispose();
   }
 }
-
 /// Runtime configuration is supplied with --dart-define so secrets and
 /// project-specific values do not need to be committed to source control.
 abstract final class SupabaseConfig {
@@ -102,7 +101,6 @@ abstract final class SupabaseBootstrap {
       authOptions: FlutterAuthClientOptions(
         authFlowType: AuthFlowType.pkce,
         detectSessionInUri: true,
-        detectSessionInUriPredicate: _isSupabaseAuthCallback,
       ),
     );
     _client = Supabase.instance.client;
@@ -122,6 +120,3 @@ abstract final class SupabaseBootstrap {
 
   static Stream<AuthState> get authChanges => _authEvents.stream;
 }
-
-bool _isSupabaseAuthCallback(Uri uri) =>
-    uri.scheme == 'com.dimi.dimi' && uri.host == 'login-callback';

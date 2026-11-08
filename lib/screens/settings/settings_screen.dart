@@ -11,7 +11,6 @@ import '../../providers/database_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/dimi_hero.dart';
 import '../../widgets/dimi_social_links.dart';
-import 'notification_type_sheet.dart';
 
 // ─── Settings screen ──────────────────────────────────────────────────────────
 
@@ -158,7 +157,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
             // ── Notifications ─────────────────────────────────────────────
             _SectionHeader(title: 'Notifications'),
-            _SectionCard(items: [const _NotificationModeTile()]),
 
             const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
@@ -298,64 +296,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ],
         ),
       ),
-    );
-  }
-}
-
-// ─── Notification mode tile ───────────────────────────────────────────────────
-
-class _NotificationModeTile extends StatefulWidget {
-  const _NotificationModeTile();
-
-  @override
-  State<_NotificationModeTile> createState() => _NotificationModeTileState();
-}
-
-class _NotificationModeTileState extends State<_NotificationModeTile> {
-  late Future<bool> _mode;
-
-  @override
-  void initState() {
-    super.initState();
-    _mode = NotificationService.instance.isFullScreenModeEnabled();
-  }
-
-  // Called by the sheet AFTER it has already persisted the mode.
-  // Only update local display state — do NOT call setNotificationMode again.
-  void _onModeSaved(bool fullScreen) {
-    if (!mounted) return;
-    setState(() => _mode = Future.value(fullScreen));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<bool>(
-      future: _mode,
-      builder: (context, snapshot) {
-        final fullScreen = snapshot.data ?? false;
-        return _SettingsTile(
-          icon: Icons.notifications_active_outlined,
-          iconColor: AppColors.accent,
-          label: 'Notification Type',
-          subtitle: fullScreen
-              ? 'Full Screen Notification'
-              : 'Normal Notification',
-          onTap: () async {
-            final isFS = await NotificationService.instance
-                .isFullScreenModeEnabled();
-            if (!context.mounted) return;
-            showModalBottomSheet<bool>(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (_) => NotificationTypeSheet(
-                initialFullScreen: isFS,
-                onSaved: _onModeSaved,
-              ),
-            );
-          },
-        );
-      },
     );
   }
 }

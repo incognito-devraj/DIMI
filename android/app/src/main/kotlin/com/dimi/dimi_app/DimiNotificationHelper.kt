@@ -35,6 +35,7 @@ object DimiNotificationHelper {
     private const val CHANNEL_PLANNER   = "dimi_fullscreen_planner_v5"
     private const val CHANNEL_YOUTUBE   = "dimi_fullscreen_youtube_v5"
     private const val CHANNEL_FALLBACK  = "dimi_notification_fallback_v5"
+    private const val CHANNEL_HEADS_UP = "dimi_notification_heads_up_v1"
     private const val CHANNEL_REMINDER_SILENT = "dimi_fullscreen_reminder_silent_v5"
     private const val CHANNEL_PLANNER_SILENT = "dimi_fullscreen_planner_silent_v5"
     private const val CHANNEL_YOUTUBE_SILENT = "dimi_fullscreen_youtube_silent_v5"
@@ -85,6 +86,20 @@ object DimiNotificationHelper {
                 .build()
             setSound(tone, attrs)
         })
+        nm.createNotificationChannel(NotificationChannel(
+            CHANNEL_HEADS_UP, "DIMI alerts", NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "DIMI notification popups"
+            enableVibration(true)
+            vibrationPattern = longArrayOf(0, 250, 120, 250)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            val tone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val attrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            setSound(tone, attrs)
+        })
     }
 
     /**
@@ -118,11 +133,7 @@ object DimiNotificationHelper {
             "planner" -> CHANNEL_PLANNER_SILENT
             "playlist", "watch" -> CHANNEL_YOUTUBE_SILENT
             else -> CHANNEL_REMINDER_SILENT
-        } else when (type) {
-            "planner"          -> CHANNEL_PLANNER
-            "playlist", "watch"-> CHANNEL_YOUTUBE
-            else               -> CHANNEL_REMINDER
-        }
+        } else CHANNEL_HEADS_UP
         val accentColor = when (type) {
             "playlist", "watch" -> Color.parseColor("#E53935")
             else                -> Color.parseColor("#F5A623")
