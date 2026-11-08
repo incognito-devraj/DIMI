@@ -172,8 +172,7 @@ class YoutubePlaylistDao extends DatabaseAccessor<AppDatabase>
           // The natural key is (playlist_local_id, youtube_video_id), not the
           // local integer id. Update the existing row explicitly so metadata
           // refreshes cannot create a duplicate or lose local progress.
-          await (update(youtubeVideos)
-                ..where((v) => v.id.equals(previous.id)))
+          await (update(youtubeVideos)..where((v) => v.id.equals(previous.id)))
               .write(metadata.copyWith(id: Value(previous.id)));
         }
         final savedVideo =
@@ -207,7 +206,6 @@ class YoutubePlaylistDao extends DatabaseAccessor<AppDatabase>
               ..where((v) => v.id.equals(videoId) & v.deletedAt.isNull()))
             .getSingleOrNull();
     if (before == null) {
-      debugPrint('[DIMI youtube completion] DAO missing video localId=$videoId');
       return;
     }
     final owned =
@@ -224,18 +222,8 @@ class YoutubePlaylistDao extends DatabaseAccessor<AppDatabase>
             ))
             .getSingleOrNull();
     if (owned == null) {
-      debugPrint(
-        '[DIMI youtube completion] DAO rejected unowned video '
-        'localId=$videoId activeAccount=${db.activeAccountId}',
-      );
       return;
     }
-    debugPrint(
-      '[DIMI youtube completion] DAO before localId=$videoId '
-      'account=${db.activeAccountId} serverId=${before.serverId} '
-      'completed=${before.completed} desired=$value '
-      'remoteVersion=${before.remoteUpdatedAt}',
-    );
     // Use a single, strictly-increasing timestamp for this mutation so that
     // completed, watchedAt, progressUpdatedAt and updatedAt are all coherent
     // and the outbox baseRemoteUpdatedAt CAS anchor is unambiguous.
@@ -254,12 +242,6 @@ class YoutubePlaylistDao extends DatabaseAccessor<AppDatabase>
     final video = await (select(
       youtubeVideos,
     )..where((v) => v.id.equals(videoId))).getSingle();
-    debugPrint(
-      '[DIMI youtube completion] DAO after localId=${video.id} '
-      'account=${db.activeAccountId} serverId=${video.serverId} '
-      'completed=${video.completed} watchedAt=${video.watchedAt} '
-      'updatedAt=${video.updatedAt}',
-    );
     await db.syncOutboxDao.enqueue(
       localAccountId: db.activeAccountId,
       entityType: OutboxEntity.video,
@@ -270,18 +252,14 @@ class YoutubePlaylistDao extends DatabaseAccessor<AppDatabase>
       localMutationAt: video.updatedAt,
       dependencyRank: OutboxDependencyRank.video,
     );
-    final outbox = await (db.select(db.syncOutbox)
-          ..where((o) =>
-              o.localAccountId.equals(db.activeAccountId) &
-              o.entityType.equals(OutboxEntity.video) &
-              o.localRowId.equals(video.id)))
-        .getSingleOrNull();
-    debugPrint(
-      '[DIMI youtube completion] DAO outbox localId=${video.id} '
-      'account=${db.activeAccountId} entity=${outbox?.entityType} '
-      'operation=${outbox?.operation} serverId=${outbox?.serverId} '
-      'state=${outbox?.state} base=${outbox?.baseRemoteUpdatedAt}',
-    );
+    final outbox =
+        await (db.select(db.syncOutbox)..where(
+              (o) =>
+                  o.localAccountId.equals(db.activeAccountId) &
+                  o.entityType.equals(OutboxEntity.video) &
+                  o.localRowId.equals(video.id),
+            ))
+            .getSingleOrNull();
   }
 
   /// Completes exactly the next uncompleted video in playlist order.
@@ -302,15 +280,16 @@ class YoutubePlaylistDao extends DatabaseAccessor<AppDatabase>
   }
 
   Future<bool> hasUncompletedVideos(int playlistId) async {
-    final row = await (select(youtubeVideos)
-          ..where(
-            (video) =>
-                video.playlistLocalId.equals(playlistId) &
-                video.deletedAt.isNull() &
-                video.completed.equals(false),
-          )
-          ..limit(1))
-        .getSingleOrNull();
+    final row =
+        await (select(youtubeVideos)
+              ..where(
+                (video) =>
+                    video.playlistLocalId.equals(playlistId) &
+                    video.deletedAt.isNull() &
+                    video.completed.equals(false),
+              )
+              ..limit(1))
+            .getSingleOrNull();
     return row != null;
   }
 
