@@ -170,25 +170,6 @@ class NotificationService {
 
     _ready = true;
 
-    // Actions completed on the native Direct Boot surface are applied after
-    // the first unlock. Alarm delivery itself never waits for Flutter or
-    // Supabase.
-    try {
-      final queued = jsonDecode(
-        await DimiAlarmService.instance.consumeDirectBootActions(),
-      ) as List<dynamic>;
-      for (final item in queued) {
-        final action = item['action'] as String?;
-        final id = item['id'] as int?;
-        final payload = item['payload'] as String?;
-        if (action != null && id != null && payload != null) {
-          await _processPayload(id, action, payload);
-        }
-      }
-    } catch (_) {
-      // A malformed boot-action record must not block notification startup.
-    }
-
     // DimiReminderActivity uses a native PendingIntent so Android can deliver
     // the alarm directly. Read that intent here instead of waiting for the
     // flutter_local_notifications launch callback (which cannot see native

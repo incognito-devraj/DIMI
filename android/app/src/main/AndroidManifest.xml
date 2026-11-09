@@ -84,18 +84,6 @@
               />
         </activity>
 
-        <!-- Native Direct Boot surface. It is used before the first PIN
-             unlock so Flutter is never the first process on the alarm path. -->
-        <activity
-            android:name=".DimiDirectBootActivity"
-            android:exported="false"
-            android:directBootAware="true"
-            android:launchMode="singleTop"
-            android:theme="@style/ReminderTheme"
-            android:showWhenLocked="true"
-            android:turnScreenOn="true"
-            android:excludeFromRecents="true" />
-
         <!-- Receivers required by flutter_local_notifications -->
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
@@ -125,6 +113,20 @@
             android:directBootAware="true">
             <intent-filter>
                 <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
+
+        <!-- Boot-completed receiver to reschedule notifications after reboot.
+             android:exported="true" is REQUIRED on Android 12+ — the OS will
+             not deliver BOOT_COMPLETED to an unexported receiver. -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
+            android:exported="true">
+            <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
                 <action android:name="android.intent.action.QUICKBOOT_POWERON"/>

@@ -81,14 +81,6 @@ class DimiAlarmService {
     }
   }
 
-  Future<String> consumeDirectBootActions() async {
-    try {
-      return await _channel.invokeMethod<String>('consumeDirectBootActions') ?? '[]';
-    } catch (_) {
-      return '[]';
-    }
-  }
-
   /// Show a full-screen notification immediately (used for snooze re-fire).
   Future<void> showImmediate({
     required int notifId,

@@ -2,10 +2,6 @@ package com.dimi.dimi_app
 
 import android.content.Intent
 import android.content.ClipData
-import android.app.NotificationManager
-import android.net.Uri
-import android.os.Build
-import android.provider.Settings
 import androidx.core.content.FileProvider
 import android.os.Bundle
 import android.view.WindowManager
@@ -17,7 +13,6 @@ import java.io.File
 class MainActivity : FlutterActivity() {
     private val updateChannel = "com.dimi.dimi_app/update_installer"
     private val alarmChannel  = "com.dimi.dimi_app/alarm_scheduler"
-    private var fullScreenPermissionPromptShown = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Ensure notification channels exist before anything else
@@ -41,32 +36,6 @@ class MainActivity : FlutterActivity() {
 
         configureNotificationWindow(intent)
         super.onCreate(savedInstanceState)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (fullScreenPermissionPromptShown || Build.VERSION.SDK_INT < 34) return
-
-        val manager = getSystemService(NotificationManager::class.java)
-        if (manager.canUseFullScreenIntent()) return
-
-        // Android 14+ can revoke USE_FULL_SCREEN_INTENT. It cannot be
-        // restored by an alarm receiver during Direct Boot, so direct the user
-        // to the system-controlled permission page while the app is open.
-        fullScreenPermissionPromptShown = true
-        window.decorView.postDelayed({
-            try {
-                startActivity(
-                    Intent(
-                        Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
-                        Uri.parse("package:$packageName"),
-                    ),
-                )
-            } catch (_: Exception) {
-                // Older OEMs may not expose this settings action. The normal
-                // notification fallback remains available in that case.
-            }
-        }, 600L)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -150,9 +119,6 @@ class MainActivity : FlutterActivity() {
                         val notifId = call.argument<Int>("notifId") ?: 0
                         DimiNotificationHelper.cancelRetry(this, notifId)
                         result.success(null)
-                    }
-                    "consumeDirectBootActions" -> {
-                        result.success(DimiDirectBootActionStore.consume(this))
                     }
                     "cleanupStaleEntries" -> {
                         DimiAlarmScheduler.cleanupStaleEntries(this)

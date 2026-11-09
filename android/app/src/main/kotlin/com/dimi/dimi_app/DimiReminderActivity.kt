@@ -35,7 +35,6 @@ class DimiReminderActivity : FlutterActivity() {
     private var shadeFallbackShown = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        DimiNotificationHelper.clearVisible(this, intent.getIntExtra("notificationId", 0))
         val actionIntent = intent.getStringExtra("actionId") != null
 
         // ── 1. Transparent background before engine starts ────────────────
