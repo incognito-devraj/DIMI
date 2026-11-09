@@ -6,7 +6,6 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../config/supabase_config.dart';
 import '../../routing/app_router.dart';
 import '../../services/auth_service.dart';
-import '../../services/notification_service.dart';
 import '../../providers/database_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/dimi_hero.dart';

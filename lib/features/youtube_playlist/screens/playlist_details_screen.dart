@@ -89,9 +89,7 @@ class LocalPlaylistDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Future<YouTubePlaylist?> _loadLocalPlaylist(
-    YoutubePlaylistDao dao,
-  ) async {
+  Future<YouTubePlaylist?> _loadLocalPlaylist(YoutubePlaylistDao dao) async {
     final row = await dao.getByYoutubeId('local', playlistId);
     if (row == null) return null;
     final videos = await dao.getVideos(row.id);
@@ -578,114 +576,83 @@ class _Header extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-        // ── Full-width thumbnail ────────────────────────────────────────────
-        ClipRRect(
-          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: PlaylistThumbnail(label: p.thumbnailUrl, large: true),
+          // ── Full-width thumbnail ────────────────────────────────────────────
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: PlaylistThumbnail(label: p.thumbnailUrl, large: true),
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
+          const SizedBox(height: 8),
 
-        // ── Title ───────────────────────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                p.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  height: 1.1,
+          // ── Title ───────────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  p.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    height: 1.1,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
+                const SizedBox(height: 8),
 
-        // ── Channel row ─────────────────────────────────────────────────────
-        Row(
-          children: [
-            Container(
-              width: 18,
-              height: 13,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF0000),
-                borderRadius: BorderRadius.circular(3),
-              ),
-              child: const Icon(
-                Icons.play_arrow_rounded,
-                color: Colors.white,
-                size: 11,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                p.channelTitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                // ── Channel row ─────────────────────────────────────────────────────
+                Row(
+                  children: [
+                    Container(
+                      width: 18,
+                      height: 13,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF0000),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: const Icon(
+                        Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 11,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        p.channelTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _MetaGroup(
+                      totalVideos: p.totalVideos,
+                      totalDuration: totalDur,
+                    ),
+                  ],
                 ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            _MetaGroup(
-              totalVideos: p.totalVideos,
-              totalDuration: totalDur,
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
+                const SizedBox(height: 10),
 
-        // ── Compact progress summary ────────────────────────────────────────
-        _ProgressCard(
-          watched: watched,
-          total: total,
-          ratio: ratio,
-          videos: videos,
-        ),
+                // ── Compact progress summary ────────────────────────────────────────
+                _ProgressCard(
+                  watched: watched,
+                  total: total,
+                  ratio: ratio,
+                  videos: videos,
+                ),
               ],
             ),
           ),
 
-        // ── Description (hidden by default) ─────────────────────────────────
-        ],
-      ),
-    );
-  }
-}
-
-/// Small pill badge used in the meta row.
-class _MetaBadge extends StatelessWidget {
-  const _MetaBadge({required this.icon, required this.label});
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: AppColors.textSecondary),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall
-                ?.copyWith(fontWeight: FontWeight.w500),
-          ),
+          // ── Description (hidden by default) ─────────────────────────────────
         ],
       ),
     );
@@ -717,20 +684,14 @@ class _MetaGroup extends StatelessWidget {
         children: [
           const Icon(Icons.video_library_outlined, size: 14),
           const SizedBox(width: 4),
-          Text(
-            '$totalVideos videos',
-            style: const TextStyle(fontSize: 10),
-          ),
+          Text('$totalVideos videos', style: const TextStyle(fontSize: 10)),
           if (totalDuration.inSeconds > 0) ...[
             const SizedBox(width: 12),
             Container(width: 1, height: 16, color: AppColors.divider),
             const SizedBox(width: 8),
             const Icon(Icons.access_time_rounded, size: 14),
             const SizedBox(width: 4),
-            Text(
-              _fmt(totalDuration),
-              style: const TextStyle(fontSize: 10),
-            ),
+            Text(_fmt(totalDuration), style: const TextStyle(fontSize: 10)),
           ],
         ],
       ),
@@ -847,11 +808,7 @@ class _ProgressDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 60,
-      color: AppColors.divider,
-    );
+    return Container(width: 1, height: 60, color: AppColors.divider);
   }
 }
 
@@ -1908,56 +1865,56 @@ class _PlaylistReminderSectionState
       ),
       child: Column(
         children: [
-        // Daily watch reminder
-        _ReminderRow(
-          icon: Icons.wb_sunny_rounded,
-          iconColor: const Color(0xFFF5A623),
-          title: 'Daily watch reminder',
-          subtitle: 'Remind me to watch this playlist',
-          enabled: _watchEnabled,
-          time: _watchTime,
-          onToggle: _toggleWatch,
-          onTimeTap: () => _pickTime(
-            current: _watchTime,
-            key: _watchKey,
-            title: _watchTitle,
-            onPick: (t) => setState(() => _watchTime = t),
-            isEnabled: _watchEnabled,
-            existingId: _watchReminderId,
-            onSaved: (id) => setState(() => _watchReminderId = id),
+          // Daily watch reminder
+          _ReminderRow(
+            icon: Icons.wb_sunny_rounded,
+            iconColor: const Color(0xFFF5A623),
+            title: 'Daily watch reminder',
+            subtitle: 'Remind me to watch this playlist',
+            enabled: _watchEnabled,
+            time: _watchTime,
+            onToggle: _toggleWatch,
+            onTimeTap: () => _pickTime(
+              current: _watchTime,
+              key: _watchKey,
+              title: _watchTitle,
+              onPick: (t) => setState(() => _watchTime = t),
+              isEnabled: _watchEnabled,
+              existingId: _watchReminderId,
+              onSaved: (id) => setState(() => _watchReminderId = id),
+            ),
           ),
-        ),
 
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 6),
             child: Divider(height: 1),
           ),
 
-        // End of Day reminder
-        _ReminderRow(
-          icon: Icons.nightlight_round,
-          iconColor: const Color(0xFF536DFE),
-          iconRotation: math.pi / 2,
-          customIcon: SvgPicture.asset(
-            'assets/logos/day_end_reminder.svg',
-            width: 42,
-            height: 42,
+          // End of Day reminder
+          _ReminderRow(
+            icon: Icons.nightlight_round,
+            iconColor: const Color(0xFF536DFE),
+            iconRotation: math.pi / 2,
+            customIcon: SvgPicture.asset(
+              'assets/logos/day_end_reminder.svg',
+              width: 42,
+              height: 42,
+            ),
+            title: 'End of day reminder',
+            subtitle: 'Remind me to tick videos I\'ve watched',
+            enabled: _tickEnabled,
+            time: _tickTime,
+            onToggle: _toggleTick,
+            onTimeTap: () => _pickTime(
+              current: _tickTime,
+              key: _tickKey,
+              title: _tickTitle,
+              onPick: (t) => setState(() => _tickTime = t),
+              isEnabled: _tickEnabled,
+              existingId: _tickReminderId,
+              onSaved: (id) => setState(() => _tickReminderId = id),
+            ),
           ),
-          title: 'End of day reminder',
-          subtitle: 'Remind me to tick videos I\'ve watched',
-          enabled: _tickEnabled,
-          time: _tickTime,
-          onToggle: _toggleTick,
-          onTimeTap: () => _pickTime(
-            current: _tickTime,
-            key: _tickKey,
-            title: _tickTitle,
-            onPick: (t) => setState(() => _tickTime = t),
-            isEnabled: _tickEnabled,
-            existingId: _tickReminderId,
-            onSaved: (id) => setState(() => _tickReminderId = id),
-          ),
-        ),
         ],
       ),
     );
@@ -1997,10 +1954,13 @@ class _ReminderRow extends StatelessWidget {
           width: 42,
           height: 42,
           decoration: BoxDecoration(
-            color: customIcon == null ? AppColors.accentSoft : Colors.transparent,
+            color: customIcon == null
+                ? AppColors.accentSoft
+                : Colors.transparent,
             shape: BoxShape.circle,
           ),
-          child: customIcon ??
+          child:
+              customIcon ??
               Transform.rotate(
                 angle: iconRotation,
                 child: Icon(icon, size: 23, color: iconColor),
@@ -2013,19 +1973,16 @@ class _ReminderRow extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: Theme.of(context).textTheme.titleSmall
+                    ?.copyWith(fontSize: 13, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 1),
               Text(
                 subtitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  fontSize: 10,
-                ),
+                style: Theme.of(context).textTheme.labelSmall
+                    ?.copyWith(fontSize: 10),
               ),
             ],
           ),
