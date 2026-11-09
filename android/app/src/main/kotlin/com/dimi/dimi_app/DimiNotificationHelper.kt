@@ -11,6 +11,7 @@ import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.PowerManager
+import android.os.UserManager
 import android.app.KeyguardManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -125,11 +126,18 @@ object DimiNotificationHelper {
 
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE)
                 as NotificationManager
-        val fullScreenAllowed = Build.VERSION.SDK_INT < 34 || nm.canUseFullScreenIntent()
         val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
         val screenIsOffOrLocked = !power.isInteractive || keyguard.isKeyguardLocked
-        val channelId = if (!fullScreenAllowed) CHANNEL_FALLBACK else if (screenIsOffOrLocked) when (type) {
+        val directBoot = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
+            !(context.getSystemService(Context.USER_SERVICE) as UserManager).isUserUnlocked
+        // Do not switch to a fallback channel based on canUseFullScreenIntent
+        // here. During Direct Boot that API can report false before the user
+        // unlocks even though the notification channel is valid. Posting the
+        // fallback channel at that point downgrades the alarm permanently to a
+        // lock-screen notification. Always post the alarm channel and let
+        // Android decide whether the FSI permission is available.
+        val channelId = if (screenIsOffOrLocked) when (type) {
             "planner" -> CHANNEL_PLANNER_SILENT
             "playlist", "watch" -> CHANNEL_YOUTUBE_SILENT
             else -> CHANNEL_REMINDER_SILENT
@@ -143,12 +151,15 @@ object DimiNotificationHelper {
         // The SELECT_NOTIFICATION action and "payload" extra make the
         // flutter_local_notifications response handler work normally.
         fun makeIntent(actionId: String? = null, requestCode: Int = notifId): PendingIntent {
-            val i = Intent(context, DimiReminderActivity::class.java).apply {
+            val target = if (directBoot) DimiDirectBootActivity::class.java
+                else DimiReminderActivity::class.java
+            val i = Intent(context, target).apply {
                 action = "SELECT_NOTIFICATION"
                 putExtra("payload", payload)
                 putExtra("notificationId", notifId)
                 putExtra("title", title)
                 putExtra("body", body)
+                putExtra("type", type)
                 if (actionId != null) putExtra("actionId", actionId)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or
                          Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -173,11 +184,13 @@ object DimiNotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setAutoCancel(false)           // user must interact, not swipe away
-            .setOngoing(true)               // prevent dismissal by swipe
+            .setAutoCancel(false)
+            // The full-screen activity owns the alarm lifecycle. Keeping the
+            // backing card ongoing caused Android to re-present it on every
+            // unlock when the activity was deferred during boot.
+            .setOngoing(false)
             .setSilent(false)
             .setVibrate(longArrayOf(0, 400, 200, 400))
-            .setTimeoutAfter(20_000L)
             // Full-screen intent — fires immediately when screen is off / locked
             // highPriority=true tells the OS this must interrupt immediately
             .setFullScreenIntent(fullScreenPi, true)
@@ -194,6 +207,19 @@ object DimiNotificationHelper {
         val notif = builder.build()
         nm.notify(notifId, notif)
         scheduleRetry(context, notifId, payload, title, body, type, retryCount)
+
+        // During Direct Boot/OEM startup Android can defer a passive
+        // setFullScreenIntent and expose only the lock-screen notification.
+        // The earlier working DIMI path explicitly sent this PendingIntent.
+        // Preserve that behavior for locked/off-screen alarms; the posted
+        // notification remains the fallback if Android rejects the launch.
+        if (screenIsOffOrLocked) {
+            try {
+                fullScreenPi.send()
+            } catch (_: PendingIntent.CanceledException) {
+                // Keep the notification visible in the shade.
+            }
+        }
 
         // Android owns delivery of the full-screen intent when the display is
         // off or the keyguard is showing. When the user is actively using the
@@ -230,6 +256,11 @@ object DimiNotificationHelper {
     fun cancel(context: Context, notifId: Int) {
         NotificationManagerCompat.from(context).cancel(notifId)
         cancelRetry(context, notifId)
+    }
+
+    /** Clears the visible alarm card without cancelling its five-minute retry. */
+    fun clearVisible(context: Context, notifId: Int) {
+        NotificationManagerCompat.from(context).cancel(notifId)
     }
 
     /** Leaves a single audible, ordinary shade notification after the alarm UI ends. */
