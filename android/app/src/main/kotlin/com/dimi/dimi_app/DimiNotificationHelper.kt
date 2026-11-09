@@ -12,6 +12,7 @@ import android.media.RingtoneManager
 import android.os.Build
 import android.os.PowerManager
 import android.app.KeyguardManager
+import android.os.UserManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 
@@ -36,9 +37,6 @@ object DimiNotificationHelper {
     private const val CHANNEL_YOUTUBE   = "dimi_fullscreen_youtube_v5"
     private const val CHANNEL_FALLBACK  = "dimi_notification_fallback_v5"
     private const val CHANNEL_HEADS_UP = "dimi_notification_heads_up_v1"
-    private const val CHANNEL_REMINDER_SILENT = "dimi_fullscreen_reminder_silent_v5"
-    private const val CHANNEL_PLANNER_SILENT = "dimi_fullscreen_planner_silent_v5"
-    private const val CHANNEL_YOUTUBE_SILENT = "dimi_fullscreen_youtube_silent_v5"
 
     /** Call once at app startup (Application.onCreate or FlutterActivity.onCreate). */
     fun ensureChannels(context: Context) {
@@ -71,12 +69,6 @@ object DimiNotificationHelper {
                 Color.parseColor("#F5A623")))
         nm.createNotificationChannel(make(CHANNEL_YOUTUBE,  "YouTube",
                 Color.parseColor("#E53935")))
-        nm.createNotificationChannel(make(CHANNEL_REMINDER_SILENT, "Reminders",
-                Color.parseColor("#F5A623")).apply { setSound(null, null) })
-        nm.createNotificationChannel(make(CHANNEL_PLANNER_SILENT, "Planner",
-                Color.parseColor("#F5A623")).apply { setSound(null, null) })
-        nm.createNotificationChannel(make(CHANNEL_YOUTUBE_SILENT, "YouTube",
-                Color.parseColor("#E53935")).apply { setSound(null, null) })
         nm.createNotificationChannel(make(CHANNEL_FALLBACK, "DIMI notifications",
                 Color.parseColor("#F5A623")).apply {
             val tone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
@@ -125,15 +117,32 @@ object DimiNotificationHelper {
 
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE)
                 as NotificationManager
-        val fullScreenAllowed = Build.VERSION.SDK_INT < 34 || nm.canUseFullScreenIntent()
+        val isDirectBoot = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
+            !(context.getSystemService(Context.USER_SERVICE) as UserManager).isUserUnlocked
+        // Android can report FSI access as unavailable during Direct Boot even
+        // when the app is allowed to use it after the first unlock. Keep the
+        // alarm channel for this delivery and let System UI evaluate the FSI.
+        val fullScreenAllowed = isDirectBoot || Build.VERSION.SDK_INT < 34 ||
+            nm.canUseFullScreenIntent()
         val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
         val screenIsOffOrLocked = !power.isInteractive || keyguard.isKeyguardLocked
-        val channelId = if (!fullScreenAllowed) CHANNEL_FALLBACK else if (screenIsOffOrLocked) when (type) {
-            "planner" -> CHANNEL_PLANNER_SILENT
-            "playlist", "watch" -> CHANNEL_YOUTUBE_SILENT
-            else -> CHANNEL_REMINDER_SILENT
-        } else CHANNEL_HEADS_UP
+        val channelId = if (!fullScreenAllowed) {
+            CHANNEL_FALLBACK
+        } else if (screenIsOffOrLocked) {
+            // Use AUDIBLE alarm channels when screen is off/locked so the notification
+            // itself plays sound (Android 8+ requires channel-level audio config).
+            // DimiReminderActivity also plays the ringtone, creating a loud, persistent
+            // alarm experience. The brief overlap is intentional and matches how the
+            // system Clock app works.
+            when (type) {
+                "planner" -> CHANNEL_PLANNER
+                "playlist", "watch" -> CHANNEL_YOUTUBE
+                else -> CHANNEL_REMINDER
+            }
+        } else {
+            CHANNEL_HEADS_UP
+        }
         val accentColor = when (type) {
             "playlist", "watch" -> Color.parseColor("#E53935")
             else                -> Color.parseColor("#F5A623")
@@ -143,7 +152,9 @@ object DimiNotificationHelper {
         // The SELECT_NOTIFICATION action and "payload" extra make the
         // flutter_local_notifications response handler work normally.
         fun makeIntent(actionId: String? = null, requestCode: Int = notifId): PendingIntent {
-            val i = Intent(context, DimiReminderActivity::class.java).apply {
+            val target = if (isDirectBoot) DimiDirectBootActivity::class.java
+                else DimiReminderActivity::class.java
+            val i = Intent(context, target).apply {
                 action = "SELECT_NOTIFICATION"
                 putExtra("payload", payload)
                 putExtra("notificationId", notifId)

@@ -89,24 +89,35 @@ class DimiReminderActivity : FlutterActivity() {
     private fun playThreeRings() {
         val player = MediaPlayer()
         ringtonePlayer = player
-        player.setAudioAttributes(AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ALARM)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build())
-        player.setDataSource(this, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE))
-        var count = 0
-        player.setOnCompletionListener {
-            count++
-            if (count >= 3) {
-                alarmRingingFinished = true
-                stopRingtone()
-            } else it.start()
+        try {
+            player.setAudioAttributes(AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build())
+            player.setDataSource(
+                this,
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
+            )
+            player.setOnCompletionListener {
+                // Loop the ringtone indefinitely until the user interacts with the alarm.
+                // This matches the behavior of system alarm apps (Clock, Phone) and ensures
+                // the alarm continues until explicitly dismissed, snoozed, or marked done.
+                if (!alarmRingingFinished) {
+                    it.start()
+                }
+            }
+            player.prepare()
+            player.start()
+        } catch (_: Exception) {
+            // A missing or unavailable system ringtone must not crash the
+            // lock-screen activity before Flutter has a chance to render.
+            ringtonePlayer = null
+            player.release()
         }
-        player.prepare()
-        player.start()
     }
 
     private fun stopRingtone() {
+        alarmRingingFinished = true
         ringtonePlayer?.let {
             if (it.isPlaying) it.stop()
             it.release()
