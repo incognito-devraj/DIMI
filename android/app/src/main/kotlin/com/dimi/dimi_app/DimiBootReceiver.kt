@@ -3,6 +3,7 @@ package com.dimi.dimi_app
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import java.util.concurrent.Executors
 
 /**
  * Restores DIMI's native exact alarms after Android clears AlarmManager state
@@ -17,11 +18,26 @@ class DimiBootReceiver : BroadcastReceiver() {
             Intent.ACTION_MY_PACKAGE_REPLACED,
             "android.intent.action.QUICKBOOT_POWERON",
             "com.htc.intent.action.QUICKBOOT_POWERON" -> {
-                // Restore only native device-protected alarm records. This is
-                // deliberately independent of Flutter, Drift, and Supabase so
-                // a reboot cannot wait for login or network availability.
-                DimiAlarmScheduler.restoreAfterBoot(context.applicationContext)
+                // Alarm restoration can involve many persisted entries. Keep
+                // that work off Android's broadcast thread so boot completion
+                // and other receivers are not held up by Flutter or disk I/O.
+                val pendingResult = goAsync()
+                bootExecutor.execute {
+                    try {
+                        // This path uses only device-protected native state; it
+                        // does not wait for Flutter, Drift, or network access.
+                        DimiAlarmScheduler.restoreAfterBoot(context.applicationContext)
+                    } finally {
+                        pendingResult.finish()
+                    }
+                }
             }
         }
+    }
+
+    private companion object {
+        // Serial execution makes LOCKED_BOOT_COMPLETED followed by
+        // BOOT_COMPLETED idempotent even when both arrive close together.
+        val bootExecutor = Executors.newSingleThreadExecutor()
     }
 }

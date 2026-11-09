@@ -32,11 +32,12 @@ import androidx.core.app.NotificationManagerCompat
  */
 object DimiNotificationHelper {
 
-    private const val CHANNEL_REMINDER  = "dimi_fullscreen_reminder_v5"
-    private const val CHANNEL_PLANNER   = "dimi_fullscreen_planner_v5"
-    private const val CHANNEL_YOUTUBE   = "dimi_fullscreen_youtube_v5"
-    private const val CHANNEL_FALLBACK  = "dimi_notification_fallback_v5"
-    private const val CHANNEL_HEADS_UP = "dimi_notification_heads_up_v1"
+    // v6: full-screen channels use RINGTONE (alarm tone), normal channels use NOTIFICATION tone
+    private const val CHANNEL_REMINDER  = "dimi_fullscreen_reminder_v6"
+    private const val CHANNEL_PLANNER   = "dimi_fullscreen_planner_v6"
+    private const val CHANNEL_YOUTUBE   = "dimi_fullscreen_youtube_v6"
+    private const val CHANNEL_FALLBACK  = "dimi_notification_fallback_v6"
+    private const val CHANNEL_HEADS_UP  = "dimi_notification_heads_up_v6"
 
     /** Call once at app startup (Application.onCreate or FlutterActivity.onCreate). */
     fun ensureChannels(context: Context) {
@@ -53,8 +54,8 @@ object DimiNotificationHelper {
                 vibrationPattern = longArrayOf(0, 400, 200, 400)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 setBypassDnd(true)
-                // Phone's default ringtone — must be set on the channel on Android 8+.
-                // USAGE_NOTIFICATION keeps it audible even in priority DND modes.
+                // Full-screen alarm channels: use phone's RINGTONE (not notification tone).
+                // USAGE_ALARM bypasses DND and silent mode — same as system Clock app.
                 val ringtone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
                 val attrs = AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ALARM)
@@ -69,8 +70,17 @@ object DimiNotificationHelper {
                 Color.parseColor("#F5A623")))
         nm.createNotificationChannel(make(CHANNEL_YOUTUBE,  "YouTube",
                 Color.parseColor("#E53935")))
-        nm.createNotificationChannel(make(CHANNEL_FALLBACK, "DIMI notifications",
-                Color.parseColor("#F5A623")).apply {
+
+        // Normal (non-full-screen) notification channels: phone's default NOTIFICATION tone.
+        nm.createNotificationChannel(NotificationChannel(
+            CHANNEL_FALLBACK, "DIMI notifications", NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "DIMI standard notifications"
+            enableLights(true)
+            lightColor = Color.parseColor("#F5A623")
+            enableVibration(true)
+            vibrationPattern = longArrayOf(0, 250, 120, 250)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             val tone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             val attrs = AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_NOTIFICATION)
@@ -118,7 +128,13 @@ object DimiNotificationHelper {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE)
                 as NotificationManager
         val isDirectBoot = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
-            !(context.getSystemService(Context.USER_SERVICE) as UserManager).isUserUnlocked
+            try {
+                !(context.getSystemService(Context.USER_SERVICE) as UserManager).isUserUnlocked
+            } catch (_: Exception) {
+                // Some vendor ROMs (Samsung, Xiaomi) throw SecurityException here.
+                // Treat as "not Direct Boot" so the alarm still posts normally.
+                false
+            }
         // Android can report FSI access as unavailable during Direct Boot even
         // when the app is allowed to use it after the first unlock. Keep the
         // alarm channel for this delivery and let System UI evaluate the FSI.
@@ -188,7 +204,6 @@ object DimiNotificationHelper {
             .setOngoing(true)               // prevent dismissal by swipe
             .setSilent(false)
             .setVibrate(longArrayOf(0, 400, 200, 400))
-            .setTimeoutAfter(20_000L)
             // Full-screen intent — fires immediately when screen is off / locked
             // highPriority=true tells the OS this must interrupt immediately
             .setFullScreenIntent(fullScreenPi, true)

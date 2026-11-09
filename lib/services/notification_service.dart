@@ -170,6 +170,29 @@ class NotificationService {
 
     _ready = true;
 
+    // Apply actions taken on the native Direct Boot screen now that Android
+    // has unlocked credential-protected app data and Drift is available.
+    try {
+      final queued = jsonDecode(
+        await DimiAlarmService.instance.consumeDirectBootActions(),
+      ) as List<dynamic>;
+      for (final item in queued) {
+        if (item is! Map) continue;
+        final action = item['action'] as String?;
+        final id = item['id'] as int?;
+        final payload = item['payload'] as String?;
+        if (action != null && id != null && payload != null) {
+          await _processPayload(id, action, payload);
+        }
+      }
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          '[NotificationService] direct-boot action restore failed: $error',
+        );
+      }
+    }
+
     // DimiReminderActivity uses a native PendingIntent so Android can deliver
     // the alarm directly. Read that intent here instead of waiting for the
     // flutter_local_notifications launch callback (which cannot see native
@@ -192,9 +215,6 @@ class NotificationService {
     if (launchDetails?.didNotificationLaunchApp == true &&
         launchDetails?.notificationResponse != null) {
       final response = launchDetails!.notificationResponse!;
-      final data = response.payload == null
-          ? const <String, dynamic>{}
-          : jsonDecode(response.payload!) as Map<String, dynamic>;
       // DimiReminderActivity is a separate FlutterActivity. Its new engine
       // still starts at the normal router entry point, so the launch payload
       // must be replayed through the same handler that processes a tap.
@@ -1223,12 +1243,6 @@ class NotificationService {
   }
 
   // ── Sound preference ──────────────────────────────────────────────────────
-
-  Future<String> _soundForReminder(int id) async {
-    final prefs = await SharedPreferences.getInstance();
-    final sound = prefs.getString('dimi_reminder_sound_$id');
-    return sound == null || sound == 'default' ? 'default' : sound;
-  }
 
   Future<String?> _cacheThumbnail(String? url, int notificationId) async {
     if (url == null || url.isEmpty) return null;

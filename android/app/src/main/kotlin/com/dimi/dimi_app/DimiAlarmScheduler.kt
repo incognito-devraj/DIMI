@@ -188,14 +188,15 @@ object DimiAlarmScheduler {
                     continue
                 }
                 
-                // If Android rebooted across the trigger time, stagger delivery
-                // to prevent all notifications firing simultaneously after unlock.
-                val effectiveTrigger = if (triggerAtMillis <= now) {
-                    now + (overdueDelaySeconds * 2000L) + 500L
-                    .also { overdueDelaySeconds++ }
-                } else {
-                    triggerAtMillis
+                // Only restore alarms that are still in the future.
+                // Past-due alarms are NOT re-fired after reboot — Flutter's
+                // rescheduleAll() in _finishStartup() reconciles any genuinely
+                // pending reminders from the database. Re-firing past alarms
+                // causes a stale notification flood on lock screen after reboot.
+                if (triggerAtMillis <= now) {
+                    continue
                 }
+                val effectiveTrigger = triggerAtMillis
                 
                 schedule(
                     context = context,

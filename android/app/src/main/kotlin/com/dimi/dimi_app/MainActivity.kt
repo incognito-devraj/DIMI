@@ -124,6 +124,9 @@ class MainActivity : FlutterActivity() {
                         DimiAlarmScheduler.cleanupStaleEntries(this)
                         result.success(null)
                     }
+                    "consumeDirectBootActions" -> {
+                        result.success(DimiDirectBootActionStore.consume(this))
+                    }
                     "showImmediate" -> {
                         // For testing or snooze re-fire
                         val notifId = call.argument<Int>("notifId") ?: 0

@@ -84,6 +84,19 @@
               />
         </activity>
 
+        <!-- Flutter cannot safely initialize before the first device unlock.
+             Use this small native screen for alarms delivered during Direct Boot. -->
+        <activity
+            android:name=".DimiDirectBootActivity"
+            android:exported="false"
+            android:directBootAware="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/ReminderTheme"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true" />
+
         <!-- Receivers required by flutter_local_notifications -->
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"

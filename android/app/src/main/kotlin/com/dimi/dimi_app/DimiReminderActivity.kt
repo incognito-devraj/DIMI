@@ -77,6 +77,12 @@ class DimiReminderActivity : FlutterActivity() {
         // Starting it here was the cause of the ringtone continuing after a
         // normal notification action was tapped.
         if (!actionIntent) {
+            // Cancel any pending retry alarm immediately — the full-screen
+            // activity is already visible so a retry firing 5 minutes later
+            // would just play a second ringtone on top of the existing one.
+            val notifId = intent.getIntExtra("notificationId", 0)
+            if (notifId != 0) DimiNotificationHelper.cancelRetry(this, notifId)
+
             // Play only after the native alarm window exists, so Flutter engine
             // startup cannot lead the audio by a second or two.
             playThreeRings()

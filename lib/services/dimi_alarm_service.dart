@@ -72,6 +72,19 @@ class DimiAlarmService {
     }
   }
 
+  /// Returns reminder actions queued by the native Direct Boot screen.
+  Future<String> consumeDirectBootActions() async {
+    try {
+      return await _channel.invokeMethod<String>('consumeDirectBootActions') ??
+          '[]';
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('[DimiAlarm] direct-boot action restore failed: $error');
+      }
+      return '[]';
+    }
+  }
+
   Future<void> cancelRetry(int notifId) async {
     try {
       await _channel.invokeMethod<void>('cancelRetry', {'notifId': notifId});
