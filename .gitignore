@@ -33,7 +33,7 @@ migrate_working_dir/
 # Kiro workflow agent task output (generated per-run, never committed)
 .agents/
 
-# Private local copy of technical docs removed from the public repository
+# Private local workspace files
 /.local-private/
 
 # Flutter DevTools config
