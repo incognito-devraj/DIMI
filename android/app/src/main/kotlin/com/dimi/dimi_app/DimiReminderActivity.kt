@@ -8,6 +8,7 @@ import android.os.PowerManager
 import android.media.MediaPlayer
 import android.media.AudioAttributes
 import android.media.RingtoneManager
+import android.media.AudioManager
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -33,6 +34,7 @@ class DimiReminderActivity : FlutterActivity() {
     private var ringtonePlayer: MediaPlayer? = null
     private var alarmRingingFinished = false
     private var shadeFallbackShown = false
+    private var notificationActionHandled = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val actionIntent = intent.getStringExtra("actionId") != null
@@ -86,6 +88,9 @@ class DimiReminderActivity : FlutterActivity() {
             // Play only after the native alarm window exists, so Flutter engine
             // startup cannot lead the audio by a second or two.
             playThreeRings()
+        } else {
+            notificationActionHandled = true
+            cancelAlarmNotification()
         }
 
         super.onCreate(savedInstanceState)
@@ -100,6 +105,13 @@ class DimiReminderActivity : FlutterActivity() {
                 .setUsage(AudioAttributes.USAGE_ALARM)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build())
+            // Some OEMs let proximity/face-down routing move alarm-usage
+            // playback away from the loudspeaker. Pin this alarm to the
+            // built-in speaker so the full-screen event stays audible.
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val speaker = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                .firstOrNull { it.type == android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+            if (speaker != null) player.setPreferredDevice(speaker)
             player.setDataSource(
                 this,
                 RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
@@ -122,7 +134,7 @@ class DimiReminderActivity : FlutterActivity() {
         }
     }
 
-    private fun stopRingtone() {
+    private fun stopRingtone(showFallback: Boolean = true) {
         alarmRingingFinished = true
         ringtonePlayer?.let {
             if (it.isPlaying) it.stop()
@@ -132,7 +144,8 @@ class DimiReminderActivity : FlutterActivity() {
         val notificationId = intent.getIntExtra("notificationId", 0)
         val title = intent.getStringExtra("title") ?: "DIMI reminder"
         val body = intent.getStringExtra("body") ?: "You have a reminder."
-        if (alarmRingingFinished && !shadeFallbackShown && notificationId != 0) {
+        if (showFallback && !notificationActionHandled &&
+            alarmRingingFinished && !shadeFallbackShown && notificationId != 0) {
             shadeFallbackShown = true
             DimiNotificationHelper.showShadeFallback(this, notificationId, title, body)
             window.decorView.postDelayed({ finishAndRemoveTask() }, 250L)
@@ -164,6 +177,9 @@ class DimiReminderActivity : FlutterActivity() {
                 val id = call.argument<Int>("notifId") ?: 0
                 when (call.method) {
                     "cancel" -> {
+                        if (id == intent.getIntExtra("notificationId", 0)) {
+                            stopForUserAction()
+                        }
                         DimiAlarmScheduler.cancel(this, id)
                         DimiNotificationHelper.cancel(this, id)
                         result.success(null)
@@ -185,13 +201,31 @@ class DimiReminderActivity : FlutterActivity() {
     }
 
     override fun onNewIntent(intent: Intent) {
+        // Flutter plugins inspect Activity.getIntent() while super forwards
+        // the new Intent to the engine. Replace it first so a later body tap
+        // cannot be interpreted using the previous notification's actionId
+        // (for example, replaying an old Mark Done action).
+        setIntent(intent)
         if (intent.getStringExtra("actionId") != null) {
             // An action can arrive while the alarm activity is already open.
             // Stop any existing alarm audio before forwarding the action.
-            alarmRingingFinished = false
-            stopRingtone()
+            stopForUserAction()
+            cancelAlarmNotification()
         }
         super.onNewIntent(intent)
-        setIntent(intent)
+    }
+
+    private fun cancelAlarmNotification() {
+        val notificationId = intent.getIntExtra("notificationId", 0)
+        if (notificationId == 0) return
+        DimiAlarmScheduler.cancel(this, notificationId)
+        DimiNotificationHelper.cancel(this, notificationId)
+        DimiNotificationHelper.cancelRetry(this, notificationId)
+    }
+
+    private fun stopForUserAction() {
+        notificationActionHandled = true
+        alarmRingingFinished = false
+        stopRingtone(showFallback = false)
     }
 }

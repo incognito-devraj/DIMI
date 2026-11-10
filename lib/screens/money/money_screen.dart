@@ -1,6 +1,5 @@
 import 'dart:ui' as ui;
 
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -221,85 +220,91 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                   AppSpacing.screenHorizontal,
                   0,
                 ),
-                child: AnimatedSwitcher(
-                  duration: DimiMotion.smooth,
-                  reverseDuration: DimiMotion.fast,
-                  switchInCurve: DimiMotion.transitionCurve,
-                  switchOutCurve: DimiMotion.transitionCurve,
-                  transitionBuilder: (child, animation) {
-                    final curved = CurvedAnimation(
-                      parent: animation,
-                      curve: DimiMotion.transitionCurve,
-                      reverseCurve: DimiMotion.curve,
-                    );
-                    return FadeTransition(
-                      opacity: curved,
-                      child: SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0.025, 0),
-                          end: Offset.zero,
-                        ).animate(curved),
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: _searchActive
-                      ? _FinanceSearchHeader(
-                          key: const ValueKey('finance-search'),
-                          controller: _searchController,
-                          focusNode: _searchFocusNode,
-                          onChanged: (value) =>
-                              setState(() => _searchQuery = value.trim()),
-                          onBack: _closeSearch,
-                          onCancel: _closeSearch,
-                          onClear: _clearSearch,
-                        )
-                      : Row(
-                          key: const ValueKey('finance-header'),
-                          children: [
-                            const Text(
-                              'Finance',
-                              style: TextStyle(
-                                fontFamily: 'Poppins',
-                                fontSize: 26,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            const Spacer(),
-                            if (_tabIndex == 1) ...[
-                              IconButton(
-                                tooltip: 'Filter finance',
-                                onPressed: () {
-                                  final categories = {
-                                    ..._allMoneyCategories,
-                                    ...allAsync.maybeWhen(
-                                      data: (items) => items
-                                          .map((item) => item.category)
-                                          .toSet(),
-                                      orElse: () => <String>{},
-                                    ),
-                                  }.toList()..sort();
-                                  _openFilter(categories);
-                                },
-                                icon: Icon(
-                                  Icons.bar_chart_rounded,
-                                  color: _categoryFilters.isNotEmpty
-                                      ? AppColors.accent
-                                      : AppColors.textSecondary,
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: 'Search finance',
-                                onPressed: _openSearch,
-                                icon: const Icon(
-                                  Icons.search_rounded,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ],
+                child: SizedBox(
+                  // Keep the title row at one height on every finance tab.
+                  // The transaction-only action buttons used to make this
+                  // row taller, nudging the pill selector down on tab switch.
+                  height: 48,
+                  child: AnimatedSwitcher(
+                    duration: DimiMotion.smooth,
+                    reverseDuration: DimiMotion.fast,
+                    switchInCurve: DimiMotion.transitionCurve,
+                    switchOutCurve: DimiMotion.transitionCurve,
+                    transitionBuilder: (child, animation) {
+                      final curved = CurvedAnimation(
+                        parent: animation,
+                        curve: DimiMotion.transitionCurve,
+                        reverseCurve: DimiMotion.curve,
+                      );
+                      return FadeTransition(
+                        opacity: curved,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0.025, 0),
+                            end: Offset.zero,
+                          ).animate(curved),
+                          child: child,
                         ),
+                      );
+                    },
+                    child: _searchActive
+                        ? _FinanceSearchHeader(
+                            key: const ValueKey('finance-search'),
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            onChanged: (value) =>
+                                setState(() => _searchQuery = value.trim()),
+                            onBack: _closeSearch,
+                            onCancel: _closeSearch,
+                            onClear: _clearSearch,
+                          )
+                        : Row(
+                            key: const ValueKey('finance-header'),
+                            children: [
+                              const Text(
+                                'Finance',
+                                style: TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const Spacer(),
+                              if (_tabIndex == 1) ...[
+                                IconButton(
+                                  tooltip: 'Filter finance',
+                                  onPressed: () {
+                                    final categories = {
+                                      ..._allMoneyCategories,
+                                      ...allAsync.maybeWhen(
+                                        data: (items) => items
+                                            .map((item) => item.category)
+                                            .toSet(),
+                                        orElse: () => <String>{},
+                                      ),
+                                    }.toList()..sort();
+                                    _openFilter(categories);
+                                  },
+                                  icon: Icon(
+                                    Icons.bar_chart_rounded,
+                                    color: _categoryFilters.isNotEmpty
+                                        ? AppColors.accent
+                                        : AppColors.textSecondary,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Search finance',
+                                  onPressed: _openSearch,
+                                  icon: const Icon(
+                                    Icons.search_rounded,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -3990,265 +3995,6 @@ class _LoanTransactionRow extends StatelessWidget {
     );
   }
 }
-
-// ignore: unused_element
-class _SummaryCards extends StatelessWidget {
-  const _SummaryCards({
-    required this.weeklyTransactions,
-    required this.allLoans,
-  });
-  final List<MoneyTransaction> weeklyTransactions;
-  final List<MoneyTransaction> allLoans;
-
-  @override
-  Widget build(BuildContext context) {
-    final spent = weeklyTransactions
-        .where((t) => t.type == 'expense')
-        .fold(0.0, (s, t) => s + _moneyMajorAmount(t.amount));
-    final income = weeklyTransactions
-        .where((t) => t.type == 'income')
-        .fold(0.0, (s, t) => s + _moneyMajorAmount(t.amount));
-    final lent = allLoans.fold(0.0, (s, t) => s + _moneyMajorAmount(t.amount));
-
-    return Row(
-      children: [
-        Expanded(
-          child: _SummaryCard(
-            label: 'Spent This Week',
-            value: '₹${_fmt.format(spent)}',
-            sub: income > 0
-                ? '${((spent / income) * 100).toStringAsFixed(0)}% of income'
-                : null,
-            color: AppColors.danger,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _SummaryCard(
-            label: 'Lent Money',
-            value: '₹${_fmt.format(lent)}',
-            sub: allLoans.isNotEmpty ? '${allLoans.length} pending' : null,
-            color: AppColors.info,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.label,
-    required this.value,
-    required this.color,
-    this.sub,
-  });
-  final String label;
-  final String value;
-  final String? sub;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.cardPadding),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 11,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          _FinanceAmountText(
-            text: value,
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
-          if (sub != null)
-            Text(
-              sub!,
-              style: const TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 10,
-                color: AppColors.textSecondary,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Weekly spending bar chart ─────────────────────────────────────────────────
-
-// ignore: unused_element
-class _SpendingChart extends StatelessWidget {
-  const _SpendingChart({required this.transactions});
-  final List<MoneyTransaction> transactions;
-
-  @override
-  Widget build(BuildContext context) {
-    // Day buckets for expense type only
-    final dayAmounts = List.filled(7, 0.0);
-    for (final t in transactions) {
-      if (t.type == 'expense') {
-        dayAmounts[t.date.weekday - 1] += _moneyMajorAmount(t.amount);
-      }
-    }
-    final maxAmt = dayAmounts.reduce((a, b) => a > b ? a : b);
-    final todayIdx = DateTime.now().weekday - 1;
-
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.cardPadding),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Spending This Week',
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 10),
-          if (maxAmt <= 0)
-            SizedBox(
-              height: 80,
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.bar_chart_rounded,
-                      size: 28,
-                      color: AppColors.accentSoft,
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'No spending this week',
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            SizedBox(
-              height: 80,
-              child: BarChart(
-                BarChartData(
-                  alignment: BarChartAlignment.spaceAround,
-                  maxY: maxAmt <= 0 ? 100 : maxAmt * 1.35,
-                  gridData: FlGridData(show: false),
-                  borderData: FlBorderData(show: false),
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    rightTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    topTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 18,
-                        getTitlesWidget: (v, _) {
-                          const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-                          final i = v.toInt();
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              labels[i],
-                              style: TextStyle(
-                                fontFamily: 'Poppins',
-                                fontSize: 10,
-                                fontWeight: i == todayIdx
-                                    ? FontWeight.w700
-                                    : FontWeight.w400,
-                                color: i == todayIdx
-                                    ? AppColors.accent
-                                    : AppColors.textSecondary,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  barGroups: List.generate(7, (i) {
-                    final amt = dayAmounts[i];
-                    final isToday = i == todayIdx;
-                    return BarChartGroupData(
-                      x: i,
-                      barRods: [
-                        BarChartRodData(
-                          toY: amt <= 0 ? 1 : amt,
-                          color: isToday
-                              ? AppColors.accent
-                              : AppColors.accentSoft,
-                          width: 14,
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(5),
-                          ),
-                        ),
-                      ],
-                    );
-                  }),
-                  barTouchData: BarTouchData(
-                    touchTooltipData: BarTouchTooltipData(
-                      getTooltipColor: (_) => AppColors.surfaceDark,
-                      getTooltipItem: (group, _, rod, ignored) {
-                        final amt = dayAmounts[group.x];
-                        return BarTooltipItem(
-                          '₹${amt.toStringAsFixed(0)}',
-                          const TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.surface,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Transaction tile ──────────────────────────────────────────────────────────
 
 class _TransactionTile extends ConsumerStatefulWidget {
   const _TransactionTile({required this.txn});

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -113,6 +112,22 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
         }
         NotificationService.instance.onLocalActionCommitted?.call();
         unawaited(SyncService(_db).syncNow());
+        final (title, body) = switch (widget.kind) {
+          DimiNotificationKind.planner => (
+            'Event started and marked done',
+            widget.title,
+          ),
+          DimiNotificationKind.reminder => (
+            'Reminder marked done',
+            widget.title,
+          ),
+          DimiNotificationKind.youtube => ('Playlist updated', widget.title),
+        };
+        await NotificationService.instance.showFullScreenActionNotification(
+          notificationId: widget.notifId,
+          title: title,
+          body: body,
+        );
       }
       if (!mounted) return;
       setState(() {
@@ -140,11 +155,25 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
         widget.notifId,
       );
 
-      await NotificationService.instance.snoozeFromFullScreen(widget.notifId, {
-        'reminder_id': widget.reminderId,
-        'task_id': widget.taskId,
-        'account_id': widget.accountId,
-      });
+      final snoozed = await NotificationService.instance.snoozeFromFullScreen(
+        widget.notifId,
+        {
+          'reminder_id': widget.reminderId,
+          'task_id': widget.taskId,
+          'account_id': widget.accountId,
+        },
+      );
+      if (!snoozed) throw StateError('Could not snooze this reminder.');
+      final label = switch (widget.kind) {
+        DimiNotificationKind.planner => 'Event snoozed',
+        DimiNotificationKind.youtube => 'Playlist reminder snoozed',
+        DimiNotificationKind.reminder => 'Reminder snoozed',
+      };
+      await NotificationService.instance.showFullScreenActionNotification(
+        notificationId: widget.notifId,
+        title: label,
+        body: '${widget.title} will remind you again in 5 minutes.',
+      );
       if (!mounted) return;
       setState(() => _result = 'Snoozed for 5 minutes');
       _closeActivity();
@@ -162,6 +191,11 @@ class _DimiReminderScreenState extends ConsumerState<DimiReminderScreen> {
     // Cancel notification and close — no DB change, just dismiss
     await NotificationService.instance.cancelCurrentNotification(
       widget.notifId,
+    );
+    await NotificationService.instance.showFullScreenActionNotification(
+      notificationId: widget.notifId,
+      title: 'Reminder dismissed',
+      body: widget.title,
     );
     if (mounted) _closeActivity();
   }
@@ -1556,7 +1590,3 @@ class _ResultBlobPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _ResultBlobPainter old) => old.color != color;
 }
-
-// Keep the math import used by _FullPageScribblePainter
-// ignore: unused_element
-final _kPi = math.pi;

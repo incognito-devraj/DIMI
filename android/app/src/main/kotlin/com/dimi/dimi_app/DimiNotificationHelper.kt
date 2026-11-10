@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
@@ -32,10 +33,11 @@ import androidx.core.app.NotificationManagerCompat
  */
 object DimiNotificationHelper {
 
-    // v6: full-screen channels use RINGTONE (alarm tone), normal channels use NOTIFICATION tone
-    private const val CHANNEL_REMINDER  = "dimi_fullscreen_reminder_v6"
-    private const val CHANNEL_PLANNER   = "dimi_fullscreen_planner_v6"
-    private const val CHANNEL_YOUTUBE   = "dimi_fullscreen_youtube_v6"
+    // v7 full-screen channels are silent. DimiReminderActivity plays the
+    // ringtone itself; channel audio here would play a second copy.
+    private const val CHANNEL_REMINDER  = "dimi_fullscreen_reminder_v7"
+    private const val CHANNEL_PLANNER   = "dimi_fullscreen_planner_v7"
+    private const val CHANNEL_YOUTUBE   = "dimi_fullscreen_youtube_v7"
     private const val CHANNEL_FALLBACK  = "dimi_notification_fallback_v6"
     private const val CHANNEL_HEADS_UP  = "dimi_notification_heads_up_v6"
 
@@ -54,14 +56,9 @@ object DimiNotificationHelper {
                 vibrationPattern = longArrayOf(0, 400, 200, 400)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 setBypassDnd(true)
-                // Full-screen alarm channels: use phone's RINGTONE (not notification tone).
-                // USAGE_ALARM bypasses DND and silent mode — same as system Clock app.
-                val ringtone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-                val attrs = AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-                setSound(ringtone, attrs)
+                // The activity is the only ringtone player for a full-screen
+                // alarm. Keep the notification itself silent to avoid doubling it.
+                setSound(null, null)
             }
 
         nm.createNotificationChannel(make(CHANNEL_REMINDER, "Reminders",
@@ -172,6 +169,13 @@ object DimiNotificationHelper {
                 else DimiReminderActivity::class.java
             val i = Intent(context, target).apply {
                 action = "SELECT_NOTIFICATION"
+                // PendingIntent identity ignores extras. A URI keeps each
+                // notification/action token distinct even when IDs are
+                // consecutive (requestCode + 1/+2/+3 can otherwise collide).
+                data = Uri.parse(
+                    "dimi-notification://${context.packageName}/$notifId/" +
+                        "${requestCode}/${actionId ?: "open"}"
+                )
                 putExtra("payload", payload)
                 putExtra("notificationId", notifId)
                 putExtra("title", title)
@@ -214,6 +218,18 @@ object DimiNotificationHelper {
             .addAction(NotificationCompat.Action.Builder(
                 0, "Snooze 5 min", snoozePi).build())
             .setShowWhen(true)
+
+        // Notification channels are unavailable before Android O. Keep the
+        // full-screen alarm silent there too; the Activity plays the ringtone.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            if (fullScreenAllowed && screenIsOffOrLocked) {
+                builder.setSound(null)
+            } else {
+                builder.setSound(
+                    RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+                )
+            }
+        }
 
         // Build the notification then stamp FLAG_INSISTENT onto it directly —
         // the extras-based approach does not reliably propagate the flag.

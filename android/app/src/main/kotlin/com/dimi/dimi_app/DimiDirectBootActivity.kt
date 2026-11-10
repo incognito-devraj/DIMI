@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.RingtoneManager
+import android.media.AudioManager
 import android.os.Bundle
 import android.view.Gravity
 import android.view.WindowManager
@@ -82,6 +83,10 @@ class DimiDirectBootActivity : Activity() {
                 .setUsage(AudioAttributes.USAGE_ALARM)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build())
+            val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+            val speaker = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                .firstOrNull { it.type == android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+            if (speaker != null) media.setPreferredDevice(speaker)
             media.setDataSource(
                 this,
                 RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),

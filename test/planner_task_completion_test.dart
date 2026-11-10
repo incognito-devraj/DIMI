@@ -16,20 +16,28 @@ void main() {
   tearDown(() => db.close());
 
   test('same-day planner events can be completed', () async {
-    final id = await db.taskDao.insertTask(TasksCompanion.insert(
-      title: 'Same-day planner event',
-      category: 'Study',
-      dueDate: DateTime.now(),
-      isPlannerEntry: const Value(true),
-      createdAt: DateTime.now(),
-    ));
+    final id = await db.taskDao.insertTask(
+      TasksCompanion.insert(
+        title: 'Same-day planner event',
+        category: 'Study',
+        dueDate: DateTime.now(),
+        isPlannerEntry: const Value(true),
+        createdAt: DateTime.now(),
+      ),
+    );
 
     await db.taskDao.toggleCompleted(id, true);
 
-    final task = await (db.select(db.tasks)..where((t) => t.id.equals(id))).getSingle();
-    final outbox = await (db.select(db.syncOutbox)
-          ..where((o) => o.localRowId.equals(id) & o.entityType.equals(OutboxEntity.task)))
-        .getSingle();
+    final task = await (db.select(
+      db.tasks,
+    )..where((t) => t.id.equals(id))).getSingle();
+    final outbox =
+        await (db.select(db.syncOutbox)..where(
+              (o) =>
+                  o.localRowId.equals(id) &
+                  o.entityType.equals(OutboxEntity.task),
+            ))
+            .getSingle();
     expect(task.isCompleted, isTrue);
     expect(task.completedAt, isNotNull);
     // A create followed by an offline completion remains coalesced as create.
@@ -37,115 +45,205 @@ void main() {
     expect(outbox.state, OutboxState.pending);
   });
 
+  test('editing a completed planner event clears completion and restores its reminder', () async {
+    final originalDate = DateTime.now().add(const Duration(days: 1));
+    final taskId = await db.taskDao.insertTask(
+      TasksCompanion.insert(
+        title: 'Completed event',
+        category: 'Study',
+        dueDate: originalDate,
+        dueTime: const Value('10:00'),
+        isPlannerEntry: const Value(true),
+        createdAt: DateTime.now(),
+      ),
+    );
+    final reminderId = await db.reminderDao.insertReminder(
+      RemindersCompanion.insert(
+        taskId: Value(taskId),
+        title: 'Completed event',
+        dueAt: originalDate,
+      ),
+    );
+
+    await db.taskDao.toggleCompleted(taskId, true);
+    final completedReminder = await db.reminderDao.getById(reminderId);
+    expect(completedReminder?.isEnabled, isFalse);
+
+    final editedDate = originalDate.add(const Duration(days: 2));
+    await db.taskDao.updateTask(
+      TasksCompanion(
+        id: Value(taskId),
+        title: const Value('Edited event'),
+        dueDate: Value(editedDate),
+        isCompleted: const Value(false),
+        completedAt: const Value(null),
+      ),
+    );
+    await db.reminderDao.updateByTaskId(
+      taskId,
+      title: 'Edited event',
+      dueAt: editedDate,
+    );
+
+    final editedTask = await db.taskDao.getById(taskId);
+    final editedReminder = await db.reminderDao.getById(reminderId);
+    expect(editedTask?.isCompleted, isFalse);
+    expect(editedTask?.completedAt, isNull);
+    expect(editedReminder?.isEnabled, isTrue);
+    expect(editedReminder?.title, 'Edited event');
+    expect(
+      editedReminder?.dueAt,
+      DateTime.fromMillisecondsSinceEpoch(
+        editedDate.millisecondsSinceEpoch ~/ 1000 * 1000,
+      ),
+    );
+  });
+
   test('past planner events cannot be completed or deleted', () async {
-    final id = await db.taskDao.insertTask(TasksCompanion.insert(
-      title: 'Past planner event',
-      category: 'Study',
-      dueDate: DateTime.now().subtract(const Duration(days: 1)),
-      isPlannerEntry: const Value(true),
-      createdAt: DateTime.now(),
-    ));
+    final id = await db.taskDao.insertTask(
+      TasksCompanion.insert(
+        title: 'Past planner event',
+        category: 'Study',
+        dueDate: DateTime.now().subtract(const Duration(days: 1)),
+        isPlannerEntry: const Value(true),
+        createdAt: DateTime.now(),
+      ),
+    );
 
     await db.taskDao.toggleCompleted(id, true);
     expect(await db.taskDao.deleteTask(id), 0);
 
-    final task = await (db.select(db.tasks)..where((t) => t.id.equals(id))).getSingle();
+    final task = await (db.select(
+      db.tasks,
+    )..where((t) => t.id.equals(id))).getSingle();
     expect(task.isCompleted, isFalse);
     expect(task.deletedAt, isNull);
   });
 
-  test('planner completion remains available to the local heatmap query', () async {
-    final date = DateTime.now();
-    final id = await db.taskDao.insertTask(TasksCompanion.insert(
-      title: 'Heatmap event',
-      category: 'Study',
-      dueDate: date,
-      isPlannerEntry: const Value(true),
-      createdAt: DateTime.now(),
-    ));
-    await db.taskDao.toggleCompleted(id, true);
-    final rows = await db.taskDao.watchPlannerEntriesInRange(
-      date.subtract(const Duration(days: 1)),
-      date.add(const Duration(days: 1)),
-    ).first;
-    final row = rows.singleWhere((task) => task.id == id);
-    expect(row.isCompleted, isTrue);
-    expect(row.completedAt, isNotNull);
-  });
+  test(
+    'planner completion remains available to the local heatmap query',
+    () async {
+      final date = DateTime.now();
+      final id = await db.taskDao.insertTask(
+        TasksCompanion.insert(
+          title: 'Heatmap event',
+          category: 'Study',
+          dueDate: date,
+          isPlannerEntry: const Value(true),
+          createdAt: DateTime.now(),
+        ),
+      );
+      await db.taskDao.toggleCompleted(id, true);
+      final rows = await db.taskDao
+          .watchPlannerEntriesInRange(
+            date.subtract(const Duration(days: 1)),
+            date.add(const Duration(days: 1)),
+          )
+          .first;
+      final row = rows.singleWhere((task) => task.id == id);
+      expect(row.isCompleted, isTrue);
+      expect(row.completedAt, isNotNull);
+    },
+  );
 
-  test('future planner events remain visible in the planner week range', () async {
-    final future = DateTime.now().add(const Duration(days: 3));
-    final id = await db.taskDao.insertTask(TasksCompanion.insert(
-      title: 'Future planner event',
-      category: 'Study',
-      dueDate: future,
-      isPlannerEntry: const Value(true),
-      createdAt: DateTime.now(),
-    ));
-    final monday = future.subtract(Duration(days: future.weekday - 1));
+  test(
+    'future planner events remain visible in the planner week range',
+    () async {
+      final future = DateTime.now().add(const Duration(days: 3));
+      final id = await db.taskDao.insertTask(
+        TasksCompanion.insert(
+          title: 'Future planner event',
+          category: 'Study',
+          dueDate: future,
+          isPlannerEntry: const Value(true),
+          createdAt: DateTime.now(),
+        ),
+      );
+      final monday = future.subtract(Duration(days: future.weekday - 1));
 
-    final rows = await db.taskDao.watchTasksForWeek(monday).first;
-    expect(rows.any((task) => task.id == id), isTrue);
-  });
+      final rows = await db.taskDao.watchTasksForWeek(monday).first;
+      expect(rows.any((task) => task.id == id), isTrue);
+    },
+  );
 
-  test('same-day planner delete remains a tombstone and queues a delete', () async {
-    final id = await db.taskDao.insertTask(TasksCompanion.insert(
-      title: 'Delete planner event',
-      category: 'Study',
-      dueDate: DateTime.now(),
-      isPlannerEntry: const Value(true),
-      createdAt: DateTime.now(),
-    ));
+  test(
+    'same-day planner delete remains a tombstone and queues a delete',
+    () async {
+      final id = await db.taskDao.insertTask(
+        TasksCompanion.insert(
+          title: 'Delete planner event',
+          category: 'Study',
+          dueDate: DateTime.now(),
+          isPlannerEntry: const Value(true),
+          createdAt: DateTime.now(),
+        ),
+      );
 
-    expect(await db.taskDao.deleteTask(id), 1);
+      expect(await db.taskDao.deleteTask(id), 1);
 
-    final task = await (db.select(db.tasks)..where((t) => t.id.equals(id))).getSingle();
-    final outbox = await (db.select(db.syncOutbox)
-          ..where((o) => o.localRowId.equals(id) & o.entityType.equals(OutboxEntity.task)))
-        .getSingle();
-    expect(task.deletedAt, isNotNull);
-    expect(outbox.operation, OutboxOperation.delete);
-    expect(outbox.state, OutboxState.pending);
-  });
+      final task = await (db.select(
+        db.tasks,
+      )..where((t) => t.id.equals(id))).getSingle();
+      final outbox =
+          await (db.select(db.syncOutbox)..where(
+                (o) =>
+                    o.localRowId.equals(id) &
+                    o.entityType.equals(OutboxEntity.task),
+              ))
+              .getSingle();
+      expect(task.deletedAt, isNotNull);
+      expect(outbox.operation, OutboxOperation.delete);
+      expect(outbox.state, OutboxState.pending);
+    },
+  );
 
-  test('past standard and event reminders expire, playlist reminders remain', () async {
-    final yesterday = DateTime.now().subtract(const Duration(days: 1));
-    final standardId = await db.reminderDao.insertReminder(
-      RemindersCompanion.insert(
-        title: 'Call someone',
-        dueAt: yesterday,
-        notificationId: const Value(101),
-        createdAt: Value(yesterday),
-        updatedAt: Value(yesterday),
-      ),
-    );
-    final eventId = await db.reminderDao.insertReminder(
-      RemindersCompanion.insert(
-        title: 'Event reminder',
-        dueAt: yesterday,
-        notificationId: const Value(102),
-        createdAt: Value(yesterday),
-        updatedAt: Value(yesterday),
-      ),
-    );
-    final playlistId = await db.reminderDao.insertReminder(
-      RemindersCompanion.insert(
-        title: 'Watch: Algorithms',
-        dueAt: yesterday,
-        notificationId: const Value(103),
-        createdAt: Value(yesterday),
-        updatedAt: Value(yesterday),
-      ),
-    );
+  test(
+    'past standard and event reminders expire, playlist reminders remain',
+    () async {
+      final yesterday = DateTime.now().subtract(const Duration(days: 1));
+      final standardId = await db.reminderDao.insertReminder(
+        RemindersCompanion.insert(
+          title: 'Call someone',
+          dueAt: yesterday,
+          notificationId: const Value(101),
+          createdAt: Value(yesterday),
+          updatedAt: Value(yesterday),
+        ),
+      );
+      final eventId = await db.reminderDao.insertReminder(
+        RemindersCompanion.insert(
+          title: 'Event reminder',
+          dueAt: yesterday,
+          notificationId: const Value(102),
+          createdAt: Value(yesterday),
+          updatedAt: Value(yesterday),
+        ),
+      );
+      final playlistId = await db.reminderDao.insertReminder(
+        RemindersCompanion.insert(
+          title: 'Watch: Algorithms',
+          dueAt: yesterday,
+          notificationId: const Value(103),
+          createdAt: Value(yesterday),
+          updatedAt: Value(yesterday),
+        ),
+      );
 
-    final expired = await db.reminderDao.expirePastStandardReminders();
-    expect(expired, containsAll(<int>[101, 102]));
+      final expired = await db.reminderDao.expirePastStandardReminders();
+      expect(expired, containsAll(<int>[101, 102]));
 
-    final standard = await (db.select(db.reminders)..where((r) => r.id.equals(standardId))).getSingle();
-    final event = await (db.select(db.reminders)..where((r) => r.id.equals(eventId))).getSingle();
-    final playlist = await (db.select(db.reminders)..where((r) => r.id.equals(playlistId))).getSingle();
-    expect(standard.deletedAt, isNotNull);
-    expect(event.deletedAt, isNotNull);
-    expect(playlist.deletedAt, isNull);
-  });
+      final standard = await (db.select(
+        db.reminders,
+      )..where((r) => r.id.equals(standardId))).getSingle();
+      final event = await (db.select(
+        db.reminders,
+      )..where((r) => r.id.equals(eventId))).getSingle();
+      final playlist = await (db.select(
+        db.reminders,
+      )..where((r) => r.id.equals(playlistId))).getSingle();
+      expect(standard.deletedAt, isNotNull);
+      expect(event.deletedAt, isNotNull);
+      expect(playlist.deletedAt, isNull);
+    },
+  );
 }

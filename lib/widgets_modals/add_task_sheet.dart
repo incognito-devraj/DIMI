@@ -301,8 +301,14 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
             category: Value(_category),
             dueDate: Value(dueDate),
             dueTime: Value(_timeStr()),
-            isCompleted: Value(widget.existingTask!.isCompleted),
-            completedAt: Value(widget.existingTask!.completedAt),
+            // Editing a planner event means it is being planned again. Clear
+            // its prior completion so it returns to the active event list.
+            isCompleted: Value(
+              widget.plannerEntry ? false : widget.existingTask!.isCompleted,
+            ),
+            completedAt: Value(
+              widget.plannerEntry ? null : widget.existingTask!.completedAt,
+            ),
             createdAt: Value(widget.existingTask!.createdAt),
             isPlannerEntry: Value(widget.existingTask!.isPlannerEntry),
           ),

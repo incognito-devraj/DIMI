@@ -197,6 +197,7 @@ class NotificationService {
     // the alarm directly. Read that intent here instead of waiting for the
     // flutter_local_notifications launch callback (which cannot see native
     // notification intents).
+    var nativeNotificationHandled = false;
     try {
       final native = await DimiAlarmService.reminderIntentChannel
           .invokeMethod<Map<dynamic, dynamic>>('getReminderIntent');
@@ -205,6 +206,7 @@ class NotificationService {
         final id = native['notificationId'] as int? ?? 0;
         if (payload != null && id != 0) {
           await _processPayload(id, native['actionId'] as String?, payload);
+          nativeNotificationHandled = true;
         }
       }
     } on PlatformException {
@@ -212,7 +214,8 @@ class NotificationService {
       // the plugin launch-details path below.
     }
 
-    if (launchDetails?.didNotificationLaunchApp == true &&
+    if (!nativeNotificationHandled &&
+        launchDetails?.didNotificationLaunchApp == true &&
         launchDetails?.notificationResponse != null) {
       final response = launchDetails!.notificationResponse!;
       // DimiReminderActivity is a separate FlutterActivity. Its new engine
@@ -515,15 +518,40 @@ class NotificationService {
 
   /// Snoozes a full-screen notification through the existing Drift-backed
   /// rescheduling logic.
-  Future<void> snoozeFromFullScreen(
+  Future<bool> snoozeFromFullScreen(
     int notificationId,
     Map<String, dynamic> data,
   ) async {
+    if (!_ready) await init();
     final accountId = data[_Key.accountId] as int?;
     if (accountId != null && accountId > 0) {
       _db?.setActiveAccountId(accountId);
     }
-    await _snoozeReminder(notificationId, data);
+    return _snoozeReminder(notificationId, data);
+  }
+
+  /// Posts a normal, audible notification confirming an action taken from the
+  /// full-screen alarm UI. Its channel uses the phone's notification sound.
+  Future<void> showFullScreenActionNotification({
+    required int notificationId,
+    required String title,
+    required String body,
+  }) async {
+    if (!_ready) await init();
+    if (!_ready) return;
+    try {
+      await _showConfirmation(
+        id: notificationId + _confirmationIdOffset * 2,
+        title: title,
+        body: body,
+      );
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        debugPrint(
+          '[NotificationService] action confirmation failed: $error\n$stackTrace',
+        );
+      }
+    }
   }
 
   Future<void> showTestNotification() async {
@@ -695,9 +723,12 @@ class NotificationService {
         // write would cancel the newly scheduled next occurrence instead.
         await _plugin.cancel(id);
         await _markDone(data);
+        final playlistId = data[_Key.playlistId] as int?;
+        if (playlistId == null) {
+          await _showActionConfirmationFromPayload(id, data, snoozed: false);
+        }
 
         // After committing the DB write, navigate to the relevant screen.
-        final playlistId = data[_Key.playlistId] as int?;
         if (playlistId != null &&
             (type == DimiNotificationType.playlist.name ||
                 type == DimiNotificationType.watch.name)) {
@@ -734,7 +765,9 @@ class NotificationService {
         break;
 
       case _Action.snooze:
-        await _snoozeReminder(id, data);
+        if (await _snoozeReminder(id, data)) {
+          await _showActionConfirmationFromPayload(id, data, snoozed: true);
+        }
         break;
 
       // ── Body tap (null actionId) — navigate to the relevant screen ────────
@@ -839,11 +872,11 @@ class NotificationService {
     await _navigateForBodyTap(type, pending);
   }
 
-  Future<void> _snoozeReminder(
+  Future<bool> _snoozeReminder(
     int notificationId,
     Map<String, dynamic> data,
   ) async {
-    if (_db == null) return;
+    if (_db == null) return false;
     try {
       final reminderId = data[_Key.reminderId] as int?;
       final taskId = data[_Key.taskId] as int?;
@@ -854,7 +887,7 @@ class NotificationService {
           : reminderId != null
           ? await _db!.reminderDao.getById(reminderId)
           : null;
-      if (reminder == null) return;
+      if (reminder == null) return false;
 
       // A daily playlist reminder has one persisted time and a set of
       // separately scheduled occurrences. Snoozing must affect only the
@@ -869,7 +902,7 @@ class NotificationService {
             dueAtOverride: DateTime.now().add(const Duration(minutes: 5)),
           ),
         );
-        return;
+        return true;
       }
 
       final dueAt = DateTime.now().add(const Duration(minutes: 5));
@@ -880,7 +913,7 @@ class NotificationService {
           isEnabled: const Value(true),
         ),
       );
-      if (!changed) return;
+      if (!changed) return false;
       // Drift is the first commit. UI refresh must not depend on scheduling.
       onLocalActionCommitted?.call();
       final updated = await _db!.reminderDao.getById(reminder.id);
@@ -893,12 +926,43 @@ class NotificationService {
           }
         }
         unawaited(scheduleReminder(updated));
+        return true;
       }
+      return false;
     } catch (e, st) {
       if (kDebugMode) {
         debugPrint('[NotificationService] snooze failed: $e\n$st');
       }
+      return false;
     }
+  }
+
+  Future<void> _showActionConfirmationFromPayload(
+    int notificationId,
+    Map<String, dynamic> data, {
+    required bool snoozed,
+  }) async {
+    final type = data[_Key.type] as String?;
+    final itemTitle = data[_Key.title] as String? ?? 'Your reminder';
+    final label = switch (type) {
+      'planner' => 'Event',
+      'todo' => 'Task',
+      'playlist' || 'watch' => 'Playlist reminder',
+      _ => 'Reminder',
+    };
+    final title = snoozed
+        ? '$label snoozed'
+        : type == 'planner'
+        ? 'Event started and marked done'
+        : '$label marked done';
+    final body = snoozed
+        ? '$itemTitle will remind you again in 5 minutes.'
+        : itemTitle;
+    await showFullScreenActionNotification(
+      notificationId: notificationId,
+      title: title,
+      body: body,
+    );
   }
 
   Future<void> _markDone(Map<String, dynamic> data) async {
@@ -916,10 +980,23 @@ class NotificationService {
     final playlistId = data[_Key.playlistId] as int?;
     final reminderId = data[_Key.reminderId] as int?;
     if (playlistId != null) {
-      await _db!.youtubePlaylistDao.markNextUnwatched(playlistId);
+      final completedVideo = await _db!.youtubePlaylistDao.markNextUnwatched(
+        playlistId,
+      );
       final reminder = reminderId == null
           ? null
           : await _db!.reminderDao.getById(reminderId);
+      // Notification launch intents can be delivered again when the Activity
+      // and notification plugin both observe the same tap. Once the playlist
+      // has no next video, treat a replay as a no-op instead of posting the
+      // "Playlist complete" confirmation again.
+      if (completedVideo == null) {
+        if (reminder != null) {
+          await _db!.reminderDao.toggleEnabled(reminder.id, false);
+          unawaited(cancelCurrentNotification(reminder.notificationId));
+        }
+        return;
+      }
       if (reminder != null) {
         final playlistHasWork = await _db!.youtubePlaylistDao
             .hasUncompletedVideos(playlistId);

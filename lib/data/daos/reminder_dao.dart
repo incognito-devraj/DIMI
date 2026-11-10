@@ -137,7 +137,9 @@ class ReminderDao extends DatabaseAccessor<AppDatabase>
   /// stable row ID needed to replace them.
   Future<void> repairNotificationIds() async {
     const maxAndroidNotificationId = 2147483647;
-    final rows = await (select(reminders)..where((r) => r.deletedAt.isNull())).get();
+    final rows = await (select(
+      reminders,
+    )..where((r) => r.deletedAt.isNull())).get();
     final used = <int>{
       for (final row in rows)
         if (row.notificationId > 0 &&
@@ -208,6 +210,7 @@ class ReminderDao extends DatabaseAccessor<AppDatabase>
           RemindersCompanion(
             title: Value(title),
             dueAt: Value(dueAt),
+            isEnabled: const Value(true),
             updatedAt: Value(DateTime.now()),
           ),
         );
