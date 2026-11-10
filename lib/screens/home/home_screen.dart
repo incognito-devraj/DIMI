@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
@@ -13,6 +15,7 @@ import '../../core/motion/dimi_motion.dart';
 import '../../providers/money_providers.dart';
 import '../../providers/profile_providers.dart';
 import '../../providers/reminder_providers.dart';
+import '../../providers/sync_status_provider.dart';
 import '../../providers/task_providers.dart';
 import '../../routing/app_router.dart';
 import '../../services/persistent_image_cache.dart';
@@ -35,6 +38,8 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(profileProvider);
     final plannerEntriesAsync = ref.watch(plannerHeatmapProvider);
+    final syncStatus = ref.watch(syncUiStatusProvider);
+    final isSyncing = syncStatus.isShowingDashboardStatus;
 
     final fullName = profileAsync.valueOrNull?.name ?? 'Student';
     final name = fullName.trim().split(RegExp(r'\s+')).first;
@@ -63,7 +68,18 @@ class HomeScreen extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: homeCardInset),
                 child: DimiFadeSlide(
                   delay: const Duration(milliseconds: 45),
-                  child: const YoutubePlaylistCard(),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    child: isSyncing
+                        ? _HomeSyncStatusCard(
+                            key: ValueKey('home-sync-status'),
+                            phase: syncStatus.phase,
+                            progress: syncStatus.progress,
+                          )
+                        : const YoutubePlaylistCard(
+                            key: ValueKey('home-playlist-card'),
+                          ),
+                  ),
                 ),
               ),
             ),
@@ -75,7 +91,16 @@ class HomeScreen extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: homeCardInset),
                 child: DimiFadeSlide(
                   delay: const Duration(milliseconds: 90),
-                  child: const _HomeContentGrid(),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    child: isSyncing
+                        ? const _HomeSyncCardsSkeleton(
+                            key: ValueKey('home-sync-skeleton'),
+                          )
+                        : const _HomeContentGrid(
+                            key: ValueKey('home-content-grid'),
+                          ),
+                  ),
                 ) /*
                 child: todaysTasksAsync.when(
                   data: (t) => plannerTasksAsync.when(
@@ -144,7 +169,9 @@ class HomeScreen extends ConsumerWidget {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: homeCardInset),
-                child: plannerEntriesAsync.valueOrNull != null
+                child: isSyncing
+                    ? const _SyncSkeletonCard(height: 155)
+                    : plannerEntriesAsync.valueOrNull != null
                     ? _HomeHeatmapCard(tasks: plannerEntriesAsync.valueOrNull!)
                     : plannerEntriesAsync.when(
                         data: (tasks) => _HomeHeatmapCard(tasks: tasks),
@@ -156,6 +183,470 @@ class HomeScreen extends ConsumerWidget {
             const SliverToBoxAdapter(child: SizedBox(height: 28)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _HomeSyncStatusCard extends StatelessWidget {
+  const _HomeSyncStatusCard({
+    super.key,
+    required this.phase,
+    required this.progress,
+  });
+
+  final SyncUiPhase phase;
+  final double progress;
+
+  bool get _isComplete => phase == SyncUiPhase.complete;
+
+  @override
+  Widget build(BuildContext context) {
+    final progressColor = _isComplete ? AppColors.success : AppColors.accent;
+    final percent = (progress * 100).round();
+
+    return Container(
+      height: 170,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBFA),
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: AppColors.divider),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x141C1C1E),
+            blurRadius: 18,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -64,
+            left: -40,
+            child: Container(
+              width: 150,
+              height: 150,
+              decoration: BoxDecoration(
+                color: AppColors.accent.withValues(alpha: 0.09),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 420),
+                  switchInCurve: Curves.easeOutBack,
+                  transitionBuilder: (child, animation) => ScaleTransition(
+                    scale: animation,
+                    child: FadeTransition(opacity: animation, child: child),
+                  ),
+                  child: _isComplete
+                      ? const _SyncSuccessMark(
+                          key: ValueKey('sync-complete-mark'),
+                        )
+                      : const _SyncCloudIndicator(
+                          key: ValueKey('sync-progress-cloud'),
+                        ),
+                ),
+                Column(
+                  children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      child: Text(
+                        _isComplete
+                            ? 'Dashboard is up to date'
+                            : 'Syncing your Dashboard',
+                        key: ValueKey(_isComplete),
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      child: Text(
+                        _isComplete
+                            ? 'All your data is in sync'
+                            : 'Bringing your latest updates together',
+                        key: ValueKey('sync-subtitle-$_isComplete'),
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium
+                            ?.copyWith(color: AppColors.textSecondary),
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(end: progress),
+                        duration: const Duration(milliseconds: 420),
+                        curve: Curves.easeOutCubic,
+                        builder: (context, value, _) => _SyncProgressLine(
+                          progress: value,
+                          color: progressColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: Text(
+                        '$percent%',
+                        key: ValueKey(percent),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: _isComplete
+                                  ? AppColors.success
+                                  : AppColors.textPrimary,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SyncCloudIndicator extends StatefulWidget {
+  const _SyncCloudIndicator({super.key});
+
+  @override
+  State<_SyncCloudIndicator> createState() => _SyncCloudIndicatorState();
+}
+
+class _SyncCloudIndicatorState extends State<_SyncCloudIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _loading;
+
+  @override
+  void initState() {
+    super.initState();
+    _loading = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1050),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _loading.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final indicator = const SizedBox(
+      width: 62,
+      height: 54,
+      child: CustomPaint(painter: _SyncCloudPainter(0)),
+    );
+    if (MediaQuery.disableAnimationsOf(context)) return indicator;
+
+    return AnimatedBuilder(
+      animation: _loading,
+      builder: (context, _) => CustomPaint(
+        size: const Size(62, 54),
+        painter: _SyncCloudPainter(_loading.value),
+      ),
+    );
+  }
+}
+
+class _SyncCloudPainter extends CustomPainter {
+  const _SyncCloudPainter(this.progress);
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scaleX = size.width / 62;
+    final scaleY = size.height / 54;
+    canvas.save();
+    canvas.scale(scaleX, scaleY);
+
+    final cloud = Path()
+      ..moveTo(14, 37)
+      ..cubicTo(7.9, 37, 4, 32.8, 4, 27.2)
+      ..cubicTo(4, 21.7, 8.4, 17.3, 14, 16.9)
+      ..cubicTo(15.5, 9.8, 21.6, 5, 28.8, 5)
+      ..cubicTo(36.3, 5, 42, 10.1, 43, 17.2)
+      ..cubicTo(51.2, 16.5, 57.5, 20.7, 57.5, 27.4)
+      ..cubicTo(57.5, 33, 53, 37, 46.8, 37)
+      ..close();
+    canvas.drawPath(
+      cloud,
+      Paint()
+        ..color = AppColors.accentSoft.withValues(alpha: .52)
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawPath(
+      cloud,
+      Paint()
+        ..color = AppColors.accent
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.2
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    for (var i = 0; i < 3; i++) {
+      final phase = (progress * 3 - i).remainder(3);
+      final distance = phase < 0 ? phase + 3 : phase;
+      final opacity = progress == 0
+          ? .48
+          : (.28 + .72 * (1 - (distance - 1).abs()).clamp(0, 1));
+      canvas.drawCircle(
+        Offset(
+          23 + i * 8.5,
+          46 - (progress == 0 ? 0 : math.sin(distance * math.pi / 3) * 2),
+        ),
+        2.1,
+        Paint()..color = AppColors.accent.withValues(alpha: opacity),
+      );
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _SyncCloudPainter oldDelegate) =>
+      oldDelegate.progress != progress;
+}
+
+class _SyncSuccessMark extends StatelessWidget {
+  const _SyncSuccessMark({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 620),
+      curve: Curves.easeOutCubic,
+      builder: (context, progress, _) => CustomPaint(
+        size: const Size.square(58),
+        painter: _SyncSuccessPainter(progress),
+      ),
+    );
+  }
+}
+
+class _SyncSuccessPainter extends CustomPainter {
+  const _SyncSuccessPainter(this.progress);
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final raysPaint = Paint()
+      ..color = AppColors.success.withValues(alpha: progress)
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round;
+    final rays = [
+      (Offset(.14, .35), Offset(.04, .31)),
+      (Offset(.20, .17), Offset(.14, .09)),
+      (Offset(.50, .10), Offset(.50, .00)),
+      (Offset(.81, .17), Offset(.87, .09)),
+      (Offset(.87, .37), Offset(.98, .34)),
+      (Offset(.83, .74), Offset(.91, .81)),
+      (Offset(.19, .72), Offset(.11, .80)),
+    ];
+    if (progress > .5) {
+      for (final ray in rays) {
+        canvas.drawLine(
+          Offset(ray.$1.dx * size.width, ray.$1.dy * size.height),
+          Offset(ray.$2.dx * size.width, ray.$2.dy * size.height),
+          raysPaint,
+        );
+      }
+    }
+
+    final tick = Path()
+      ..moveTo(size.width * .27, size.height * .52)
+      ..lineTo(size.width * .44, size.height * .68)
+      ..lineTo(size.width * .76, size.height * .32);
+    final metrics = tick.computeMetrics().first;
+    final revealed = metrics.extractPath(
+      0,
+      metrics.length * progress.clamp(0.0, 1.0),
+    );
+    canvas.drawPath(
+      revealed,
+      Paint()
+        ..color = AppColors.success
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4.5
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SyncSuccessPainter oldDelegate) =>
+      oldDelegate.progress != progress;
+}
+
+class _SyncProgressLine extends StatelessWidget {
+  const _SyncProgressLine({required this.progress, required this.color});
+
+  final double progress;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 4,
+      child: LayoutBuilder(
+        builder: (context, constraints) => Stack(
+          children: [
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(color: AppColors.divider),
+              ),
+            ),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 360),
+              curve: Curves.easeOutCubic,
+              width: constraints.maxWidth * progress.clamp(0.0, 1.0),
+              decoration: BoxDecoration(color: color),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeSyncCardsSkeleton extends StatelessWidget {
+  const _HomeSyncCardsSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Syncing your dashboard',
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Expanded(child: _SyncSkeletonCard(height: 180)),
+              const SizedBox(width: 10),
+              Expanded(child: _SyncSkeletonCard(height: 205, dense: true)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _SyncSkeletonCard(height: 196, dense: true)),
+              const SizedBox(width: 10),
+              const Expanded(child: _SyncSkeletonCard(height: 170)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SyncSkeletonCard extends StatelessWidget {
+  const _SyncSkeletonCard({required this.height, this.dense = false});
+
+  final double height;
+  final bool dense;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _SyncSkeletonShape(
+                width: dense ? 26 : 32,
+                height: dense ? 26 : 32,
+                radius: 10,
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: _SyncSkeletonShape(
+                  width: dense ? 62 : 82,
+                  height: 12,
+                  radius: 6,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: dense ? 16 : 20),
+          _SyncSkeletonShape(width: dense ? 72 : 92, height: 10, radius: 5),
+          const SizedBox(height: 9),
+          const _SyncSkeletonShape(
+            width: double.infinity,
+            height: 12,
+            radius: 6,
+          ),
+          const SizedBox(height: 7),
+          _SyncSkeletonShape(width: dense ? 58 : 104, height: 9, radius: 5),
+          const Spacer(),
+          Row(
+            children: [
+              const _SyncSkeletonShape(width: 24, height: 24, radius: 12),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _SyncSkeletonShape(
+                  width: dense ? 46 : 70,
+                  height: 9,
+                  radius: 5,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SyncSkeletonShape extends StatelessWidget {
+  const _SyncSkeletonShape({
+    required this.width,
+    required this.height,
+    required this.radius,
+  });
+
+  final double width;
+  final double height;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(radius),
       ),
     );
   }
@@ -181,7 +672,7 @@ class _HomeHeatmapCard extends StatelessWidget {
 double _homeMajorAmount(int amountMinor) => amountMinor / 100.0;
 
 class _HomeContentGrid extends ConsumerWidget {
-  const _HomeContentGrid();
+  const _HomeContentGrid({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

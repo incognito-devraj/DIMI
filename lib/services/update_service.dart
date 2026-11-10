@@ -2,11 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 
 import '../config/app_config.dart';
 
@@ -63,8 +60,7 @@ class GitHubRelease {
     final releaseNotes = (json['body'] as String? ?? '').trim();
     final htmlUrl = (json['html_url'] as String? ?? '').trim();
 
-    // Only offer in-app installation when the expected production APK is
-    // attached to the release. The download itself uses the stable latest URL.
+    // Only offer the APK download link when the expected release asset exists.
     String? apkAssetUrl;
     final assets = json['assets'];
     if (assets is List) {
@@ -241,98 +237,4 @@ class UpdateService {
     }
     return UpdateResultUpToDate(currentVersion: localVersion);
   }
-
-  // ── Download APK ──────────────────────────────────────────────────────────
-
-  /// Downloads the APK from [apkUrl] to local storage.
-  ///
-  /// [onProgress] receives a value in `[0.0, 1.0]` while the download
-  /// progresses, or `-1.0` if the content length is unknown.
-  ///
-  /// [isCancelled] is polled between chunk writes. If it returns `true`,
-  /// the download is aborted and an [Exception] is thrown.
-  ///
-  /// Prefers [getExternalStorageDirectory] for the save location. The native
-  /// installer exposes the update through the restricted FileProvider paths.
-  /// Falls back to [getApplicationDocumentsDirectory].
-  ///
-  /// Returns the saved [File] on success.
-  Future<File> downloadApk({
-    required String apkUrl,
-    required void Function(double progress) onProgress,
-    bool Function()? isCancelled,
-  }) async {
-    // Determine save directory.
-    Directory? dir;
-    try {
-      dir = await getExternalStorageDirectory();
-    } catch (_) {
-      // ignore — fallback below
-    }
-    dir ??= await getApplicationDocumentsDirectory();
-
-    final updateDir = Directory(path.join(dir.path, 'updates'));
-    await updateDir.create(recursive: true);
-    final dest = File(path.join(updateDir.path, 'dimi_update.apk'));
-
-    final client = http.Client();
-    try {
-      final request = http.Request(
-        'GET',
-        Uri.parse(apkUrl),
-      );
-      final response = await client.send(request);
-      if (response.statusCode != HttpStatus.ok) {
-        throw HttpException(
-          'Update download failed (HTTP ${response.statusCode}).',
-        );
-      }
-
-      final total = response.contentLength ?? -1;
-      var received = 0;
-
-      final sink = dest.openWrite();
-      try {
-        await for (final chunk in response.stream) {
-          if (isCancelled != null && isCancelled()) {
-            throw const UpdateDownloadCancelledException();
-          }
-          sink.add(chunk);
-          received += chunk.length;
-          if (total > 0) {
-            onProgress(received / total);
-          } else {
-            onProgress(-1.0);
-          }
-        }
-      } finally {
-        await sink.flush();
-        await sink.close();
-      }
-    } catch (_) {
-      if (await dest.exists()) {
-        await dest.delete();
-      }
-      rethrow;
-    } finally {
-      client.close();
-    }
-
-    return dest;
-  }
-
-  Future<void> installApk(File apk) async {
-    try {
-      await const MethodChannel('com.dimi.dimi_app/update_installer')
-          .invokeMethod<void>('installApk', {'path': apk.path});
-    } on PlatformException catch (error) {
-      throw Exception(
-        error.message ?? 'Could not open the Android package installer.',
-      );
-    }
-  }
-}
-
-class UpdateDownloadCancelledException implements Exception {
-  const UpdateDownloadCancelledException();
 }

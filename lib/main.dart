@@ -12,6 +12,7 @@ import 'providers/reminder_providers.dart';
 import 'providers/money_providers.dart';
 import 'providers/profile_providers.dart';
 import 'providers/note_providers.dart';
+import 'providers/sync_status_provider.dart';
 import 'features/youtube_playlist/providers.dart';
 import 'routing/app_router.dart';
 import 'services/notification_service.dart';
@@ -52,6 +53,7 @@ Future<void> main() async {
   final restoredUser = SupabaseBootstrap.client?.auth.currentUser;
   if (restoredUser != null) {
     await AuthService.instance.syncLocalProfile(db, user: restoredUser);
+    SyncUiStatus.instance.begin();
   }
 
   // Run the app immediately — no awaits before runApp so Flutter draws its
@@ -64,7 +66,18 @@ Future<void> main() async {
     ),
   );
 
-  unawaited(_finishStartup(db));
+  unawaited(
+    _finishStartup(db, initialSyncStarted: restoredUser != null).catchError((
+      Object error,
+      StackTrace stackTrace,
+    ) {
+      if (restoredUser != null) {
+        SyncUiStatus.instance.complete(successful: false);
+      }
+      debugPrint('[DIMI] startup setup failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }),
+  );
 
   // Let the first frame/splash finish before opening Android settings. The
   // permission flow must never interrupt app launch.
@@ -77,7 +90,10 @@ Future<void> main() async {
   });
 }
 
-Future<void> _finishStartup(AppDatabase db) async {
+Future<void> _finishStartup(
+  AppDatabase db, {
+  required bool initialSyncStarted,
+}) async {
   // Handle notification launches before auth/sync work. DimiReminderActivity
   // uses a separate Flutter engine, and delaying this causes the home route to
   // render first in debug mode.
@@ -101,18 +117,28 @@ Future<void> _finishStartup(AppDatabase db) async {
 
   final restoredUser = SupabaseBootstrap.client?.auth.currentUser;
   if (restoredUser != null) {
-    await AuthService.instance.synchronizeAuthState(db, restoredUser);
+    var syncSucceeded = false;
     try {
-      await SyncService(db).syncNow();
+      await AuthService.instance.synchronizeAuthState(db, restoredUser);
+      await SyncService(
+        db,
+        onProgress: SyncUiStatus.instance.updateProgress,
+      ).syncNow();
+      syncSucceeded = true;
     } catch (error, stackTrace) {
       // A remote/RLS outage must not prevent the local-first UI from opening.
       // SyncService has already logged the detailed remote error; preserve
       // the startup exception and stack trace for device diagnostics.
       debugPrint('[DIMI sync] startup sync failed; continuing locally: $error');
       debugPrintStack(stackTrace: stackTrace);
+    } finally {
+      SyncUiStatus.instance.complete(successful: syncSucceeded);
     }
   } else {
     await db.localAccountDao.ensureOfflineAccount();
+    if (initialSyncStarted) {
+      SyncUiStatus.instance.complete(successful: false);
+    }
   }
 }
 
@@ -131,7 +157,10 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _syncService = SyncService(ref.read(databaseProvider));
+    _syncService = SyncService(
+      ref.read(databaseProvider),
+      onProgress: SyncUiStatus.instance.updateProgress,
+    );
     NotificationService.instance.onLocalActionCommitted =
         _refreshLocalNotificationState;
     NotificationService.instance.onOpenPlaylistUnwatched =
@@ -157,11 +186,28 @@ class _DimiAppState extends ConsumerState<DimiApp> with WidgetsBindingObserver {
           authState.event != AuthChangeEvent.signedOut) {
         return;
       }
-      unawaited(
-        AuthService.instance
-            .synchronizeAuthState(db, authState.session?.user)
-            .then((_) => _syncAndRefresh(forceFullPull: false)),
-      );
+      final showSyncState =
+          authState.event == AuthChangeEvent.signedIn &&
+          authState.session != null;
+      if (showSyncState) SyncUiStatus.instance.begin();
+      var syncSucceeded = false;
+      unawaited(() async {
+        try {
+          await AuthService.instance.synchronizeAuthState(
+            db,
+            authState.session?.user,
+          );
+          await _syncAndRefresh(forceFullPull: false);
+          syncSucceeded = true;
+        } catch (error, stackTrace) {
+          debugPrint('[DIMI sync] auth-change sync failed: $error');
+          debugPrintStack(stackTrace: stackTrace);
+        } finally {
+          if (showSyncState) {
+            SyncUiStatus.instance.complete(successful: syncSucceeded);
+          }
+        }
+      }());
     });
   }
 

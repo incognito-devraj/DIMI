@@ -9,14 +9,7 @@ import '../../widgets/dimi_hero.dart';
 
 // ─── State machine ────────────────────────────────────────────────────────────
 
-enum _UpdateState {
-  idle,
-  checking,
-  upToDate,
-  updateAvailable,
-  downloading,
-  error,
-}
+enum _UpdateState { idle, checking, upToDate, updateAvailable, error }
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -32,8 +25,6 @@ class _UpdateScreenState extends State<UpdateScreen> {
   String _currentVersion = '';
   UpdateResultAvailable? _updateResult;
   String _errorMessage = '';
-  double _downloadProgress = 0.0;
-  bool _cancelDownload = false;
   DateTime? _lastChecked;
 
   @override
@@ -69,48 +60,17 @@ class _UpdateScreenState extends State<UpdateScreen> {
 
   // ── Download ───────────────────────────────────────────────────────────────
 
-  Future<void> _doDownload() async {
-    final release = _updateResult!;
-    if (release.apkAssetUrl == null) {
-      setState(() {
-        _errorMessage = 'No APK asset attached to this release.';
-        _state = _UpdateState.error;
-      });
-      return;
-    }
-
-    setState(() {
-      _state = _UpdateState.downloading;
-      _downloadProgress = 0.0;
-      _cancelDownload = false;
-    });
-
-    try {
-      final file = await UpdateService.instance.downloadApk(
-        apkUrl: release.apkAssetUrl!,
-        onProgress: (p) {
-          if (mounted) setState(() => _downloadProgress = p);
-        },
-        isCancelled: () => _cancelDownload,
+  Future<void> _openApkDownload() async {
+    final url = _updateResult?.apkAssetUrl;
+    if (url == null) return;
+    final opened = await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the APK download page.')),
       );
-      if (!mounted) return;
-
-      // Trigger the Android package installer through the native FileProvider.
-      await UpdateService.instance.installApk(file);
-      // Return to updateAvailable so user can retry if installer is dismissed.
-      if (mounted) {
-        setState(() => _state = _UpdateState.updateAvailable);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      if (_cancelDownload || e is UpdateDownloadCancelledException) {
-        setState(() => _state = _UpdateState.updateAvailable);
-      } else {
-        setState(() {
-          _errorMessage = 'Download failed: ${e.toString()}';
-          _state = _UpdateState.error;
-        });
-      }
     }
   }
 
@@ -206,8 +166,6 @@ class _UpdateScreenState extends State<UpdateScreen> {
         return _upToDateArea();
       case _UpdateState.updateAvailable:
         return _updateAvailableArea();
-      case _UpdateState.downloading:
-        return _downloadingArea();
       case _UpdateState.error:
         return _errorArea();
     }
@@ -346,7 +304,7 @@ class _UpdateScreenState extends State<UpdateScreen> {
                       ),
                     ),
                     Text(
-                      'v${release.latestVersion} is ready to install',
+                      'v${release.latestVersion} is ready to download',
                       style: const TextStyle(
                         fontFamily: 'Inter',
                         fontSize: 13,
@@ -408,8 +366,8 @@ class _UpdateScreenState extends State<UpdateScreen> {
               width: double.infinity,
               child: ElevatedButton(
                 style: _darkButtonStyle,
-                onPressed: _doDownload,
-                child: const Text('Download & Install'),
+                onPressed: _openApkDownload,
+                child: const Text('Download APK'),
               ),
             )
           else
@@ -457,54 +415,6 @@ class _UpdateScreenState extends State<UpdateScreen> {
                   fontFamily: 'Inter',
                   color: AppColors.textSecondary,
                 ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _downloadingArea() {
-    final knownProgress = _downloadProgress >= 0;
-    return _card(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'Downloading update…',
-            style: TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          LinearProgressIndicator(
-            value: knownProgress ? _downloadProgress : null,
-            backgroundColor: AppColors.divider,
-            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accent),
-          ),
-          const SizedBox(height: 8),
-          if (knownProgress)
-            Text(
-              '${(_downloadProgress * 100).toStringAsFixed(0)}%',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 13,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          const SizedBox(height: 16),
-          TextButton(
-            onPressed: () => setState(() => _cancelDownload = true),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                color: AppColors.textSecondary,
               ),
             ),
           ),

@@ -8,8 +8,6 @@ abstract final class AppConfig {
   static const String githubRepo = 'DIMI';
   static const String githubReleasesApiUrl =
       'https://api.github.com/repos/incognito-devraj/DIMI/releases/latest';
-  static const String githubLatestApkUrl =
-      'https://github.com/incognito-devraj/DIMI/releases/latest/download/DIMI.apk';
   static const String githubRepoUrl =
       'https://github.com/incognito-devraj/DIMI';
   static const String githubIssuesUrl =

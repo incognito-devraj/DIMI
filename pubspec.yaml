@@ -4,7 +4,7 @@ homepage: https://github.com/incognito-devraj/DIMI
 repository: https://github.com/incognito-devraj/DIMI
 publish_to: 'none'
 
-version: 1.0.2+3
+version: 1.0.4+4
 
 environment:
   sdk: ^3.13.2
@@ -45,9 +45,6 @@ dependencies:
   url_launcher: ^6.3.2
   http: ^1.2.2
   package_info_plus: ^8.3.0
-
-  # Icons
-  lucide_flutter: ^1.0.0
 
   # Authentication
   supabase_flutter: ^2.17.2

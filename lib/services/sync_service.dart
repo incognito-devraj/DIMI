@@ -20,11 +20,13 @@ class SyncService {
     this._remote,
     this._preferences,
     this._testContext,
+    this.onProgress,
   });
 
   final AppDatabase db;
   final SyncRemoteApi? _remote;
   final SharedPreferences? _preferences;
+  final void Function(double progress)? onProgress;
   // Injected by tests to bypass the Supabase auth guard.
   final ({int localAccountId, String authUserId, int generation})? _testContext;
   Future<void>? _running;
@@ -57,8 +59,16 @@ class SyncService {
     final prefs = _preferences ?? await SharedPreferences.getInstance();
     _log('start account=${context.localAccountId} user=${context.authUserId}');
     try {
+      onProgress?.call(0.12);
       await _push(client, context);
-      await _pull(client, prefs, context, forceFullPull: forceFullPull);
+      onProgress?.call(0.32);
+      await _pull(
+        client,
+        prefs,
+        context,
+        forceFullPull: forceFullPull,
+        onProgress: onProgress,
+      );
       await db.syncOutboxDao.removeCompleted(
         localAccountId: context.localAccountId,
       );
@@ -262,12 +272,12 @@ class SyncService {
   Future<void> _pull(
     SyncRemoteApi remote,
     SharedPreferences prefs,
-    ({int localAccountId, String authUserId, int generation}) context,
-    {
-      required bool forceFullPull,
-    }
-  ) async {
-    for (final spec in _pullOrder) {
+    ({int localAccountId, String authUserId, int generation}) context, {
+    required bool forceFullPull,
+    void Function(double progress)? onProgress,
+  }) async {
+    for (var index = 0; index < _pullOrder.length; index++) {
+      final spec = _pullOrder[index];
       _ensureContext(context);
       final key =
           'dimi_sync_cursor_${context.localAccountId}_${spec.remoteTable}';
@@ -373,6 +383,7 @@ class SyncService {
       if (newest != null) {
         await prefs.setString(key, newest.toUtc().toIso8601String());
       }
+      onProgress?.call(0.32 + 0.66 * (index + 1) / _pullOrder.length);
     }
   }
 
@@ -381,14 +392,16 @@ class SyncService {
     int accountId,
     String serverId,
   ) async {
-    final rows = await db.customSelect(
-      'SELECT updated_at FROM ${spec.localTable} '
-      'WHERE server_id = ? AND local_account_id = ? LIMIT 1',
-      variables: [
-        Variable.withString(serverId),
-        Variable.withInt(accountId),
-      ],
-    ).get();
+    final rows = await db
+        .customSelect(
+          'SELECT updated_at FROM ${spec.localTable} '
+          'WHERE server_id = ? AND local_account_id = ? LIMIT 1',
+          variables: [
+            Variable.withString(serverId),
+            Variable.withInt(accountId),
+          ],
+        )
+        .get();
     if (rows.isEmpty) return null;
     return _date(rows.first.read<Object?>('updated_at'));
   }
@@ -965,13 +978,14 @@ final _specs = <String, _SyncSpec>{
       dateOnly: true,
       preserveOnRemoteApply: true,
     ),
+    _Field('due_time_hhmm', 'due_time_hhmm', preserveOnRemoteApply: true),
+    _Field('is_completed', 'is_completed', preserveOnRemoteApply: true),
     _Field(
-      'due_time_hhmm',
-      'due_time_hhmm',
+      'completed_at',
+      'completed_at',
+      date: true,
       preserveOnRemoteApply: true,
     ),
-    _Field('is_completed', 'is_completed', preserveOnRemoteApply: true),
-    _Field('completed_at', 'completed_at', date: true, preserveOnRemoteApply: true),
     _Field('created_at', 'created_at', date: true),
     _Field('updated_at', 'updated_at', date: true),
     _Field('deleted_at', 'deleted_at', date: true),
