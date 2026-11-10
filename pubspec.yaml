@@ -4,7 +4,7 @@ homepage: https://github.com/incognito-devraj/DIMI
 repository: https://github.com/incognito-devraj/DIMI
 publish_to: 'none'
 
-version: 1.0.4+4
+version: 1.0.3+5
 
 environment:
   sdk: ^3.13.2
